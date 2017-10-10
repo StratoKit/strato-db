@@ -265,6 +265,8 @@ test('preprocessors', async t => {
 		async eSDB => {
 			await t.throws(eSDB.dispatch('pre type'))
 			await t.throws(eSDB.dispatch('pre version'))
+			const badEvent = await eSDB.dispatch('bad event').catch(err => err)
+			t.is(badEvent.error.meep, 'Yeah, no.')
 			await eSDB.dispatch('create_thing', {foo: 2})
 			t.deepEqual(await eSDB.store.meep.searchOne(), {
 				id: '5',
@@ -288,6 +290,9 @@ test('preprocessors', async t => {
 					if (event.type === 'pre version') {
 						event.v = 123
 						return event
+					}
+					if (event.type === 'bad event') {
+						return {error: 'Yeah, no.'}
 					}
 				},
 				reducer: (model, event) => {

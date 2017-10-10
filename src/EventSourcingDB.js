@@ -125,6 +125,14 @@ class ESDB {
 				store,
 			})
 			if (newEvent) {
+				if (newEvent.error) {
+					return {
+						...event,
+						v,
+						type,
+						error: {[name]: newEvent.error},
+					}
+				}
 				if (newEvent.v !== v) {
 					// Just in case event was mutated
 					// Be sure to put the version back or we put the wrong v in history
