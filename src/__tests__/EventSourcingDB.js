@@ -18,6 +18,7 @@ const testModels = {
 			if (!model) {
 				return {}
 			}
+			if (type === 'errorme') throw new Error('error for you')
 			const c = (await model.get('count')) || {
 				id: 'count',
 				total: 0,
@@ -306,5 +307,32 @@ test('preprocessors', async t => {
 	)
 })
 
-test.todo('event emitter')
-test.todo('erroring events')
+test('event emitter', async t => {
+	return withESDB(async eSDB => {
+		let handled = 0,
+			errored = 0,
+			resulted = 0
+		eSDB.on('result', event => {
+			resulted++
+			t.falsy(event.error)
+			t.truthy(event.result)
+		})
+		eSDB.on('error', event => {
+			errored++
+			t.truthy(event.error)
+			t.truthy(event.result)
+		})
+		eSDB.on('handled', event => {
+			handled++
+			t.truthy(event)
+			// Get called in order
+			t.is(event.v, handled)
+		})
+		eSDB.dispatch('foo')
+		eSDB.dispatch('bar')
+		await t.throws(eSDB.dispatch('errorme'))
+		t.is(handled, 3)
+		t.is(errored, 1)
+		t.is(resulted, 2)
+	})
+})

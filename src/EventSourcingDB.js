@@ -38,10 +38,11 @@ const metadata = {
 	},
 }
 
-class ESDB {
+class ESDB extends EventEmitter {
 	store = {}
 
 	constructor({db, queue, models}) {
+		super()
 		if (!db || !models) {
 			throw new Error('db and models are required')
 		}
@@ -58,7 +59,6 @@ class ESDB {
 			queue.searchOne()
 		}
 		this.history = sameDb ? this.queue : new EventQueue({db})
-		this.events = new EventEmitter()
 		this._waitingFor = {}
 
 		this.models = {
@@ -337,13 +337,13 @@ class ESDB {
 		})
 		await this._applyingP
 		this._applyingP = null
-		// if (event.error) {
-		// 	// this throws if there is no listener :-/
-		// 	this.events.emit('error', event)
-		// } else {
-		// 	this.events.emit('result', event)
-		// }
-		// this.events.emit('handled', event)
+		if (event.error) {
+			// this throws if there is no listener
+			if (this.listenerCount('error')) this.emit('error', event)
+		} else {
+			this.emit('result', event)
+		}
+		this.emit('handled', event)
 		const o = this._waitingFor[event.v]
 		if (o) {
 			delete this._waitingFor[event.v]
