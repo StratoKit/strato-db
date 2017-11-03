@@ -232,6 +232,7 @@ class DB {
 		// also test multi-process
 		// TODO handle busy transaction by retrying after random timeout
 		//  also, in-process we can use a promise
+		// TODO maybe just run this in a new connection
 		// TODO handle transaction-in-transaction the same way but console error
 		this._db.run(`BEGIN IMMEDIATE`)
 		try {

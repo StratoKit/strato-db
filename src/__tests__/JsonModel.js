@@ -164,6 +164,14 @@ test(
 	})
 )
 
+test('get w/ other colName', async t => {
+	const m = getModel({
+		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},
+	})
+	await m.set({id: 0, slug: 10})
+	t.deepEqual(await m.get(10, 'slug'), {id: 0, slug: 10})
+})
+
 test('getAll', async t => {
 	const m = getModel({
 		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},

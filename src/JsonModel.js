@@ -675,16 +675,17 @@ class JsonModel {
 			.then(this.toObj)
 	}
 
-	get(id) {
+	get(id, colName = this.idCol) {
 		if (id == null) {
 			return Promise.reject(
-				new Error(`No "${this.idCol}" given for "${this.name}"`)
+				new Error(`No "${colName}" given for "${this.name}"`)
 			)
 		}
+		const where = this.columns[colName].sql
 		return this.db
 			.get(
 				`
-			SELECT ${this.selectColsSql} FROM ${this.quoted} WHERE ${this.idColQ} = ?
+			SELECT ${this.selectColsSql} FROM ${this.quoted} WHERE ${where} = ?
 		`,
 				[id]
 			)
