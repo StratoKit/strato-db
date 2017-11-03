@@ -1,4 +1,10 @@
 /* eslint-disable no-console */
+// TODO accept column def and create/add if needed, see
+// pragma table_info("_migrations");
+// cid|name|type|notnull|dflt_value|pk
+// 0|runKey|STRING|0||0
+// 1|ts|DATETIME|0||0
+// 2|up|BOOLEAN|0||0
 // TODO prepared statements; calling them ensures serial access because of binding
 //   => prepare, allow .get/all/etc; while those are active calls are queued up
 // https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
@@ -221,6 +227,12 @@ class DB {
 	}
 	async _withTransaction(fn) {
 		// no await, we need to run this in the same tick as the next queries
+		// so that sqlite runs them all serially and no others come between
+		// TODO maybe put db back into hold mode and pass _db to fn?
+		// also test multi-process
+		// TODO handle busy transaction by retrying after random timeout
+		//  also, in-process we can use a promise
+		// TODO handle transaction-in-transaction the same way but console error
 		this._db.run(`BEGIN IMMEDIATE`)
 		try {
 			const result = await fn()

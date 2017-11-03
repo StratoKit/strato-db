@@ -13,6 +13,7 @@
 // TODO promises for each deriver so they can depend on each other
 // TODO decide if we keep .store or instead use .db.models
 // TODO test for multi-process - especially store listeners should get (all missed?) events
+// TODO think about transient event errors vs event errors - if transient, event should be retried, no?
 
 import JsonModel from './JsonModel'
 import {createStore, combineReducers} from './async-redux'
@@ -358,9 +359,6 @@ class ESDB {
 		const {db, store, modelNames, history} = this
 		// All the below must be started synchronously so
 		// no other requests on this db connection come between
-		// NOTE: due to sqlite and js serializing, the BEGIN transaction
-		// will run first even though it's a bunch of promises
-		// if not using sqlite, be careful
 		return db
 			.withTransaction(() => {
 				const promises = []
@@ -392,6 +390,8 @@ class ESDB {
 			.catch(err => {
 				if (!_quietImTesting) {
 					// argh, now what? Probably retry applying, or crash the app…
+					// This can happen when DB has issue, or when .set refuses an object
+					// TODO consider latter case, maybe just consider transaction errored and store as error?
 					console.error(
 						`
 						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
