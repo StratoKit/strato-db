@@ -364,16 +364,7 @@ class ESDB extends EventEmitter {
 				const promises = []
 				for (const name of modelNames) {
 					const r = event.result[name]
-					if (r) {
-						if (r.delete && r.delete.map) {
-							promises.push(
-								Promise.all(r.delete.map(item => store[name].delete(item)))
-							)
-						}
-						if (r.set && r.set.map) {
-							promises.push(Promise.all(r.set.map(obj => store[name].set(obj))))
-						}
-					}
+					if (r) promises.push(store[name].applyChanges(r))
 				}
 				promises.push(history.set(event))
 				return Promise.all(promises).then(() =>

@@ -716,6 +716,14 @@ class JsonModel {
 		}
 		return cache[key].load(id)
 	}
+
+	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
+	applyChanges(result) {
+		return Promise.all([
+			...(result.delete || []).map(item => this.delete(item)),
+			...(result.set || []).map(obj => this.set(obj)),
+		])
+	}
 }
 
 export default JsonModel
