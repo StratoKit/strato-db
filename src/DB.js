@@ -99,7 +99,12 @@ class DB {
 					if (Array.isArray(args[0])) {
 						args = sql(...args)
 					}
-					dbgQ(this.name, method, ...args)
+					if (dbgQ.enabled)
+						dbgQ(
+							this.name,
+							method,
+							...args.map(a => String(a).replace(/\s+/g, ' '))
+						)
 					return realDb[method](...args)
 				}
 			}
@@ -148,7 +153,7 @@ class DB {
 		return this
 	}
 	_hold(method, args) {
-		dbgQ('_hold', this.name, method, args)
+		if (dbgQ.enabled) dbgQ('_hold', this.name, method)
 		return this.openDB().then(db => db[method](...args))
 	}
 	all(...args) {
