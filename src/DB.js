@@ -5,6 +5,16 @@
 // 0|runKey|STRING|0||0
 // 1|ts|DATETIME|0||0
 // 2|up|BOOLEAN|0||0
+// TODO manage indexes, look at PRAGMA index_list
+// TODO pragma recursive_triggers
+// TODO in development, invert PRAGMA reverse_unordered_selects every so often
+// TODO run PRAGMA quick_check at startup
+// TODO pragma journal_size_limit setting, default to 2MB
+// TODO PRAGMA schema.synchronous = extra
+// TODO run pragma optimize every few hours
+// TODO figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection
+// TODO report: .dump should include user_version
+// TODO put all metadata in stratodb_meta table, including queue version etc
 // TODO prepared statements; calling them ensures serial access because of binding
 //   => prepare, allow .get/all/etc; while those are active calls are queued up
 // https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback

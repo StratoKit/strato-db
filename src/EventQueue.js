@@ -1,10 +1,11 @@
+// TODO use PRAGMA data_version to detect changes from other processes
+
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
 const dbg = debug('queue')
 
 class EventQueue extends JsonModel {
-	// TODO middleware
 	constructor({db, name = 'history', knownV, ...rest}) {
 		super({
 			...rest,

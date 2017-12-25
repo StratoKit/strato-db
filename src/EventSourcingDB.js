@@ -13,7 +13,9 @@
 // TODO promises for each deriver so they can depend on each other
 // TODO decide if we keep .store or instead use .db.models
 // TODO test for multi-process - especially store listeners should get (all missed?) events
+// IDEA eventually allow multiple ESDBs by storing version per queue name
 // TODO think about transient event errors vs event errors - if transient, event should be retried, no?
+// TODO jsonmodel that includes auto-caching between events, use pragma data_version to know when data changed
 
 import JsonModel from './JsonModel'
 import {createStore, combineReducers} from './async-redux'

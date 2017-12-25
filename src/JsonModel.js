@@ -394,7 +394,7 @@ class JsonModel {
 	// limit: max number of rows to return
 	// offset: number of rows to skip
 	// cols: override the columns to select
-	// TODO maybe make `where` like mongo query operators
+	// IDEA maybe make `where` like mongo query operators
 	// eslint-disable-next-line complexity
 	makeSelect(options) {
 		if (process.env.NODE_ENV !== 'production') {
