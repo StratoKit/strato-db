@@ -40,6 +40,7 @@ const knownColProps = {
 	ignoreNull: true,
 	index: true,
 	isArray: true,
+	isAnyOfArray: true,
 	jsonPath: true,
 	slugValue: true,
 	sql: true,
@@ -185,7 +186,16 @@ class JsonModel {
 					throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
 				}
 				if (col.isArray) {
-					col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${col.jsonPath}") j WHERE j.value = ?)`
+					col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+						col.jsonPath
+					}") j WHERE j.value = ?)`
+				}
+				if (col.isAnyOfArray) {
+					col.where = arg =>
+						`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+							col.jsonPath
+						}") j WHERE j.value IN (${arg.map(() => '?').join(',')}))`
+					col.whereVal = matchThese => matchThese
 				}
 				col.sql = `json_extract(json, '$.${col.jsonPath}')`
 			} else if (col.sql) {
@@ -204,7 +214,7 @@ class JsonModel {
 			}
 			if (col.textSearch) {
 				col.where = `${col.sql} LIKE ?`
-				col.whereVal = v => `%${v}%`
+				col.whereVal = v => [`%${v}%`]
 			}
 			col.select = `${col.sql} AS ${col.alias}`
 
@@ -222,10 +232,9 @@ class JsonModel {
 				// We make id a real column to allow foreign keys
 				up: ({db}) => {
 					const {quoted, type, autoIncrement} = this.columns[idCol]
-					const keySql = `${type} PRIMARY KEY ${type === 'INTEGER' &&
-					autoIncrement
-						? 'AUTOINCREMENT'
-						: ''}`
+					const keySql = `${type} PRIMARY KEY ${
+						type === 'INTEGER' && autoIncrement ? 'AUTOINCREMENT' : ''
+					}`
 					return db.exec(`
 						CREATE TABLE ${this.quoted}(${quoted} ${keySql}, json JSON);
 					`)
@@ -245,18 +254,23 @@ class JsonModel {
 			allMigrations[`0_${col.name}`] = {
 				up: ({db}) =>
 					db.exec(`
-					${col.value
-						? `ALTER TABLE ${this.quoted} ADD COLUMN ${col.quoted} ${col.type ||
-								'BLOB'};`
-						: ''}
-					${col.index
-						? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
-								`${name}_${col.name}`
-							)}
+					${
+						col.value
+							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
+									col.quoted
+								} ${col.type || 'BLOB'};`
+							: ''
+					}
+					${
+						col.index
+							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
+									`${name}_${col.name}`
+								)}
 						ON ${this.quoted}(${col.sql})
 						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
 					`
-						: ''}
+							: ''
+					}
 				`),
 			}
 		}
@@ -394,7 +408,6 @@ class JsonModel {
 	// limit: max number of rows to return
 	// offset: number of rows to skip
 	// cols: override the columns to select
-	// IDEA maybe make `where` like mongo query operators
 	// eslint-disable-next-line complexity
 	makeSelect(options) {
 		if (process.env.NODE_ENV !== 'production') {
@@ -511,7 +524,7 @@ class JsonModel {
 		}
 		if (attrs) {
 			for (const a of Object.keys(attrs)) {
-				const val = attrs[a]
+				let val = attrs[a]
 				if (val != null) {
 					const col = this.columns[a]
 					if (!col) {
@@ -519,8 +532,20 @@ class JsonModel {
 					}
 					if (col.where) {
 						const {where, whereVal} = col
-						conds.push(where)
-						vals.push(whereVal ? whereVal(val) : val)
+						let valid = true
+						if (whereVal) {
+							val = whereVal(val)
+							if (Array.isArray(vals)) {
+								vals.push(...val)
+							} else {
+								valid = false
+							}
+						} else {
+							vals.push(val)
+						}
+						if (valid) {
+							conds.push(typeof where === 'function' ? where(vals) : where)
+						}
 					} else {
 						conds.push(`${col.sql}=?`)
 						vals.push(val)
@@ -567,6 +592,7 @@ class JsonModel {
 		})
 		return this.db.get(q, vals).then(this.toObj)
 	}
+
 	// Alias - deprecated because of deprecated .find()
 	findOne(attrs, options) {
 		return this.searchOne(attrs, options)
@@ -599,6 +625,7 @@ class JsonModel {
 			return {items, cursor}
 		})
 	}
+
 	// Alias - deprecated because it's easy to confuse with array.find()
 	find(attrs, options) {
 		return this.search(attrs, options)
@@ -616,6 +643,7 @@ class JsonModel {
 		})
 		return this.db.get(q, vals).then(row => !!row)
 	}
+
 	count(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -628,6 +656,7 @@ class JsonModel {
 		})
 		return this.db.get(q, vals).then(row => row.c)
 	}
+
 	max(colName, attrs, options) {
 		const sql = this._colSql(colName)
 		const [q, vals] = this.makeSelect({
@@ -641,6 +670,7 @@ class JsonModel {
 		})
 		return this.db.get(q, vals).then(row => row.max)
 	}
+
 	min(colName, attrs, options) {
 		const sql = this._colSql(colName)
 		const [q, vals] = this.makeSelect({

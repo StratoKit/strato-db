@@ -58,3 +58,21 @@ test('makeSelect sort w/ jsonPath', t => {
 		`SELECT "id" AS _1,"json" AS _2,json_extract(json, '$.foo') AS _0 FROM "testing" tbl ORDER BY json_extract(json, '$.foo') DESC,"id" LIMIT 1`
 	)
 })
+
+test('makeSelect isArray', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', isArray: true}}})
+	const [q] = m.makeSelect({attrs: {foo: 'meep'}})
+	t.deepEqual(
+		q,
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?))`
+	)
+})
+
+test('makeSelect isAnyOfArray', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', isAnyOfArray: true}}})
+	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	t.deepEqual(
+		q,
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
+	)
+})
