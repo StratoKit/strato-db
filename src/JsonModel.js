@@ -16,6 +16,19 @@ import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
 
 const dbg = debug('stratokit/JSON')
+const DEV = process.env.NODE_ENV === 'development'
+let deprecated, unknown
+if (DEV) {
+	const warned = {}
+	const warner = type => (tag, msg) => {
+		if (warned[tag]) return
+		warned[tag] = true
+		// eslint-disable-next-line no-console
+		console.error(`!!! ${type} ${msg}`)
+	}
+	deprecate = warner('DEPRECATED')
+	unknown = warner('UNKNOWN')
+}
 
 const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
@@ -595,6 +608,8 @@ class JsonModel {
 
 	// Alias - deprecated because of deprecated .find()
 	findOne(attrs, options) {
+		if (DEV)
+			deprecated('findOneMethod', 'use .searchOne() instead of .findOne()')
 		return this.searchOne(attrs, options)
 	}
 
@@ -628,6 +643,7 @@ class JsonModel {
 
 	// Alias - deprecated because it's easy to confuse with array.find()
 	find(attrs, options) {
+		if (DEV) deprecated('findMethod', 'use .search() instead of .find()')
 		return this.search(attrs, options)
 	}
 
@@ -756,29 +772,30 @@ class JsonModel {
 		return this.set({...prev, ...obj})
 	}
 
-	delete(idOrObj) {
+	remove(idOrObj) {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		return this.db.run(
 			`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
 			id
 		)
 	}
+	delete(idOrObj) {
+		if (DEV) deprecated('deleteMethod', 'use .remove() instead of .delete()')
+		return this.remove(idOrObj)
+	}
 
 	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
 	async applyChanges(result) {
-		const {delete: deletes, insert, set, update, updateOnly: upOnly} = result
-		if (process.env.NODE_ENV === 'development') {
-			const {delete: d, insert, set, update, updateOnly, ...rest} = result
-			const restKeys = Object.keys(rest)
-			if (restKeys.length)
-				// eslint-disable-next-line no-console
-				console.error(`Unknown apply keys in result: ${restKeys.join(',')}`)
+		const {rm, set, ins, upd, sav} = result
+		if (DEV) {
+			const {rm, set, ins, upd, sav, ...rest} = result
+			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
 		}
-		if (deletes) await Promise.all(deletes.map(item => this.delete(item)))
-		if (insert) await Promise.all(insert.map(obj => this.set(obj, true)))
+		if (rm) await Promise.all(rm.map(item => this.delete(item)))
+		if (ins) await Promise.all(ins.map(obj => this.set(obj, true)))
 		if (set) await Promise.all(set.map(obj => this.set(obj)))
-		if (update) await Promise.all(update.map(obj => this.update(obj)))
-		if (upOnly) await Promise.all(upOnly.map(obj => this.update(obj, true)))
+		if (upd) await Promise.all(upd.map(obj => this.update(obj)))
+		if (sav) await Promise.all(sav.map(obj => this.update(obj, true)))
 	}
 }
 

@@ -86,7 +86,7 @@ test('set without id, INTEGER type', async t => {
 test('INTEGER autoIncrement id', async t => {
 	const m = getModel({columns: {id: {type: 'INTEGER', autoIncrement: true}}})
 	await m.set({id: 50})
-	await m.delete({id: 50})
+	await m.remove({id: 50})
 	await m.set({})
 	const all = await m.all()
 	t.deepEqual([{id: 51}], all)
@@ -200,17 +200,17 @@ test('all', async t => {
 
 test('delete undefined', async t => {
 	const m = getModel()
-	const p = m.delete()
+	const p = m.remove()
 	await t.notThrows(p)
 })
 
 test('delete', async t => {
 	const m = getModel({columns: {id: {type: 'INTEGER'}}})
 	await m.set({id: 123})
-	await t.notThrows(() => m.delete(123))
+	await t.notThrows(() => m.remove(123))
 	t.falsy(await m.get(123))
 	await m.set({id: 234})
-	await t.notThrows(() => m.delete({id: 234}))
+	await t.notThrows(() => m.remove({id: 234}))
 	t.falsy(await m.get(234))
 })
 
@@ -232,7 +232,7 @@ test('idCol', async t => {
 	const n2 = await m.search({foo: 342})
 	t.is(n2.items.length, 1)
 	t.truthy(await m.get(n.v))
-	await m.delete(n.v)
+	await m.remove(n.v)
 	t.falsy(await m.get(n.v))
 	t.deepEqual(m.makeSelect({limit: 2}), [
 		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY "v" LIMIT 2`,
