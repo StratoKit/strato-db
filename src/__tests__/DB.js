@@ -1,5 +1,6 @@
 /* eslint-disable import/no-named-as-default-member */
 import test from 'ava'
+import BP from 'bluebird'
 import DB, {sql} from '../DB'
 
 test(`sql.quoteId`, t => {
@@ -171,3 +172,28 @@ test('close()', async t => {
 })
 
 test.todo('downwards migration')
+
+test('withTransaction', async t => {
+	const db = new DB()
+	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+	db.withTransaction(async () => {
+		await BP.delay(100)
+		await db.exec`INSERT INTO foo VALUES (43, 1);`
+	})
+	await db.withTransaction(() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`)
+	t.deepEqual(await db.all`SELECT * from foo`, [{hi: 43, ho: 2}])
+})
+
+test('withTransaction rollback', async t => {
+	const db = new DB()
+	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+	await t.throws(
+		db.withTransaction(async () => {
+			await db.exec`INSERT INTO foo VALUES (43, 1);`
+			throw new Error('ignore this testing error')
+		})
+	)
+	t.deepEqual(await db.all`SELECT * from foo`, [])
+})
+
+test.todo('withTransaction busy wait')

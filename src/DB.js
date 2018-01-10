@@ -240,25 +240,45 @@ class DB {
 		`
 		)
 	}
-	async _withTransaction(fn) {
-		// no await, we need to run this in the same tick as the next queries
-		// so that sqlite runs them all serially and no others come between
-		// TODO maybe put db back into hold mode and pass _db to fn?
-		// also test multi-process
-		// TODO handle busy transaction by retrying after random timeout
-		//  also, in-process we can use a promise
-		// TODO maybe just run this in a new connection
-		// TODO handle transaction-in-transaction the same way but console error
-		this._db.run(`BEGIN IMMEDIATE`)
+	async __withTransaction(fn, count = 200) {
+		// TODO keep a separate connection for transactions
+		// TODO test multi-process
+		// TODO run this synchronously
+
 		try {
-			const result = await fn()
-			await this._db.run(`END`)
-			return result
+			await this._db.run(`BEGIN IMMEDIATE`)
 		} catch (err) {
+			if (err.errno === 1 && err.code === 'SQLITE_ERROR') {
+				// Transaction already running
+				if (count)
+					return BP.delay(Math.random() * 1000 + 200).then(() =>
+						this.__withTransaction(fn, count - 1)
+					)
+				throw err
+			}
+		}
+		let result
+		try {
+			result = await fn()
+		} catch (err) {
+			console.error('transaction failure, rolling back', err)
 			await this._db.run(`ROLLBACK`)
 			throw err
 		}
+		await this._db.run(`END`)
+		return result
 	}
+
+	transactionP = BP.resolve()
+
+	_withTransaction(fn) {
+		// Prevent overlapping transactions in this process
+		const nextTransaction = () => this.__withTransaction(fn)
+
+		this.transactionP = this.transactionP.then(nextTransaction, nextTransaction)
+		return this.transactionP
+	}
+
 	async runMigrations() {
 		const migrations = sortBy(this.migrations, ({runKey}) => runKey)
 		const didRun = await this._getRanMigrations()
