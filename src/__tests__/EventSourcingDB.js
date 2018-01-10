@@ -36,7 +36,10 @@ const testModels = {
 		reducer: (model = null) => model,
 	},
 	deriver: {
-		deriver: async ({model, store, event}) => {
+		deriver: async ({model, store, result, event}) => {
+			if (result !== event.result) {
+				throw new Error('Expecting event.result as separate input')
+			}
 			if (event.result.count) {
 				const currentCount = await store.count.get('count')
 				await model.set({

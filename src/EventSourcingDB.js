@@ -383,7 +383,12 @@ class ESDB extends EventEmitter {
 						this.deriverNames.map(name => {
 							const {store} = this
 							const model = store[name]
-							return this.models[name].deriver({model, store, event})
+							return this.models[name].deriver({
+								model,
+								store,
+								event,
+								result: event.result,
+							})
 						})
 					)
 				)
