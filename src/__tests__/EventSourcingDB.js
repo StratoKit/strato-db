@@ -36,8 +36,8 @@ const testModels = {
 		reducer: (model = null) => model,
 	},
 	deriver: {
-		deriver: async ({model, store, result}) => {
-			if (result.count) {
+		deriver: async ({model, store, event}) => {
+			if (event.result.count) {
 				const currentCount = await store.count.get('count')
 				await model.set({
 					id: 'descCount',

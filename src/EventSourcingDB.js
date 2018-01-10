@@ -211,6 +211,7 @@ class ESDB extends EventEmitter {
 	}
 
 	getVersionP = null
+
 	getVersion() {
 		if (!this.getVersionP) {
 			this.getVersionP = this.store.metadata.get('version').then(vObj => {
@@ -293,10 +294,13 @@ class ESDB extends EventEmitter {
 		}
 		/* eslint-enable no-await-in-loop */
 	}
+
 	checkForEvents() {
 		this.startPolling(true)
 	}
+
 	_waitingP = null
+
 	startPolling(once) {
 		if (!once && !this._isPolling) {
 			this._isPolling = true
@@ -321,6 +325,7 @@ class ESDB extends EventEmitter {
 		}
 		return this._waitingP
 	}
+
 	stopPolling() {
 		this._isPolling = false
 		// here we should cancel the getNext
@@ -329,6 +334,7 @@ class ESDB extends EventEmitter {
 	}
 
 	_applyingP = null
+
 	handleResult = async event => {
 		if (!event) event = this.redux.getState()
 		if (!event.v) {
@@ -361,6 +367,9 @@ class ESDB extends EventEmitter {
 		const {db, store, modelNames, history} = this
 		// All the below must be started synchronously so
 		// no other requests on this db connection come between
+		// NOTE: due to sqlite and js serializing, the BEGIN transaction
+		// will run first even though it's a bunch of promises
+		// if not using sqlite, be careful
 		return db
 			.withTransaction(() => {
 				const promises = []
@@ -374,8 +383,7 @@ class ESDB extends EventEmitter {
 						this.deriverNames.map(name => {
 							const {store} = this
 							const model = store[name]
-							const {result} = event
-							return this.models[name].deriver({model, store, result})
+							return this.models[name].deriver({model, store, event})
 						})
 					)
 				)
