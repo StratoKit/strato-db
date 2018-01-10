@@ -765,11 +765,20 @@ class JsonModel {
 	}
 
 	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
-	applyChanges(result) {
-		return Promise.all([
-			...(result.delete || []).map(item => this.delete(item)),
-			...(result.set || []).map(obj => this.set(obj)),
-		])
+	async applyChanges(result) {
+		const {delete: deletes, insert, set, update, updateOnly: upOnly} = result
+		if (process.env.NODE_ENV === 'development') {
+			const {delete: d, insert, set, update, updateOnly, ...rest} = result
+			const restKeys = Object.keys(rest)
+			if (restKeys.length)
+				// eslint-disable-next-line no-console
+				console.error(`Unknown apply keys in result: ${restKeys.join(',')}`)
+		}
+		if (deletes) await Promise.all(deletes.map(item => this.delete(item)))
+		if (insert) await Promise.all(insert.map(obj => this.set(obj, true)))
+		if (set) await Promise.all(set.map(obj => this.set(obj)))
+		if (update) await Promise.all(update.map(obj => this.update(obj)))
+		if (upOnly) await Promise.all(upOnly.map(obj => this.update(obj, true)))
 	}
 }
 
