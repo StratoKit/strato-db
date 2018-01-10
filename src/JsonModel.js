@@ -685,20 +685,6 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.min)
 	}
 
-	// Contract: All subclasses use set() to store values
-	set(obj, insertOnly) {
-		// we cannot store `set` directly on the instance because it would override subclass `set` functions
-		return this._set(obj, insertOnly)
-	}
-
-	delete(idOrObj) {
-		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		return this.db.run(
-			`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
-			id
-		)
-	}
-
 	all() {
 		return this.db
 			.all(`SELECT ${this.selectColsSql} FROM ${this.quoted}`)
@@ -745,6 +731,37 @@ class JsonModel {
 			cache[key] = new DataLoader(ids => this.getAll(ids, colName))
 		}
 		return cache[key].load(id)
+	}
+
+	// --- Mutator methods below ---
+
+	// Contract: All subclasses use set() to store values
+	set(obj, insertOnly) {
+		// we cannot store `set` directly on the instance because it would override subclass `set` functions
+		return this._set(obj, insertOnly)
+	}
+
+	// Change only the given fields, shallowly
+	// This is best called in a transaction due to read + update…
+	async update(obj, updateOnly) {
+		if (!obj) throw new Error('update() called without object')
+		const id = obj[this.idCol]
+		if (id == null) {
+			if (updateOnly) throw new Error('Can only update object with id')
+			return this.set(obj)
+		}
+		const prev = await this.get(id)
+		if (updateOnly && !prev)
+			throw new Error(`No object with id ${id} exists yet`)
+		return this.set({...prev, ...obj})
+	}
+
+	delete(idOrObj) {
+		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
+		return this.db.run(
+			`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
+			id
+		)
 	}
 
 	// TODO move this to a JsonModel for ESDB? One that also caches per generation?

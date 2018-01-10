@@ -246,3 +246,20 @@ test('set(obj, insertOnly)', async t => {
 	await m.set({id: 234})
 	await t.throws(m.set({id: 234}, true))
 })
+
+test('update(obj)', async t => {
+	const m = getModel()
+	const obj = await m.update({hi: 5, ho: 8})
+	const {id} = obj
+	t.deepEqual(await m.get(id), obj)
+	await m.update({id, hi: 7})
+	t.deepEqual(await m.get(id), {...obj, hi: 7})
+})
+
+test('update(obj, updateOnly)', async t => {
+	const m = getModel()
+	await m.set({id: 5, ho: 8})
+	await t.notThrows(m.update({id: 5, ho: 9}, true))
+	await t.throws(m.update({id: 7, ho: 9}, true))
+	await t.throws(m.update({ho: 9}, true))
+})
