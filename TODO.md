@@ -35,6 +35,7 @@
   * => prepare, allow .get/all/etc; while those are active calls are queued up
     https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
   * [ ] what happens with them on schema change?
+* [ ] with sqlite 3.22, use the btree info extension to provide index sizes at startup if debug enabled
 
 ## JsonModel
 
@@ -45,6 +46,10 @@
 * [ ] column defs are migrations and recalculate all records if the version changes
 * [ ] when setting an object without Id, use INSERT so calculated Id has to be unique and can't silently overwrite
 * [ ] foreign key support
+* [ ] `required` bool/validation function for object/column? Or leave that to `set`?
+* [ ] mark any column as `extract`; auto-migrate, auto-change-indexes
+* [ ] allow `value()` on non-extract columns
+* [ ] `ifMissing` bool for `value()`
 
 ## Queue
 
