@@ -16,7 +16,7 @@ import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
 
 const dbg = debug('stratokit/JSON')
-const DEV = process.env.NODE_ENV === 'development'
+const DEV = process.env.NODE_ENV !== 'production'
 let deprecated, unknown
 if (DEV) {
 	const warned = {}
@@ -24,7 +24,7 @@ if (DEV) {
 		if (warned[tag]) return
 		warned[tag] = true
 		// eslint-disable-next-line no-console
-		console.error(`!!! ${type} ${msg}`)
+		console.error(new Error(`!!! ${type} ${msg}`))
 	}
 	deprecated = warner('DEPRECATED')
 	unknown = warner('UNKNOWN')
