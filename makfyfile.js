@@ -8,9 +8,9 @@ module.exports.commands = {
 			await fs.emptyDir('dist')
 			// transpile src/ to dist/
 			await exec(
-				`babel ${watch
-					? '--watch'
-					: ''} -s true --ignore __tests__ -D -d dist/ src/`
+				`babel ${
+					watch ? '--watch' : ''
+				} -s true --ignore __tests__ -D -d dist/ src/`
 			)
 		},
 	},
@@ -27,7 +27,7 @@ module.exports.commands = {
 				await exec(`NODE_ENV=test DEBUG_COLORS=yes ava --watch --verbose`)
 			} else {
 				await exec(`eslint src/**/*.js`)
-				await exec(`NODE_ENV=test nyc -r 'text -c' ava`)
+				await exec(`NODE_ENV=test nyc -r text -c ava`)
 			}
 		},
 	},
