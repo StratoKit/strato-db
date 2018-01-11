@@ -26,7 +26,7 @@ if (DEV) {
 		// eslint-disable-next-line no-console
 		console.error(`!!! ${type} ${msg}`)
 	}
-	deprecate = warner('DEPRECATED')
+	deprecated = warner('DEPRECATED')
 	unknown = warner('UNKNOWN')
 }
 
