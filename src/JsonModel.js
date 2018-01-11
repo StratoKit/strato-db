@@ -779,6 +779,7 @@ class JsonModel {
 			id
 		)
 	}
+
 	delete(idOrObj) {
 		if (DEV) deprecated('deleteMethod', 'use .remove() instead of .delete()')
 		return this.remove(idOrObj)
@@ -791,7 +792,7 @@ class JsonModel {
 			const {rm, set, ins, upd, sav, ...rest} = result
 			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
 		}
-		if (rm) await Promise.all(rm.map(item => this.delete(item)))
+		if (rm) await Promise.all(rm.map(item => this.remove(item)))
 		if (ins) await Promise.all(ins.map(obj => this.set(obj, true)))
 		if (set) await Promise.all(set.map(obj => this.set(obj)))
 		if (upd) await Promise.all(upd.map(obj => this.update(obj)))
