@@ -36,6 +36,7 @@
     https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
   * [ ] what happens with them on schema change?
 * [ ] with sqlite 3.22, use the btree info extension to provide index sizes at startup if debug enabled
+* [ ] allow migrations to be functions (so no `up`); if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
 
 ## JsonModel
 
