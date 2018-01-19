@@ -70,8 +70,12 @@ class DB {
 
 	// Store all your models here, by name
 	models = {}
+
 	addModel(Model, options) {
-		const model = new Model({...options, db: this})
+		const model = new Model({
+			...options,
+			db: this,
+		})
 		if (this.models[model.name])
 			throw new TypeError(`Model name ${model.name} was already added`)
 		this.models[model.name] = model
@@ -79,6 +83,7 @@ class DB {
 	}
 
 	static sql = sql
+
 	sql = sql
 
 	openDB() {
@@ -88,59 +93,67 @@ class DB {
 		const {file, verbose} = this
 
 		dbg(`opening ${this.file}`)
-		this.dbP = sqlite.open(file, {verbose, Promise: BP}).then(async realDb => {
-			// Configure lock management
-			realDb.driver.configure('busyTimeout', 15000)
-			if (this.file !== ':memory:') {
-				// TODO configure auto vacuum
-				const [{journal_mode: journalMode}] = await realDb.all(
-					'PRAGMA journal_mode = wal'
-				)
-				if (journalMode !== 'wal') {
-					console.error(
-						`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
+		this.dbP = sqlite
+			.open(file, {
+				verbose,
+				Promise: BP,
+			})
+			.then(async realDb => {
+				// Configure lock management
+				realDb.driver.configure('busyTimeout', 15000)
+				if (this.file !== ':memory:') {
+					// TODO configure auto vacuum
+					const [{journal_mode: journalMode}] = await realDb.all(
+						'PRAGMA journal_mode = wal'
 					)
-				}
-			}
-			await realDb.run('PRAGMA foreign_keys = ON')
-
-			this._realDb = realDb
-			this._db = {models: {}}
-			for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
-				this._db[method] = (...args) => {
-					if (Array.isArray(args[0])) {
-						args = sql(...args)
-					}
-					if (dbgQ.enabled)
-						dbgQ(
-							this.name,
-							method,
-							...args.map(a => String(a).replace(/\s+/g, ' '))
+					if (journalMode !== 'wal') {
+						console.error(
+							`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
 						)
-					return realDb[method](...args)
+					}
 				}
-			}
-			this._db.each = this._realEach.bind(this)
-			this._db.withTransaction = this._withTransaction.bind(this)
-			await this.runMigrations()
-			// Make all accesses direct to the DB object, bypass .hold()
-			for (const method of [
-				'all',
-				'exec',
-				'get',
-				'prepare',
-				'run',
-				'each',
-				'withTransaction',
-			]) {
-				this[method] = this._db[method]
-			}
-			dbg(`${file} opened`)
-			return this
-		})
+				await realDb.run('PRAGMA foreign_keys = ON')
+
+				this._realDb = realDb
+				this._db = {
+					models: {},
+				}
+				for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
+					this._db[method] = (...args) => {
+						if (Array.isArray(args[0])) {
+							args = sql(...args)
+						}
+						if (dbgQ.enabled)
+							dbgQ(
+								this.name,
+								method,
+								...args.map(a => String(a).replace(/\s+/g, ' '))
+							)
+						return realDb[method](...args)
+					}
+				}
+				this._db.each = this._realEach.bind(this)
+				this._db.withTransaction = this._withTransaction.bind(this)
+				await this.runMigrations()
+				// Make all accesses direct to the DB object, bypass .hold()
+				for (const method of [
+					'all',
+					'exec',
+					'get',
+					'prepare',
+					'run',
+					'each',
+					'withTransaction',
+				]) {
+					this[method] = this._db[method]
+				}
+				dbg(`${file} opened`)
+				return this
+			})
 
 		return this.dbP
 	}
+
 	async close() {
 		if (this.dbP) {
 			await this.dbP
@@ -164,31 +177,40 @@ class DB {
 		}
 		return this
 	}
+
 	_hold(method, args) {
 		if (dbgQ.enabled) dbgQ('_hold', this.name, method)
 		return this.openDB().then(db => db[method](...args))
 	}
+
 	all(...args) {
 		return this._hold('all', args)
 	}
+
 	exec(...args) {
 		return this._hold('exec', args)
 	}
+
 	get(...args) {
 		return this._hold('get', args)
 	}
+
 	prepare(...args) {
 		return this._hold('prepare', args)
 	}
+
 	run(...args) {
 		return this._hold('run', args)
 	}
+
 	each(...args) {
 		return this._hold('_realEach', args)
 	}
+
 	withTransaction(...args) {
 		return this._hold('_withTransaction', args)
 	}
+
 	// TODO maybe this should return a ReadableStream or an async iterator
 	_realEach(...args) {
 		const onRow = args.pop()
@@ -209,9 +231,13 @@ class DB {
 			}
 			// Separate with space, it sorts before other things
 			const runKey = `${key} ${name}`
-			this.migrations.push({...obj, runKey})
+			this.migrations.push({
+				...obj,
+				runKey,
+			})
 		}
 	}
+
 	async _getRanMigrations() {
 		await this._db.exec(`
 			CREATE TABLE IF NOT EXISTS _migrations(
@@ -233,6 +259,7 @@ class DB {
 		)
 		return didRun
 	}
+
 	async _markMigration(runKey, up) {
 		const ts = Math.round(Date.now() / 1000)
 		up = up ? 1 : 0
