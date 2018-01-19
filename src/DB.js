@@ -27,6 +27,8 @@ import debug from 'debug'
 const dbg = debug('stratokit/DB')
 const dbgQ = debug('stratokit/DB:query')
 
+const RETRY_COUNT = 3
+
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
 // db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json = ${obj}JSON`
 export const sql = (...args) => {
@@ -240,7 +242,8 @@ class DB {
 		`
 		)
 	}
-	async __withTransaction(fn, count = 200) {
+
+	async __withTransaction(fn, count = RETRY_COUNT) {
 		// TODO keep a separate connection for transactions
 		// TODO test multi-process
 		// TODO run this synchronously
@@ -248,14 +251,14 @@ class DB {
 		try {
 			await this._db.run(`BEGIN IMMEDIATE`)
 		} catch (err) {
-			if (err.errno === 1 && err.code === 'SQLITE_ERROR') {
+			if (err.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
-				if (count)
-					return BP.delay(Math.random() * 1000 + 200).then(() =>
-						this.__withTransaction(fn, count - 1)
-					)
-				throw err
+				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
+				return BP.delay(Math.random() * 1000 + 200).then(() =>
+					this.__withTransaction(fn, count - 1)
+				)
 			}
+			throw err
 		}
 		let result
 		try {
