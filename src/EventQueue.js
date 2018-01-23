@@ -51,14 +51,19 @@ class EventQueue extends JsonModel {
 
 	async add(type, data, ts) {
 		if (this.knownV && !this._enforcedKnownV) {
+			const v = Number(this.knownV)
 			// set the sqlite autoincrement value
-			await this.db
-				.run(`INSERT OR ABORT INTO ${this.quoted}(v) VALUES (?)`, this.knownV)
-				.then(
-					() =>
-						this.db.run(`DELETE FROM ${this.quoted} WHERE v = ?`, this.knownV),
-					() => {}
+			await this.db.withTransaction(() =>
+				// Try changing current value, and insert if there was no change
+				this.db.exec(
+					`
+						UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
+						INSERT INTO sqlite_sequence (name, seq)
+							SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
+								(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
+					`
 				)
+			)
 			this._enforcedKnownV = true
 		}
 		if (!type || typeof type !== 'string') {
