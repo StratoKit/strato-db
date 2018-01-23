@@ -63,7 +63,7 @@ const withDBs = fn => {
 const withESDB = (fn, models = testModels) =>
 	withDBs((db, queue) => {
 		const eSDB = new ESDB({db, queue, models})
-		return fn(eSDB)
+		return fn(eSDB, queue)
 	})
 
 test('create', t => {
@@ -167,6 +167,17 @@ test('applyEvent invalid', t => {
 		)
 	})
 })
+
+test('waitForQueue', async t =>
+	withESDB(async (eSDB, queue) => {
+		await queue.add('ONE')
+		await queue.add('TWO')
+		t.is(await eSDB.getVersion(), 0)
+		const p = eSDB.waitForQueue()
+		await queue.add('THREE')
+		eSDB.checkForEvents()
+		t.is((await p).type, 'TWO')
+	}))
 
 test('incoming event', async t => {
 	return withESDB(async eSDB => {

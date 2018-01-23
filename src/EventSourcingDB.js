@@ -222,6 +222,11 @@ class ESDB extends EventEmitter {
 		return this.getVersionP
 	}
 
+	async waitForQueue() {
+		const v = await this.queue._getLatestVersion()
+		return this.handledVersion(v)
+	}
+
 	async handledVersion(v) {
 		if (v < (await this.getVersion())) {
 			const event = await this.history.get(v)
