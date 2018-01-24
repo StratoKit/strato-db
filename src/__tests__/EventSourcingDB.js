@@ -175,7 +175,6 @@ test('waitForQueue', async t =>
 		t.is(await eSDB.getVersion(), 0)
 		const p = eSDB.waitForQueue()
 		await queue.add('THREE')
-		eSDB.checkForEvents()
 		t.is((await p).type, 'TWO')
 	}))
 
