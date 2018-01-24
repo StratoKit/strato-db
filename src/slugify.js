@@ -6,7 +6,7 @@ export const slugifyString = name => {
 	const t = typeof name === 'string' ? name : name && name[Object.keys(name)[0]]
 	if (!t) throw new Error(`Cannot slugify ${name}`)
 	return encodeURIComponent(deburr(t).trim())
-		.replace(/%../g, '-')
+		.replace(/(%..|[()])/g, '-')
 		.replace(/--+/g, '-')
 		.replace(/(^-|-$)/g, '')
 		.slice(0, 30)
