@@ -10,7 +10,12 @@ export const randomString = n =>
 
 export const slugifyString = (name, alwaysResult) => {
 	// extract name from i18n objects
-	const t = typeof name === 'string' ? name : name && name[Object.keys(name)[0]]
+	const t =
+		typeof name === 'string'
+			? name
+			: typeof name === 'number'
+				? name.toString()
+				: name && name[Object.keys(name)[0]]
 	if (!t) {
 		if (alwaysResult) return randomString(12)
 		throw new Error(`Cannot slugify ${name}`)
