@@ -21,7 +21,7 @@ export const slugifyString = (name, alwaysResult) => {
 		throw new Error(`Cannot slugify ${name}`)
 	}
 	return encodeURIComponent(deburr(t).trim())
-		.replace(/(%..|[()])/g, '-')
+		.replace(/(%..|[()'_~])/g, '-')
 		.replace(/--+/g, '-')
 		.replace(/(^-|-$)/g, '')
 		.slice(0, 30)

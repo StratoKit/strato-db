@@ -22,7 +22,7 @@ test('slugifyString', t => {
 	cmp(' rostuLR"st  wfpunq 🤗', 'rostulr-st-wfpunq')
 	cmp('hi there', 'hi-there')
 	cmp(2341234901283740987, '2341234901283741000')
-	cmp('{[]}()12340978560)!@*#($&\\-+’„!)(@#*|`', '12340978560-!-*-!-*')
+	cmp('1234567890!@#$`|&*()+-={}[];:\\\'"%^_~', '1234567890!-*')
 	cmp({meep: 'yoyo'}, 'yoyo')
 	cmp(0, '0')
 	t.throws(() => slugifyString())
