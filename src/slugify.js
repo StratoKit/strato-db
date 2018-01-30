@@ -29,12 +29,15 @@ export const slugifyString = (name, alwaysResult) => {
 }
 
 // This is not race-safe - only use for write-seldomn things like backoffice or inside transactions
-export const uniqueSlugId = async (model, name, colName) => {
+export const uniqueSlugId = async (model, name, colName, currentId) => {
 	const slug = slugifyString(name, true)
 	let id = slug
 	let i = 1
+	const where = currentId && {
+		[`${model.idColQ} IS NOT ?`]: [currentId],
+	}
 	// eslint-disable-next-line no-await-in-loop
-	while (await model.exists({[colName]: id})) {
+	while (await model.exists({[colName]: id}, {where})) {
 		id = `${slug}-${++i}`
 	}
 	return id

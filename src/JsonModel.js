@@ -187,7 +187,7 @@ class JsonModel {
 					throw new TypeError(`${name}: index is required when using slugValue`)
 				col.value = async function(o) {
 					if (o[name]) return o[name]
-					return uniqueSlugId(this, await col.slugValue(o), name)
+					return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
 				}
 			}
 

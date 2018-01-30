@@ -119,6 +119,8 @@ test('id/col slugValue', async t => {
 	await m.set({hi: 'Hello'})
 	const p = await m.searchOne({hi: 'Hello'})
 	t.deepEqual(p, {id: 'hel-2', hi: 'Hello', other: 'hello-2'})
+	const q = await m.set({id: 'hel-2', hi: 'Hello', other: undefined})
+	t.deepEqual(q, {id: 'hel-2', hi: 'Hello', other: 'hello-2'}, 'ignores self')
 })
 
 const withObjs = sharedSetup(() => {
