@@ -23,9 +23,9 @@ export const slugifyString = (name, alwaysResult) => {
 	return encodeURIComponent(deburr(t).trim())
 		.replace(/(%..|[()'_~])/g, '-')
 		.replace(/--+/g, '-')
-		.replace(/(^-|-$)/g, '')
-		.slice(0, 30)
 		.toLowerCase()
+		.replace(/(^[^a-z0-9]+|[^a-z0-9]+$)/g, '')
+		.slice(0, 30)
 }
 
 // This is not race-safe - only use for write-seldomn things like backoffice or inside transactions
