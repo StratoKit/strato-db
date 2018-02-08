@@ -52,6 +52,13 @@ test('creates DB', async t => {
 	await db.close()
 })
 
+test('readOnly', async t => {
+	const db = new DB({readOnly: true})
+	await t.notThrows(db.get('SELECT sqlite_version()'))
+	await t.throws(db.get('CREATE TABLE foo(id)'))
+	await db.close()
+})
+
 test('can register model', t => {
 	const db = new DB()
 	class Hi {

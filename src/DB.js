@@ -61,9 +61,12 @@ sql.quoteId = quoteSqlId
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({file, verbose} = {}) {
+	constructor({file, readOnly, verbose, ...rest} = {}) {
+		if (Object.keys(rest).length)
+			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = path.basename(this.file, '.db')
+		this.readOnly = readOnly
 		this.verbose = verbose
 		this.migrations = []
 	}
@@ -90,12 +93,14 @@ class DB {
 		if (this.dbP) {
 			return this.dbP
 		}
-		const {file, verbose} = this
+		const {file, verbose, readOnly} = this
 
 		dbg(`opening ${this.file}`)
 		this.dbP = sqlite
 			.open(file, {
 				verbose,
+				// TODO: use the real constant
+				mode: readOnly ? 1 : undefined,
 				Promise: BP,
 			})
 			.then(async realDb => {
@@ -134,7 +139,7 @@ class DB {
 				}
 				this._db.each = this._realEach.bind(this)
 				this._db.withTransaction = this._withTransaction.bind(this)
-				await this.runMigrations()
+				if (!readOnly) await this.runMigrations()
 				// Make all accesses direct to the DB object, bypass .hold()
 				for (const method of [
 					'all',
