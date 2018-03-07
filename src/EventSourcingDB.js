@@ -369,7 +369,7 @@ class ESDB extends EventEmitter {
 		}
 	}
 
-	async applyEvent(event, _quietImTesting) {
+	async applyEvent(event) {
 		const {db, store, modelNames, history} = this
 		// All the below must be started synchronously so
 		// no other requests on this db connection come between
@@ -400,7 +400,7 @@ class ESDB extends EventEmitter {
 				)
 			})
 			.catch(err => {
-				if (!_quietImTesting) {
+				if (process.env.NODE_ENV !== 'test') {
 					// argh, now what? Probably retry applying, or crash the app…
 					// This can happen when DB has issue, or when .set refuses an object
 					// TODO consider latter case, maybe just consider transaction errored and store as error?

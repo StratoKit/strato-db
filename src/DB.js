@@ -296,7 +296,8 @@ class DB {
 		try {
 			result = await fn()
 		} catch (err) {
-			console.error('transaction failure, rolling back', err)
+			if (process.env.NODE_ENV !== 'test')
+				console.error('transaction failure, rolling back', err)
 			await this._db.run(`ROLLBACK`)
 			throw err
 		}

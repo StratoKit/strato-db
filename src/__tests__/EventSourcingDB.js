@@ -161,8 +161,7 @@ test('applyEvent invalid', t => {
 						// it will try to call map as a function
 						metadata: {set: {map: 5}},
 					},
-				},
-				true
+				}
 			)
 		)
 	})
