@@ -758,18 +758,22 @@ class JsonModel {
 	}
 
 	// Change only the given fields, shallowly
-	// This is best called in a transaction due to read + update…
-	async update(obj, updateOnly) {
+	// upsert: also allow inserting
+	async updateNoTrans(obj, upsert) {
 		if (!obj) throw new Error('update() called without object')
 		const id = obj[this.idCol]
 		if (id == null) {
-			if (updateOnly) throw new Error('Can only update object with id')
+			if (!upsert) throw new Error('Can only update object with id')
 			return this.set(obj)
 		}
 		const prev = await this.get(id)
-		if (updateOnly && !prev)
+		if (!upsert && !prev)
 			throw new Error(`No object with id ${id} exists yet`)
 		return this.set({...prev, ...obj})
+	}
+
+	update(obj, upsert) {
+		return this.db.withTransaction(() => this.updateNoTrans(obj, upsert))
 	}
 
 	remove(idOrObj) {

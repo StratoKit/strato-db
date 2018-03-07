@@ -251,17 +251,33 @@ test('set(obj, insertOnly)', async t => {
 
 test('update(obj)', async t => {
 	const m = getModel()
-	const obj = await m.update({hi: 5, ho: 8})
+	const obj = await m.update({hi: 5, ho: 8}, true)
 	const {id} = obj
 	t.deepEqual(await m.get(id), obj)
 	await m.update({id, hi: 7})
 	t.deepEqual(await m.get(id), {...obj, hi: 7})
 })
 
-test('update(obj, updateOnly)', async t => {
+test('update(obj, upsert)', async t => {
 	const m = getModel()
 	await m.set({id: 5, ho: 8})
-	await t.notThrows(m.update({id: 5, ho: 9}, true))
-	await t.throws(m.update({id: 7, ho: 9}, true))
-	await t.throws(m.update({ho: 9}, true))
+	await t.notThrows(m.update({id: 5, ho: 9}))
+	await t.throws(m.update({id: 7, ho: 9}))
+	await t.notThrows(m.update({id: 7, ho: 9}, true))
+	await t.notThrows(m.update({ho: 10}, true))
+	t.is(await m.count(), 3)
+})
+
+test('update transactional', async t => {
+	const m = getModel()
+	await m.db.run(`BEGIN IMMEDIATE`)
+	// It will throw due to transaction in transaction
+	await t.throws(m.update({id: 5, ho: 9}, true))
+})
+
+test('updateNoTrans not transactional', async t => {
+	const m = getModel()
+	await m.db.run(`BEGIN IMMEDIATE`)
+	await t.notThrows(m.updateNoTrans({id: 5, ho: 9}, true))
+	await m.db.run(`END`)
 })
