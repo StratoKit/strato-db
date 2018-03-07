@@ -85,7 +85,9 @@ class EventQueue extends JsonModel {
 	}
 
 	nextAddedP = null
+
 	nextAddedResolve = null
+
 	async getNext(v, once) {
 		const beforeV = this.currentV
 		let event = await this.searchOne(null, {
