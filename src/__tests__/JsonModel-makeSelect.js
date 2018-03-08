@@ -76,3 +76,34 @@ test('makeSelect isAnyOfArray', t => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
 	)
 })
+
+test('makeSelect in', t => {
+	const m = getModel({
+		columns: {foo: {index: true, value: o => o.foo.toString(), in: true}},
+	})
+	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	t.deepEqual(
+		q,
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("foo" IN (?,?))`
+	)
+})
+
+test('makeSelect in w/ jsonPath', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', in: true}}})
+	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	t.deepEqual(
+		q,
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') IN (?,?))`
+	)
+})
+
+test('makeSelect in + isArray = isAnyOfArray', t => {
+	const m = getModel({
+		columns: {foo: {jsonPath: 'foo', in: true, isArray: true}},
+	})
+	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	t.deepEqual(
+		q,
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
+	)
+})

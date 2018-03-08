@@ -47,13 +47,14 @@ const allowedTypes = {
 	JSON: true,
 }
 const knownColProps = {
-	autoIncrement: true,
 	alias: true,
+	autoIncrement: true,
 	get: true,
 	ignoreNull: true,
+	in: true,
 	index: true,
-	isArray: true,
 	isAnyOfArray: true,
+	isArray: true,
 	jsonPath: true,
 	slugValue: true,
 	sql: true,
@@ -108,7 +109,7 @@ class JsonModel {
 					: o => {
 							const id = o[idCol]
 							return id || id === 0 ? id : null
-						}
+					  }
 			} else if (value) {
 				idValue = async function(o) {
 					if (o[idCol] != null) return o[idCol]
@@ -198,12 +199,12 @@ class JsonModel {
 				if (col.value || col.sql) {
 					throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
 				}
-				if (col.isArray) {
+				if (col.isArray && !col.in) {
 					col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 						col.jsonPath
 					}") j WHERE j.value = ?)`
 				}
-				if (col.isAnyOfArray) {
+				if ((col.isArray && col.in) || col.isAnyOfArray) {
 					col.where = arg =>
 						`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 							col.jsonPath
@@ -224,6 +225,10 @@ class JsonModel {
 					throw new Error(`${name}: One of jsonPath/value/sql required`)
 				}
 				col.sql = col.quoted
+			}
+			if (!col.isArray && col.in) {
+				col.where = arg => `${col.sql} IN (${arg.map(() => '?').join(',')})`
+				col.whereVal = matchThese => matchThese
 			}
 			if (col.textSearch) {
 				col.where = `${col.sql} LIKE ?`
@@ -271,14 +276,14 @@ class JsonModel {
 						col.value
 							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
 									col.quoted
-								} ${col.type || 'BLOB'};`
+							  } ${col.type || 'BLOB'};`
 							: ''
 					}
 					${
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
-								)}
+							  )}
 						ON ${this.quoted}(${col.sql})
 						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
 					`
@@ -767,8 +772,7 @@ class JsonModel {
 			return this.set(obj)
 		}
 		const prev = await this.get(id)
-		if (!upsert && !prev)
-			throw new Error(`No object with id ${id} exists yet`)
+		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
 		return this.set({...prev, ...obj})
 	}
 
