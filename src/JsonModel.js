@@ -199,38 +199,57 @@ class JsonModel {
 				if (col.value || col.sql) {
 					throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
 				}
-				if (col.isArray && !col.in) {
-					col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-						col.jsonPath
-					}") j WHERE j.value = ?)`
+				if (col.isAnyOfArray) {
+					col.isArray = true
+					col.in = true
 				}
-				if ((col.isArray && col.in) || col.isAnyOfArray) {
-					col.where = arg =>
-						`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+				if (col.isArray) {
+					if (col.in) {
+						col.where = arg =>
+							`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+								col.jsonPath
+							}") j WHERE j.value IN (${arg.map(() => '?').join(',')}))`
+						col.whereVal = matchThese => matchThese
+					} else {
+						col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 							col.jsonPath
-						}") j WHERE j.value IN (${arg.map(() => '?').join(',')}))`
-					col.whereVal = matchThese => matchThese
+						}") j WHERE j.value = ?)`
+					}
 				}
 				col.sql = `json_extract(json, '$.${col.jsonPath}')`
-			} else if (col.sql) {
-				if (col.get) {
-					throw new Error(`${name}: Cannot use get on sql column`)
-				}
-				if (col.value) {
-					throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
-				}
-				col.select = `${col.sql} AS ${col.quoted}`
 			} else {
-				if (!col.value) {
-					throw new Error(`${name}: One of jsonPath/value/sql required`)
+				if (col.isArray) {
+					throw new Error(`${name}: jsonPath is required when using isArray`)
 				}
-				col.sql = col.quoted
+
+				if (col.sql) {
+					if (col.get) {
+						throw new Error(`${name}: Cannot use get on sql column`)
+					}
+					if (col.value) {
+						throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
+					}
+					col.select = `${col.sql} AS ${col.quoted}`
+				} else {
+					if (!col.value) {
+						throw new Error(`${name}: One of jsonPath/value/sql required`)
+					}
+					col.sql = col.quoted
+				}
 			}
-			if (!col.isArray && col.in) {
-				col.where = arg => `${col.sql} IN (${arg.map(() => '?').join(',')})`
-				col.whereVal = matchThese => matchThese
+			if (col.in) {
+				if (col.textSearch) {
+					throw new Error(`${name}: Only one of in/textSearch allowed`)
+				}
+				if (!col.isArray) {
+					col.where = arg => `${col.sql} IN (${arg.map(() => '?').join(',')})`
+					col.whereVal = matchThese => matchThese
+				}
 			}
 			if (col.textSearch) {
+				if (col.in) {
+					throw new Error(`${name}: Only one of in/textSearch allowed`)
+				}
 				col.where = `${col.sql} LIKE ?`
 				col.whereVal = v => [`%${v}%`]
 			}
