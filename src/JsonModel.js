@@ -111,7 +111,7 @@ class JsonModel {
 					: o => {
 							const id = o[idCol]
 							return id || id === 0 ? id : null
-					  }
+						}
 			} else if (value) {
 				idValue = async function(o) {
 					if (o[idCol] != null) return o[idCol]
@@ -301,14 +301,14 @@ class JsonModel {
 						col.value
 							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
 									col.quoted
-							  } ${col.type || 'BLOB'};`
+								} ${col.type || 'BLOB'};`
 							: ''
 					}
 					${
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
-							  )}
+								)}
 						ON ${this.quoted}(${col.sql})
 						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
 					`
@@ -552,12 +552,9 @@ class JsonModel {
 			for (const w of Object.keys(where)) {
 				const val = where[w]
 				if (val) {
-					if (process.env.NODE_ENV !== 'production' && !Array.isArray(val)) {
-						// eslint-disable-next-line no-console
-						console.warn(
-							'Warning: Got where without array of args for makeSelect:',
-							w,
-							val
+					if (!Array.isArray(val)) {
+						throw new TypeError(
+							`Error: Got where without array of args for makeSelect: ${w}, val: ${val}`
 						)
 					}
 					conds.push(w)
