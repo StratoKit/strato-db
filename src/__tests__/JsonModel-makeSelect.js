@@ -68,6 +68,34 @@ test('makeSelect isArray', t => {
 	)
 })
 
+test('makeSelect textSearch', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	t.deepEqual(m.makeSelect({attrs: {foo: 'meep'}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		['%meep%'],
+		undefined,
+	])
+})
+
+test('makeSelect textSearch falsy', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	t.deepEqual(m.makeSelect({attrs: {foo: ''}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		[],
+		undefined,
+	])
+	t.deepEqual(m.makeSelect({attrs: {foo: null}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		[],
+		undefined,
+	])
+	t.deepEqual(m.makeSelect({attrs: {foo: 0}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		['%0%'],
+		undefined,
+	])
+})
+
 test('makeSelect isAnyOfArray', t => {
 	const m = getModel({columns: {foo: {jsonPath: 'foo', isAnyOfArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
@@ -106,4 +134,48 @@ test('makeSelect in + isArray = isAnyOfArray', t => {
 		q,
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
 	)
+})
+
+test('col.where', t => {
+	const m = getModel({
+		columns: {foo: {sql: 'foo', where: 'foo = ?'}},
+	})
+	t.deepEqual(m.makeSelect({attrs: {foo: 'moop'}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(foo = ?)`,
+		['moop'],
+		undefined,
+	])
+})
+
+test('col.where fn', t => {
+	const m = getModel({
+		columns: {foo: {sql: 'foo', where: v => v.length}},
+	})
+	t.deepEqual(m.makeSelect({attrs: {id: 4, foo: '123'}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(3)`,
+		[4, '123'],
+		undefined,
+	])
+})
+
+test('col.whereVal fn', t => {
+	const m = getModel({
+		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: v => [v.join()]}},
+	})
+	t.deepEqual(m.makeSelect({attrs: {id: 5, foo: ['meep', 'moop']}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(ohai)`,
+		[5, 'meep,moop'],
+		undefined,
+	])
+})
+
+test('col.whereVal fn falsy', t => {
+	const m = getModel({
+		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: () => 0}},
+	})
+	t.deepEqual(m.makeSelect({attrs: {id: 5, foo: ['meep', 'moop']}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)`,
+		[5],
+		undefined,
+	])
 })

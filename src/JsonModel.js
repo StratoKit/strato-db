@@ -62,6 +62,8 @@ const knownColProps = {
 	type: true,
 	unique: true,
 	value: true,
+	where: true,
+	whereVal: true,
 }
 
 // ItemClass: Object-like class that can be assigned to like Object
@@ -109,7 +111,7 @@ class JsonModel {
 					: o => {
 							const id = o[idCol]
 							return id || id === 0 ? id : null
-					  }
+						}
 			} else if (value) {
 				idValue = async function(o) {
 					if (o[idCol] != null) return o[idCol]
@@ -251,7 +253,11 @@ class JsonModel {
 					throw new Error(`${name}: Only one of in/textSearch allowed`)
 				}
 				col.where = `${col.sql} LIKE ?`
-				col.whereVal = v => [`%${v}%`]
+				col.whereVal = v => {
+					if (v == null) return
+					const s = String(v)
+					if (s) return [`%${s}%`]
+				}
 			}
 			col.select = `${col.sql} AS ${col.alias}`
 
@@ -295,14 +301,14 @@ class JsonModel {
 						col.value
 							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
 									col.quoted
-							  } ${col.type || 'BLOB'};`
+								} ${col.type || 'BLOB'};`
 							: ''
 					}
 					${
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
-							  )}
+								)}
 						ON ${this.quoted}(${col.sql})
 						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
 					`
@@ -546,12 +552,9 @@ class JsonModel {
 			for (const w of Object.keys(where)) {
 				const val = where[w]
 				if (val) {
-					if (process.env.NODE_ENV !== 'production' && !Array.isArray(val)) {
-						// eslint-disable-next-line no-console
-						console.warn(
-							'Warning: Got where without array of args for makeSelect:',
-							w,
-							val
+					if (!Array.isArray(val)) {
+						throw new TypeError(
+							`Error: Got where without array of args for makeSelect: ${w}, val: ${val}`
 						)
 					}
 					conds.push(w)
@@ -572,7 +575,7 @@ class JsonModel {
 						let valid = true
 						if (whereVal) {
 							val = whereVal(val)
-							if (Array.isArray(vals)) {
+							if (Array.isArray(val)) {
 								vals.push(...val)
 							} else {
 								valid = false
@@ -581,7 +584,7 @@ class JsonModel {
 							vals.push(val)
 						}
 						if (valid) {
-							conds.push(typeof where === 'function' ? where(vals) : where)
+							conds.push(typeof where === 'function' ? where(val) : where)
 						}
 					} else {
 						conds.push(`${col.sql}=?`)
