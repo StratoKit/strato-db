@@ -62,6 +62,8 @@ const knownColProps = {
 	type: true,
 	unique: true,
 	value: true,
+	where: true,
+	whereVal: true,
 }
 
 // ItemClass: Object-like class that can be assigned to like Object
@@ -572,7 +574,7 @@ class JsonModel {
 						let valid = true
 						if (whereVal) {
 							val = whereVal(val)
-							if (Array.isArray(vals)) {
+							if (Array.isArray(val)) {
 								vals.push(...val)
 							} else {
 								valid = false
@@ -581,7 +583,7 @@ class JsonModel {
 							vals.push(val)
 						}
 						if (valid) {
-							conds.push(typeof where === 'function' ? where(vals) : where)
+							conds.push(typeof where === 'function' ? where(val) : where)
 						}
 					} else {
 						conds.push(`${col.sql}=?`)
