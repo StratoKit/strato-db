@@ -253,7 +253,11 @@ class JsonModel {
 					throw new Error(`${name}: Only one of in/textSearch allowed`)
 				}
 				col.where = `${col.sql} LIKE ?`
-				col.whereVal = v => [`%${v}%`]
+				col.whereVal = v => {
+					if (v == null) return
+					const s = String(v)
+					if (s) return [`%${s}%`]
+				}
 			}
 			col.select = `${col.sql} AS ${col.alias}`
 

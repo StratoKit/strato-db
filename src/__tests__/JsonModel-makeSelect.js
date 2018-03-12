@@ -68,6 +68,34 @@ test('makeSelect isArray', t => {
 	)
 })
 
+test('makeSelect textSearch', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	t.deepEqual(m.makeSelect({attrs: {foo: 'meep'}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		['%meep%'],
+		undefined,
+	])
+})
+
+test('makeSelect textSearch falsy', t => {
+	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	t.deepEqual(m.makeSelect({attrs: {foo: ''}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		[],
+		undefined,
+	])
+	t.deepEqual(m.makeSelect({attrs: {foo: null}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		[],
+		undefined,
+	])
+	t.deepEqual(m.makeSelect({attrs: {foo: 0}}), [
+		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		['%0%'],
+		undefined,
+	])
+})
+
 test('makeSelect isAnyOfArray', t => {
 	const m = getModel({columns: {foo: {jsonPath: 'foo', isAnyOfArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
