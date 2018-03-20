@@ -6,6 +6,8 @@
 
 ## DB
 
+* [ ] if json === '{}' store as NULL
+* [ ] mark migrations in progress for multi-process starting at the same time
 * [ ] pragma recursive_triggers
 * [ ] PRAGMA schema.synchronous = extra (make configurable)
 * [ ] pragma journal_size_limit setting, default to 4MB (1000 pages)
