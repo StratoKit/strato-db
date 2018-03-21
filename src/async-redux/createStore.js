@@ -1,5 +1,4 @@
 import {isPlainObject} from 'lodash'
-import $$observable from 'symbol-observable'
 
 /**
  * These are private action types reserved by Redux.
@@ -219,45 +218,6 @@ export default function createStore(
 		return dispatch({type: ActionTypes.INIT})
 	}
 
-	/**
-	 * Interoperability point for observable/reactive libraries.
-	 * @returns {observable} A minimal observable of state changes.
-	 * For more information, see the observable proposal:
-	 * https://github.com/tc39/proposal-observable
-	 */
-	function observable() {
-		const outerSubscribe = subscribe
-		return {
-			/**
-			 * The minimal observable subscription method.
-			 * @param {Object} observer Any object that can be used as an observer.
-			 * The observer object should have a `next` method.
-			 * @returns {subscription} An object with an `unsubscribe` method that can
-			 * be used to unsubscribe the observable from the store, and prevent further
-			 * emission of values from the observable.
-			 */
-			subscribe(observer) {
-				if (typeof observer !== 'object') {
-					throw new TypeError('Expected the observer to be an object.')
-				}
-
-				function observeState() {
-					if (observer.next) {
-						observer.next(getState())
-					}
-				}
-
-				observeState()
-				const unsubscribe = outerSubscribe(observeState)
-				return {unsubscribe}
-			},
-
-			[$$observable]() {
-				return this
-			},
-		}
-	}
-
 	// When a store is created, an "INIT" action is dispatched so that every
 	// reducer returns their initial state. This effectively populates
 	// the initial state tree.
@@ -268,7 +228,6 @@ export default function createStore(
 		subscribe,
 		getState,
 		replaceReducer,
-		[$$observable]: observable,
 		didInitialize,
 	}
 }
