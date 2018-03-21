@@ -1,20 +1,20 @@
-import test from 'ava'
+import expect from 'expect'
 import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
 
-test('create', t => {
+test('create', () => {
 	const m = getModel()
-	t.notThrows(() => m.all())
-	t.is(m.db.models[m.name], m)
+	expect(() => m.all()).not.toThrow()
+	expect(m.db.models[m.name]).toBe(m)
 })
 
-test('create invalid', t => {
+test('create invalid', () => {
 	const db = new DB()
-	t.throws(() => new JsonModel())
-	t.throws(() => new JsonModel({db}))
-	t.throws(() => new JsonModel({name: 'foo'}))
+	expect(() => new JsonModel()).toThrow()
+	expect(() => new JsonModel({db})).toThrow()
+	expect(() => new JsonModel({name: 'foo'})).toThrow()
 })
 
-test('derived set', async t => {
+test('derived set', async () => {
 	let ran = false
 	class Foo extends JsonModel {
 		set(obj) {
@@ -25,87 +25,87 @@ test('derived set', async t => {
 	const db = new DB()
 	const foo = new Foo({db, name: 'foo'})
 	await foo.set({test: true})
-	t.true(ran)
+	expect(ran).toBe(true)
 })
 
-test('id generation', async t => {
+test('id generation', async () => {
 	const m = getModel({columns: {id: {value: o => o.foo}}})
 	const idFn = m.columns.id.value.bind(m)
-	t.truthy(await idFn({}))
-	t.is(await idFn({id: 'hi'}), 'hi')
-	t.is(await idFn({foo: 'ho'}), 'ho')
-	t.is(await idFn({foo: 0}), 0)
-	t.is(await idFn({foo: ''}), '')
-	t.truthy(await idFn({foo: null}))
+	expect(await idFn({})).toBeTruthy()
+	expect(await idFn({id: 'hi'})).toBe('hi')
+	expect(await idFn({foo: 'ho'})).toBe('ho')
+	expect(await idFn({foo: 0})).toBe(0)
+	expect(await idFn({foo: ''})).toBe('')
+	expect(await idFn({foo: null})).toBeTruthy()
 })
 
-test('async id generation', async t => {
+test('async id generation', async () => {
 	const m = getModel({columns: {id: {value: async o => o.foo}}})
 	const idFn = m.columns.id.value.bind(m)
-	t.truthy(await idFn({}))
-	t.is(await idFn({id: 'hi'}), 'hi')
-	t.is(await idFn({foo: 'ho'}), 'ho')
-	t.is(await idFn({foo: 0}), 0)
-	t.is(await idFn({foo: ''}), '')
-	t.truthy(await idFn({foo: null}))
+	expect(await idFn({})).toBeTruthy()
+	expect(await idFn({id: 'hi'})).toBe('hi')
+	expect(await idFn({foo: 'ho'})).toBe('ho')
+	expect(await idFn({foo: 0})).toBe(0)
+	expect(await idFn({foo: ''})).toBe('')
+	expect(await idFn({foo: null})).toBeTruthy()
 })
 
-test('set with id', async t => {
+test('set with id', async () => {
 	const m = getModel()
 	const obj = {id: 'foobar', fluffy: true}
 	const set = await m.set(obj)
 	const saved = await m.get(set.id)
-	t.deepEqual(saved, obj)
-	t.deepEqual(saved, set)
+	expect(saved).toEqual(obj)
+	expect(saved).toEqual(set)
 })
 
-test('set with falsy id, BLOB type', async t => {
+test('set with falsy id, BLOB type', async () => {
 	const m = getModel({columns: {id: {type: 'BLOB'}}})
 	await m.set({id: 0})
 	await m.set({id: ''})
 	const all = await m.all()
-	t.is(all.length, 2)
-	t.true(all.every(r => !r.id))
+	expect(all).toHaveLength(2)
+	expect(all.every(r => !r.id)).toBe(true)
 })
 
-test('set without id', async t => {
+test('set without id', async () => {
 	const m = getModel()
 	const obj = {fluffy: true}
 	const saved = await m.set(obj)
-	t.truthy(saved.id)
-	t.is(saved.fluffy, obj.fluffy)
+	expect(saved.id).toBeTruthy()
+	expect(saved.fluffy).toBe(obj.fluffy)
 })
 
-test('set without id, INTEGER type', async t => {
+test('set without id, INTEGER type', async () => {
 	const m = getModel({columns: {id: {type: 'INTEGER'}}})
 	const o = await m.set({})
 	const all = await m.all()
-	t.deepEqual([o], all)
+	expect([o]).toEqual(all)
 })
 
-test('INTEGER autoIncrement id', async t => {
+test('INTEGER autoIncrement id', async () => {
 	const m = getModel({columns: {id: {type: 'INTEGER', autoIncrement: true}}})
 	await m.set({id: 50})
 	await m.remove({id: 50})
 	await m.set({})
 	const all = await m.all()
-	t.deepEqual([{id: 51}], all)
+	expect([{id: 51}]).toEqual(all)
 })
 
-test('set with existing id', async t => {
+test('set with existing id', async () => {
 	let val = 5
 	const m = getModel({columns: {id: {value: () => val}}})
 	await m.set({hi: true})
 	const o = await m.searchOne()
-	t.is(o.id, '5')
+	expect(o.id).toBe('5')
 	val = 6
 	await m.set(o)
 	const p = await m.all()
-	t.is(p.length, 1)
-	t.is(p[0].id, '5')
+	expect(p).toHaveLength(1)
+	expect(p[0].id).toBe('5')
 })
 
-test('id/col slugValue', async t => {
+test('id/col slugValue', async () => {
 	const m = getModel({
 		columns: {
 			id: {slugValue: o => o.hi.slice(0, 3)},
@@ -115,12 +115,12 @@ test('id/col slugValue', async t => {
 	})
 	await m.set({hi: 'hello'})
 	const o = await m.searchOne()
-	t.deepEqual(o, {id: 'hel', hi: 'hello', other: 'hello'})
+	expect(o).toEqual({id: 'hel', hi: 'hello', other: 'hello'})
 	await m.set({hi: 'Hello'})
 	const p = await m.searchOne({hi: 'Hello'})
-	t.deepEqual(p, {id: 'hel-2', hi: 'Hello', other: 'hello-2'})
+	expect(p).toEqual({id: 'hel-2', hi: 'Hello', other: 'hello-2'})
 	const q = await m.set({id: 'hel-2', hi: 'Hello', other: undefined})
-	t.deepEqual(q, {id: 'hel-2', hi: 'Hello', other: 'hello-2'}, 'ignores self')
+	expect(q).toEqual({id: 'hel-2', hi: 'Hello', other: 'hello-2'})
 })
 
 const withObjs = sharedSetup(() => {
@@ -134,150 +134,151 @@ const withObjs = sharedSetup(() => {
 })
 test(
 	'get falsy ids',
-	withObjs(async (m, t) => {
-		t.deepEqual(await m.get(0), {id: '0', moop: 8})
-		t.deepEqual(await m.get(''), {id: '', moop: 9})
+	withObjs(async m => {
+		expect(await m.get(0)).toEqual({id: '0', moop: 8})
+		expect(await m.get('')).toEqual({id: '', moop: 9})
 	})
 )
 
 test(
 	'get by id',
-	withObjs(async (m, t) => {
-		t.deepEqual(await m.get('foobar'), {id: 'foobar', fluffy: true})
+	withObjs(async m => {
+		expect(await m.get('foobar')).toEqual({id: 'foobar', fluffy: true})
 	})
 )
 
 test(
 	'get w/ auto id',
-	withObjs(async (m, t) => {
+	withObjs(async m => {
 		const obj = {fluffier: true}
 		const withId = await m.set(obj)
 		const saved = await m.get(withId.id)
-		t.deepEqual(saved, withId)
-		t.true(saved.fluffier)
+		expect(saved).toEqual(withId)
+		expect(saved.fluffier).toBe(true)
 	})
 )
 
 test(
 	'get w/ null id',
-	withObjs(async (m, t) => {
-		t.throws(m.get(null))
-		return t.throws(m.get(undefined))
+	withObjs(async m => {
+		await expect(m.get(null)).rejects.toThrow()
+		await expect(m.get(undefined)).rejects.toThrow()
 	})
 )
 
-test('get w/ other colName', async t => {
+test('get w/ other colName', async () => {
 	const m = getModel({
 		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},
 	})
 	await m.set({id: 0, slug: 10})
-	t.deepEqual(await m.get(10, 'slug'), {id: 0, slug: 10})
+	expect(await m.get(10, 'slug')).toEqual({id: 0, slug: 10})
 })
 
-test('getAll', async t => {
+test('getAll', async () => {
 	const m = getModel({
 		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},
 	})
 	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10})))
-	t.deepEqual(await m.getAll([4, 'nope', 0]), [
+	expect(await m.getAll([4, 'nope', 0])).toEqual([
 		{id: 4, slug: 14},
 		undefined,
 		{id: 0, slug: 10},
 	])
-	t.deepEqual(await m.getAll([10, 'nope', 12], 'slug'), [
+	expect(await m.getAll([10, 'nope', 12], 'slug')).toEqual([
 		{id: 0, slug: 10},
 		undefined,
 		{id: 2, slug: 12},
 	])
 })
 
-test('all', async t => {
+test('all', async () => {
 	const m = getModel()
 	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
 	const saved = await m.all()
-	t.is(saved.length, 5)
-	t.true(saved.some(r => r.id === '4'))
-	t.true(saved.some(r => r.id === '1'))
+	expect(saved).toHaveLength(5)
+	expect(saved.some(r => r.id === '4')).toBe(true)
+	expect(saved.some(r => r.id === '1')).toBe(true)
 })
 
-test('delete undefined', async t => {
+test('delete undefined', async () => {
 	const m = getModel()
 	const p = m.remove()
-	await t.notThrows(p)
+	await expect(p).resolves.not.toThrow()
 })
 
-test('delete', async t => {
+test('delete', async () => {
 	const m = getModel({columns: {id: {type: 'INTEGER'}}})
 	await m.set({id: 123})
-	await t.notThrows(() => m.remove(123))
-	t.falsy(await m.get(123))
+	await expect(m.remove(123)).resolves.not.toThrow()
+	expect(await m.get(123)).toBeFalsy()
 	await m.set({id: 234})
-	await t.notThrows(() => m.remove({id: 234}))
-	t.falsy(await m.get(234))
+	await expect(m.remove({id: 234})).resolves.not.toThrow()
+	expect(await m.get(234)).toBeFalsy()
 })
 
-test('count', async t => {
+test('count', async () => {
 	const m = getModel()
 	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
 	const count = await m.count(null, {where: {'id > 2': []}})
-	t.is(count, 2)
+	expect(count).toBe(2)
 })
 
-test('idCol', async t => {
+test('idCol', async () => {
 	const m = getModel({idCol: 'v', columns: {foo: {jsonPath: 'foo'}}})
 	await Promise.all([0, 1, 2, 3, 4].map(v => m.set({v})))
-	t.deepEqual(await m.get(1), {v: '1'})
-	t.deepEqual(await m.get(1), {v: '1'})
+	expect(await m.get(1)).toEqual({v: '1'})
+	expect(await m.get(1)).toEqual({v: '1'})
 	const n = await m.set({foo: 342})
-	t.truthy(n.v)
+	expect(n.v).toBeTruthy()
 	m.set({v: n.v, foo: 342})
 	const n2 = await m.search({foo: 342})
-	t.is(n2.items.length, 1)
-	t.truthy(await m.get(n.v))
+	expect(n2.items).toHaveLength(1)
+	expect(await m.get(n.v)).toBeTruthy()
 	await m.remove(n.v)
-	t.falsy(await m.get(n.v))
-	t.deepEqual(m.makeSelect({limit: 2}), [
+	expect(await m.get(n.v)).toBeFalsy()
+	expect(m.makeSelect({limit: 2})).toEqual([
 		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY "v" LIMIT 2`,
 		[],
 		['_1', '_2'],
 	])
 })
 
-test('set(obj, insertOnly)', async t => {
+test('set(obj, insertOnly)', async () => {
 	const m = getModel()
 	await m.set({id: 234})
-	await t.throws(m.set({id: 234}, true))
+	await expect(m.set({id: 234}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
 })
 
-test('update(obj)', async t => {
+test('update(obj)', async () => {
 	const m = getModel()
 	const obj = await m.update({hi: 5, ho: 8}, true)
 	const {id} = obj
-	t.deepEqual(await m.get(id), obj)
+	expect(await m.get(id)).toEqual(obj)
 	await m.update({id, hi: 7})
-	t.deepEqual(await m.get(id), {...obj, hi: 7})
+	expect(await m.get(id)).toEqual({...obj, hi: 7})
 })
 
-test('update(obj, upsert)', async t => {
+test('update(obj, upsert)', async () => {
 	const m = getModel()
 	await m.set({id: 5, ho: 8})
-	await t.notThrows(m.update({id: 5, ho: 9}))
-	await t.throws(m.update({id: 7, ho: 9}))
-	await t.notThrows(m.update({id: 7, ho: 9}, true))
-	await t.notThrows(m.update({ho: 10}, true))
-	t.is(await m.count(), 3)
+	await expect(m.update({id: 5, ho: 1})).resolves.toEqual({id: 5, ho: 1})
+	await expect(m.update({id: 7, ho: 2})).rejects.toThrow('No object')
+	await expect(m.update({id: 7, ho: 3}, true)).resolves.toEqual({id: 7, ho: 3})
+	await expect(m.update({ho: 4}, true)).resolves.toMatchObject({ho: 4})
+	expect(await m.count()).toBe(3)
 })
 
-test('update transactional', async t => {
+test('update transactional', async () => {
 	const m = getModel()
 	await m.db.run(`BEGIN IMMEDIATE`)
-	// It will throw due to transaction in transaction
-	await t.throws(m.update({id: 5, ho: 9}, true))
+	await expect(m.update({id: 5, ho: 9}, true)).rejects.toThrow(
+		'cannot start a transaction within a transaction'
+	)
 })
 
-test('updateNoTrans not transactional', async t => {
+test('updateNoTrans not transactional', async () => {
 	const m = getModel()
 	await m.db.run(`BEGIN IMMEDIATE`)
-	await t.notThrows(m.updateNoTrans({id: 5, ho: 9}, true))
+	await expect(m.updateNoTrans({id: 5, ho: 9}, true)).resolves.not.toThrow()
 	await m.db.run(`END`)
 })

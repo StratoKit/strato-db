@@ -1,4 +1,4 @@
-import test from 'ava'
+import expect from 'expect'
 import DB from '../DB'
 import JsonModel from '../JsonModel'
 import EQ from '../EventQueue'
@@ -66,24 +66,24 @@ const withESDB = (fn, models = testModels) =>
 		return fn(eSDB, queue)
 	})
 
-test('create', t => {
+test('create', () => {
 	return withESDB(eSDB => {
 		// eSDB.listen(changes => eSDB.reducers.count.get('count'))
 		// await queue.add('whee')
-		t.truthy(eSDB.db)
-		t.truthy(eSDB.queue)
-		t.truthy(eSDB.store && eSDB.store.metadata)
-		t.truthy(eSDB.store.count)
-		t.truthy(eSDB.history)
-		t.throws(() => withESDB(() => {}, {history: {}}))
-		t.throws(() => withESDB(() => {}, {metadata: {}}))
+		expect(eSDB.db).toBeTruthy()
+		expect(eSDB.queue).toBeTruthy()
+		expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
+		expect(eSDB.store.count).toBeTruthy()
+		expect(eSDB.history).toBeTruthy()
+		expect(() => withESDB(() => {}, {history: {}})).toThrow()
+		expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
 	})
 })
 
-test('create with Model', t => {
+test('create with Model', () => {
 	return withESDB(
 		eSDB => {
-			t.true(eSDB.store.count.foo())
+			expect(eSDB.store.count.foo()).toBe(true)
 		},
 		{
 			count: {
@@ -98,19 +98,19 @@ test('create with Model', t => {
 	)
 })
 
-test('create without given queue', async t => {
+test('create without given queue', async () => {
 	const db = new DB()
 	let eSDB
-	t.notThrows(() => {
+	expect(() => {
 		eSDB = new ESDB({db, models: {}})
-	})
-	await t.notThrows(eSDB.dispatch('hi'))
+	}).not.toThrow()
+	await expect(eSDB.dispatch('hi')).resolves.toHaveProperty('v', 1)
 })
 
-test('reducer', t => {
+test('reducer', () => {
 	return withESDB(async eSDB => {
 		const result = await eSDB.reducer(null, events[0])
-		t.deepEqual(result, {
+		expect(result).toEqual({
 			v: 1,
 			type: 'foo',
 			result: {
@@ -119,7 +119,7 @@ test('reducer', t => {
 			},
 		})
 		const result2 = await eSDB.reducer(null, events[1])
-		t.deepEqual(result2, {
+		expect(result2).toEqual({
 			v: 2,
 			type: 'bar',
 			data: {gotBar: true},
@@ -131,7 +131,7 @@ test('reducer', t => {
 	})
 })
 
-test('applyEvent', t => {
+test('applyEvent', () => {
 	return withESDB(async eSDB => {
 		await eSDB.applyEvent({
 			v: 1,
@@ -141,47 +141,48 @@ test('applyEvent', t => {
 				metadata: {set: [{id: 'version', v: 1}]},
 			},
 		})
-		t.deepEqual(await eSDB.store.count.get('count'), {
+		expect(await eSDB.store.count.get('count')).toEqual({
 			id: 'count',
 			total: 1,
 			byType: {foo: 1},
 		})
-		t.deepEqual(await eSDB.store.metadata.get('version'), {id: 'version', v: 1})
+		expect(await eSDB.store.metadata.get('version')).toEqual({
+			id: 'version',
+			v: 1,
+		})
 	})
 })
 
-test('applyEvent invalid', t => {
+test('applyEvent invalid', () => {
 	return withESDB(async eSDB => {
-		await t.throws(
-			eSDB.applyEvent(
-				{
-					v: 1,
-					type: 'foo',
-					result: {
-						// it will try to call map as a function
-						metadata: {set: {map: 5}},
-					},
-				}
-			)
-		)
+		await expect(
+			eSDB.applyEvent({
+				v: 1,
+				type: 'foo',
+				result: {
+					// it will try to call map as a function
+					metadata: {set: {map: 5}},
+				},
+			})
+		).rejects.toThrow('not a function')
 	})
 })
 
-test('waitForQueue', async t =>
+test('waitForQueue', async () =>
 	withESDB(async (eSDB, queue) => {
 		await queue.add('ONE')
 		await queue.add('TWO')
-		t.is(await eSDB.getVersion(), 0)
+		expect(await eSDB.getVersion()).toBe(0)
 		const p = eSDB.waitForQueue()
 		await queue.add('THREE')
-		t.is((await p).type, 'TWO')
+		expect((await p).type).toBe('TWO')
 	}))
 
-test('incoming event', async t => {
+test('incoming event', async () => {
 	return withESDB(async eSDB => {
 		const event = await eSDB.queue.add('foobar')
 		await eSDB.handledVersion(event.v)
-		t.deepEqual(await eSDB.store.count.get('count'), {
+		expect(await eSDB.store.count.get('count')).toEqual({
 			id: 'count',
 			total: 1,
 			byType: {foobar: 1},
@@ -189,38 +190,28 @@ test('incoming event', async t => {
 	})
 })
 
-test('queue in same db', async t => {
+test('queue in same db', async () => {
 	const db = new DB()
 	const queue = new EQ({db})
 	const eSDB = new ESDB({db, queue, models: testModels})
-	t.is(eSDB.history, queue)
+	expect(eSDB.history).toBe(queue)
 	queue.add('boop')
 	const {v} = await queue.add('moop')
 	eSDB.checkForEvents()
 	await eSDB.handledVersion(v)
 	const history = await eSDB.history.all()
-	t.is(history.length, 2)
-	t.is(history[0].type, 'boop')
-	t.truthy(history[0].result)
-	t.is(history[1].type, 'moop')
-	t.truthy(history[1].result)
+	expect(history).toHaveLength(2)
+	expect(history[0].type).toBe('boop')
+	expect(history[0].result).toBeTruthy()
+	expect(history[1].type).toBe('moop')
+	expect(history[1].result).toBeTruthy()
 })
 
-test('dispatch', async t => {
+test('dispatch', async () => {
 	return withESDB(async eSDB => {
 		const event1P = eSDB.dispatch('whattup', 'indeed', 42)
 		const event2P = eSDB.dispatch('dude', {woah: true}, 55)
-		t.deepEqual(await event1P, {
-			v: 1,
-			type: 'whattup',
-			ts: 42,
-			data: 'indeed',
-			result: {
-				count: {set: [{id: 'count', total: 1, byType: {whattup: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
-			},
-		})
-		t.deepEqual(await event2P, {
+		expect(await event2P).toEqual({
 			v: 2,
 			type: 'dude',
 			ts: 55,
@@ -230,18 +221,28 @@ test('dispatch', async t => {
 				metadata: {set: [{id: 'version', v: 2}]},
 			},
 		})
+		expect(await event1P).toEqual({
+			v: 1,
+			type: 'whattup',
+			ts: 42,
+			data: 'indeed',
+			result: {
+				count: {set: [{id: 'count', total: 1, byType: {whattup: 1}}]},
+				metadata: {set: [{id: 'version', v: 1}]},
+			},
+		})
 	})
 })
 
-test('reducer migration', async t => {
+test('reducer migration', async () => {
 	let step = 0
 	return withESDB(
 		async eSDB => {
 			// Wait for migrations to run
 			await eSDB.store.count.searchOne()
-			t.is(step, 1)
+			expect(step).toBe(1)
 			const e = await eSDB.queue.searchOne()
-			t.is(e.type, 'foo')
+			expect(e.type).toBe('foo')
 		},
 		{
 			count: {
@@ -249,11 +250,11 @@ test('reducer migration', async t => {
 				migrations: {
 					foo: {
 						async up({db, model, queue}) {
-							t.is(step, 0)
+							expect(step).toBe(0)
 							step = 1
-							t.truthy(db)
-							t.truthy(model)
-							t.truthy(queue)
+							expect(db).toBeTruthy()
+							expect(model).toBeTruthy()
+							expect(queue).toBeTruthy()
 							await queue.add('foo', 0)
 						},
 					},
@@ -263,25 +264,31 @@ test('reducer migration', async t => {
 	)
 })
 
-test('derivers', async t => {
+test('derivers', async () => {
 	return withESDB(async eSDB => {
 		await eSDB.dispatch('bar')
-		t.deepEqual(await eSDB.store.deriver.searchOne(), {
+		expect(await eSDB.store.deriver.searchOne()).toEqual({
 			desc: 'Total: 1, seen types: bar',
 			id: 'descCount',
 		})
 	})
 })
 
-test('preprocessors', async t => {
+test('preprocessors', async () => {
 	return withESDB(
 		async eSDB => {
-			await t.throws(eSDB.dispatch('pre type'))
-			await t.throws(eSDB.dispatch('pre version'))
-			const badEvent = await eSDB.dispatch('bad event').catch(err => err)
-			t.is(badEvent.error.meep, 'Yeah, no.')
+			await expect(eSDB.dispatch('pre type')).rejects.toHaveProperty(
+				'error._preprocess.message'
+			)
+			await expect(eSDB.dispatch('pre version')).rejects.toHaveProperty(
+				'error._preprocess.message'
+			)
+			await expect(eSDB.dispatch('bad event')).rejects.toHaveProperty(
+				'error.meep',
+				'Yeah, no.'
+			)
 			await eSDB.dispatch('create_thing', {foo: 2})
-			t.deepEqual(await eSDB.store.meep.searchOne(), {
+			expect(await eSDB.store.meep.searchOne()).toEqual({
 				id: '5',
 				foo: 2,
 			})
@@ -319,32 +326,35 @@ test('preprocessors', async t => {
 	)
 })
 
-test('event emitter', async t => {
+test('event emitter', async () => {
 	return withESDB(async eSDB => {
 		let handled = 0,
 			errored = 0,
 			resulted = 0
 		eSDB.on('result', event => {
 			resulted++
-			t.falsy(event.error)
-			t.truthy(event.result)
+			expect(event.error).toBeFalsy()
+			expect(event.result).toBeTruthy()
 		})
 		eSDB.on('error', event => {
 			errored++
-			t.truthy(event.error)
-			t.truthy(event.result)
+			expect(event.error).toBeTruthy()
+			expect(event.result).toBeTruthy()
 		})
 		eSDB.on('handled', event => {
 			handled++
-			t.truthy(event)
+			expect(event).toBeTruthy()
 			// Get called in order
-			t.is(event.v, handled)
+			expect(event.v).toBe(handled)
 		})
 		eSDB.dispatch('foo')
 		eSDB.dispatch('bar')
-		await t.throws(eSDB.dispatch('errorme'))
-		t.is(handled, 3)
-		t.is(errored, 1)
-		t.is(resulted, 2)
+		await expect(eSDB.dispatch('errorme')).rejects.toHaveProperty(
+			'error._redux.message',
+			'error for you'
+		)
+		expect(handled).toBe(3)
+		expect(errored).toBe(1)
+		expect(resulted).toBe(2)
 	})
 })

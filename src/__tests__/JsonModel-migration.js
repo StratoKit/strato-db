@@ -1,16 +1,16 @@
-import test from 'ava'
+import expect from 'expect';
 import {DB, JsonModel, getModel} from './_helpers'
 
-test('falsy migration', async t => {
+test('falsy migration', async () => {
 	const m = getModel({
 		migrations: {
 			foo: false,
 		},
 	})
-	await t.notThrows(() => m.searchOne())
+	await expect(() => m.searchOne()).not.toThrow()
 })
 
-test('migrations', async t => {
+test('migrations', async () => {
 	const m = getModel({
 		columns: {
 			foo: {
@@ -22,11 +22,11 @@ test('migrations', async t => {
 		migrations: {
 			meep: {
 				up: async ({db, model, hi}) => {
-					t.truthy(db)
-					t.truthy(model)
-					t.is(hi, 3)
+					expect(db).toBeTruthy()
+					expect(model).toBeTruthy()
+					expect(hi).toBe(3)
 					const d = await model.set({foo: 1})
-					t.is(d.foo, 5)
+					expect(d.foo).toBe(5)
 				},
 			},
 		},
@@ -36,17 +36,17 @@ test('migrations', async t => {
 		},
 	})
 	const d = await m.searchOne()
-	t.is(d.foo, 5)
+	expect(d.foo).toBe(5)
 })
 
-test('concurrent migrations', async t => {
+test('concurrent migrations', async () => {
 	const db = new DB()
 	const a = db.addModel(JsonModel, {
 		name: 'a',
 		migrations: {
 			2: {
 				async up({db}) {
-					t.deepEqual(await db.models.b.searchOne(), {id: '1'})
+					expect(await db.models.b.searchOne()).toEqual({id: '1'})
 				},
 			},
 		},

@@ -1,26 +1,26 @@
-import test from 'ava'
+import expect from 'expect'
 import {getModel} from './_helpers'
 
-test('searchOne', async t => {
+test('searchOne', async () => {
 	const m = getModel()
 	const obj = {id: 'foobar', fluffy: true}
 	await m.set(obj)
 	const saved = await m.searchOne({id: obj.id})
-	t.deepEqual(saved, obj)
+	expect(saved).toEqual(obj)
 })
 
-test('search[One] attrs=null', async t => {
+test('search[One] attrs=null', async () => {
 	const m = getModel()
-	await t.notThrows(m.searchOne(null))
-	await t.notThrows(m.search(null))
-	await t.notThrows(m.searchOne(undefined))
-	await t.notThrows(m.search(undefined))
+	await expect(m.searchOne(null)).resolves.not.toThrow()
+	await expect(m.search(null)).resolves.not.toThrow()
+	await expect(m.searchOne(undefined)).resolves.not.toThrow()
+	await expect(m.search(undefined)).resolves.not.toThrow()
 	await m.set({t: 5})
 	const all = await m.search(null)
-	t.is(all.items[0].t, 5)
+	expect(all.items[0].t).toBe(5)
 })
 
-test('search cursor', async t => {
+test('search cursor', async () => {
 	const m = getModel({
 		columns: {id: {type: 'INTEGER'}, c: {jsonPath: 'c'}, d: {jsonPath: 'd'}},
 	})
@@ -34,7 +34,7 @@ test('search cursor', async t => {
 		limit: 3,
 	}
 	const o = await m.search(null, q)
-	t.deepEqual(o, {
+	expect(o).toEqual({
 		items: [
 			{id: 10, c: 'f', d: 'f'},
 			{id: 11, c: 'f', d: 'f'},
@@ -43,7 +43,7 @@ test('search cursor', async t => {
 		cursor: '!e~e~8',
 	})
 	const n = await m.search(null, {...q, cursor: o.cursor})
-	t.deepEqual(n, {
+	expect(n).toEqual({
 		items: [
 			{id: 9, c: 'e', d: 'e'},
 			{id: 0, c: 'd', d: 'a'},
@@ -52,23 +52,23 @@ test('search cursor', async t => {
 		cursor: '!d~a~1',
 	})
 	const l = await m.search(null, {...q, cursor: n.cursor})
-	t.deepEqual(l, {
+	expect(l).toEqual({
 		items: [{id: 6, c: 'c', d: 'd'}, {id: 7, c: 'c', d: 'd'}],
 		cursor: undefined,
 	})
 })
 
-test('search itemsOnly', async t => {
+test('search itemsOnly', async () => {
 	const m = getModel()
 	const obj = await m.set({fluffy: true})
-	t.deepEqual(await m.search(null, {itemsOnly: true}), [obj])
+	expect(await m.search(null, {itemsOnly: true})).toEqual([obj])
 })
 
-test('exists', async t => {
+test('exists', async () => {
 	const m = getModel({columns: {hi: {jsonPath: 'hi'}}})
-	t.false(await m.exists())
+	expect(await m.exists()).toBe(false)
 	await m.set({hi: true})
-	t.true(await m.exists())
-	t.true(await m.exists({hi: true}))
-	t.false(await m.exists({hi: false}))
+	expect(await m.exists()).toBe(true)
+	expect(await m.exists({hi: true})).toBe(true)
+	expect(await m.exists({hi: false})).toBe(false)
 })

@@ -14,8 +14,9 @@
 	},
 	"scripts": {
 		"build": "NODE_ENV=production babel -s true --ignore __tests__ -D -d dist/ src/",
-		"test": "eslint src/**/*.js && NODE_ENV=test nyc ava",
-		"test-watch": "NODE_ENV=test DEBUG_COLORS=yes ava --watch --verbose"
+		"test": "eslint src/**/*.js && NODE_ENV=test jest --coverage --color",
+		"test-watch": "NODE_ENV=test jest --color --watch",
+		"test-inspect": "NODE_ENV=test node --inspect ./node_modules/.bin/jest --runInBand --watch"
 	},
 	"main": "dist/index.js",
 	"files": [
@@ -41,7 +42,6 @@
 		"uuid": "^3.2.1"
 	},
 	"devDependencies": {
-		"ava": "^0.25.0",
 		"babel-cli": "^6.26.0",
 		"babel-eslint": "^8.2.2",
 		"babel-plugin-lodash": "^3.3.2",
@@ -52,14 +52,15 @@
 		"babel-register": "^6.26.0",
 		"eslint": "^4.18.2",
 		"eslint-config-xo": "^0.20.1",
-		"eslint-plugin-ava": "^4.5.1",
 		"eslint-plugin-babel": "^4.1.1",
 		"eslint-plugin-import": "^2.9.0",
+		"eslint-plugin-jest": "^21.15.0",
 		"eslint-plugin-promise": "^3.7.0",
 		"eslint-plugin-unicorn": "^4.0.2",
+		"expect": "^23.0.0-alpha.0",
 		"fs-extra": "^5.0.0",
+		"jest-cli": "^23.0.0-alpha.0",
 		"makfy": "^1.2.0",
-		"nyc": "^11.4.1",
 		"prettier": "^1.11.1"
 	},
 	"prettier": {
@@ -69,14 +70,11 @@
 		"trailingComma": "es5",
 		"bracketSpacing": false
 	},
-	"ava": {
-		"files": [
-			"src/**/{__tests__/*,*.test}.js"
-		],
-		"babel": "inherit",
-		"concurrency": 5,
-		"require": [
-			"babel-register"
+	"jest": {
+		"testPathIgnorePatterns": [
+			"<rootDir>/dist/",
+			"<rootDir>/node_modules/",
+			"_helpers.js"
 		]
 	}
 }

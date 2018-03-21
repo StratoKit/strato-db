@@ -1,24 +1,24 @@
-import test from 'ava'
+import expect from 'expect'
 import {randomString, slugifyString} from './slugify'
 
-test('randomString', t => {
+test('randomString', () => {
 	const values = {}
 	let i = 0
 	let duplicateCount = 0
 	while (i < 100000) {
 		const val = randomString(8)
-		t.is(val.length, 8)
+		expect(val.length).toBe(8)
 		if (values[val]) {
 			duplicateCount++
 		}
 		values[val] = 1
 		i++
 	}
-	t.true(duplicateCount <= 1, 'There should be no collisions')
+	expect(duplicateCount <= 1).toBe(true)
 })
 
-test('slugifyString', t => {
-	const cmp = (o, s) => t.is(slugifyString(o), s)
+test('slugifyString', () => {
+	const cmp = (o, s) => expect(slugifyString(o)).toBe(s)
 	cmp(' rostuLR"st  wfpunq 🤗', 'rostulr-st-wfpunq')
 	cmp('hi there', 'hi-there')
 	cmp('hi there.', 'hi-there')
@@ -26,12 +26,12 @@ test('slugifyString', t => {
 	cmp('1234567890!@#$`|&*()+-={}[];:\\\'"%^_~nice!', '1234567890!-*-nice')
 	cmp({meep: 'yoyo'}, 'yoyo')
 	cmp(0, '0')
-	t.throws(() => slugifyString())
-	t.throws(() => slugifyString(''))
-	t.throws(() => slugifyString(null))
-	t.throws(() => slugifyString([]))
-	t.notThrows(() => slugifyString(0, true))
-	t.true(slugifyString(null, true).length === 12)
+	expect(() => slugifyString()).toThrow()
+	expect(() => slugifyString('')).toThrow()
+	expect(() => slugifyString(null)).toThrow()
+	expect(() => slugifyString([])).toThrow()
+	expect(() => slugifyString(0, true)).not.toThrow()
+	expect(slugifyString(null, true).length === 12).toBe(true)
 })
 
-test.todo('uniqueSlugId')
+test.skip('uniqueSlugId', () => {}) // TODO

@@ -1,81 +1,83 @@
+import expect from 'expect'
 /* eslint-disable import/no-named-as-default-member */
-import test from 'ava'
 import BP from 'bluebird'
 import DB, {sql} from '../DB'
 
-test(`sql.quoteId`, t => {
-	t.is(sql.quoteId('a"ha"h""a a a a"'), '"a""ha""h""""a a a a"""')
+test(`sql.quoteId`, () => {
+	expect(sql.quoteId('a"ha"h""a a a a"')).toBe('"a""ha""h""""a a a a"""')
 })
-test('sql`` values', t => {
+test('sql`` values', () => {
 	const out = sql`values ${1}, ${'a'} bop`
-	t.deepEqual(out, ['values ?, ? bop', [1, 'a']])
-	t.deepEqual(sql`${5}`, ['?', [5]])
+	expect(out).toEqual(['values ?, ? bop', [1, 'a']])
+	expect(sql`${5}`).toEqual(['?', [5]])
 })
-test('sql`` JSON', t => {
+test('sql`` JSON', () => {
 	const json = sql` ${'meep'}JSON, ${'moop'}JSONs, ${7}JSON`
-	t.deepEqual(json, [' ?, ?JSONs, ?', ['"meep"', 'moop', '7']])
+	expect(json).toEqual([' ?, ?JSONs, ?', ['"meep"', 'moop', '7']])
 })
-test('sql`` ID', t => {
+test('sql`` ID', () => {
 	const out = sql`ids ${1}ID, ${2}IDs ${'a"meep"whee'}ID`
-	t.deepEqual(out, ['ids "1", ?IDs "a""meep""whee"', [2]])
+	expect(out).toEqual(['ids "1", ?IDs "a""meep""whee"', [2]])
 })
-test('sql`` LIT', t => {
+test('sql`` LIT', () => {
 	const out = sql`ids ${1}LIT, ${2}LITs ${'a"meep"whee'}LIT`
-	t.deepEqual(out, ['ids 1, ?LITs a"meep"whee', [2]])
+	expect(out).toEqual(['ids 1, ?LITs a"meep"whee', [2]])
 })
 
-test('sql`` on DB/db/fns', async t => {
+test('sql`` on DB/db/fns', async () => {
 	const db = new DB()
-	t.is(typeof DB.sql, 'function')
-	t.is(typeof db.sql, 'function')
+	expect(typeof DB.sql).toBe('function')
+	expect(typeof db.sql).toBe('function')
 	let p
-	t.notThrows(() => {
+	expect(() => {
 		p = db.exec`CREATE TABLE ${'foo'}ID(id BLOB);`
-	})
-	await t.notThrows(p)
-	t.notThrows(() => {
+	}).not.toThrow()
+	await expect(p).resolves.not.toThrow()
+	expect(() => {
 		p = db.run`INSERT INTO ${'foo'}ID VALUES (${5})`
-	})
-	await t.notThrows(p)
-	t.notThrows(() => {
+	}).not.toThrow()
+	await expect(p).resolves.not.toThrow()
+	expect(() => {
 		p = db.get`SELECT * FROM ${'foo'}ID WHERE ${'id'}ID = ${5}`
-	})
+	}).not.toThrow()
 	const row = await p
-	t.is(row.id, 5)
+	expect(row.id).toBe(5)
 })
 
-test('creates DB', async t => {
+test('creates DB', async () => {
 	const db = new DB()
 	const version = await db.get('SELECT sqlite_version()')
-	t.truthy(version['sqlite_version()'])
-	t.deepEqual(db.models, {})
+	expect(version['sqlite_version()']).toBeTruthy()
+	expect(db.models).toEqual({})
 	await db.close()
 })
 
-test('readOnly', async t => {
+test('readOnly', async () => {
 	const db = new DB({readOnly: true})
-	await t.notThrows(db.get('SELECT sqlite_version()'))
-	await t.throws(db.get('CREATE TABLE foo(id)'))
+	await expect(db.get('SELECT sqlite_version()')).resolves.toBeTruthy()
+	await expect(db.get('CREATE TABLE foo(id)')).rejects.toThrow(
+		'SQLITE_READONLY'
+	)
 	await db.close()
 })
 
-test('can register model', t => {
+test('can register model', () => {
 	const db = new DB()
 	class Hi {
 		name = 'hi'
 	}
 	const m = db.addModel(Hi)
-	t.is(m.name, 'hi')
-	t.is(db.models.hi, m)
-	t.throws(() => db.addModel(Hi))
+	expect(m.name).toBe('hi')
+	expect(db.models.hi).toBe(m)
+	expect(() => db.addModel(Hi)).toThrow()
 })
 
-test('has migration', async t => {
+test('has migration', async () => {
 	const db = new DB()
 	db.registerMigrations('whee', {
 		0: {
 			up: db => {
-				t.deepEqual(db.models, {})
+				expect(db.models).toEqual({})
 				return db.exec(`
 				CREATE TABLE foo(hi NUMBER);
 				INSERT INTO foo VALUES (42);
@@ -84,19 +86,19 @@ test('has migration', async t => {
 		},
 	})
 	const row = await db.get('SELECT * FROM foo')
-	t.is(row.hi, 42)
+	expect(row.hi).toBe(42)
 	await db.close()
 })
 
-test('refuses late migrations', async t => {
+test('refuses late migrations', async () => {
 	const db = new DB()
 	db.registerMigrations('whee', {0: {up: () => {}}})
 	await db.openDB()
-	t.throws(() => db.registerMigrations('whee', {1: {up: () => {}}}))
+	expect(() => db.registerMigrations('whee', {1: {up: () => {}}})).toThrow()
 	await db.close()
 })
 
-test('sorts migrations', async t => {
+test('sorts migrations', async () => {
 	const db = new DB()
 	const arr = []
 	db.registerMigrations('whee', {
@@ -121,11 +123,11 @@ test('sorts migrations', async t => {
 		},
 	})
 	await db.openDB()
-	t.deepEqual(arr, ['a', 'b', 'c'])
+	expect(arr).toEqual(['a', 'b', 'c'])
 	await db.close()
 })
 
-test('marks migrations as ran', async t => {
+test('marks migrations as ran', async () => {
 	const db = new DB()
 	const count = {a: 0, b: 0}
 	db.registerMigrations('whee', {
@@ -144,11 +146,11 @@ test('marks migrations as ran', async t => {
 	})
 	await db.openDB()
 	const ran = await db._getRanMigrations()
-	t.deepEqual(ran, {'a whee': true, 'b whee': true}) // eslint-disable-line camelcase
+	expect(ran).toEqual({'a whee': true, 'b whee': true}) // eslint-disable-line camelcase
 	await db.close()
 })
 
-test('each()', async t => {
+test('each()', async () => {
 	const db = new DB()
 	await db.exec(`
 		CREATE TABLE foo(hi NUMBER);
@@ -157,17 +159,17 @@ test('each()', async t => {
 	`)
 	const arr = []
 	await db.each(`SELECT * FROM foo`, ({hi}) => arr.push(hi))
-	t.deepEqual(arr, [42, 43])
+	expect(arr).toEqual([42, 43])
 })
 
-test('close()', async t => {
+test('close()', async () => {
 	const db = new DB()
 	await db.exec(`
 		CREATE TABLE foo(hi NUMBER);
 		INSERT INTO foo VALUES (42);
 	`)
 	const {hi} = await db.get(`SELECT * FROM foo`)
-	t.is(hi, 42)
+	expect(hi).toBe(42)
 	// This clears db because it's in memory only
 	await db.close()
 	await db.exec(`
@@ -175,12 +177,12 @@ test('close()', async t => {
 		INSERT INTO foo VALUES (43);
 	`)
 	const {hi: hi2} = await db.get(`SELECT * FROM foo`)
-	t.is(hi2, 43)
+	expect(hi2).toBe(43)
 })
 
-test.todo('downwards migration')
+test.skip('downwards migration', () => {}) // TODO
 
-test('withTransaction', async t => {
+test('withTransaction', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
 	db.withTransaction(async () => {
@@ -188,19 +190,19 @@ test('withTransaction', async t => {
 		await db.exec`INSERT INTO foo VALUES (43, 1);`
 	})
 	await db.withTransaction(() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`)
-	t.deepEqual(await db.all`SELECT * from foo`, [{hi: 43, ho: 2}])
+	expect(await db.all`SELECT * from foo`).toEqual([{hi: 43, ho: 2}])
 })
 
-test('withTransaction rollback', async t => {
+test('withTransaction rollback', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
-	await t.throws(
+	await expect(
 		db.withTransaction(async () => {
 			await db.exec`INSERT INTO foo VALUES (43, 1);`
-			throw new Error('ignore this testing error')
+			throw new Error('ignoreme')
 		})
-	)
-	t.deepEqual(await db.all`SELECT * from foo`, [])
+	).rejects.toThrow('ignoreme')
+	expect(await db.all`SELECT * from foo`).toEqual([])
 })
 
-test.todo('withTransaction busy wait')
+test.skip('withTransaction busy wait', () => {}) // TODO

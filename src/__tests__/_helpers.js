@@ -10,10 +10,10 @@ export const getModel = options => {
 
 export const sharedSetup = getPromise => fn => {
 	let promise
-	return async t => {
+	return async () => {
 		if (!promise) {
 			promise = getPromise()
 		}
-		return fn(await promise, t)
+		return fn(await promise)
 	}
 }

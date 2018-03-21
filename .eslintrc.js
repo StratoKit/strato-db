@@ -6,10 +6,10 @@ module.exports = {
 		node: true,
 	},
 	parser: 'babel-eslint',
-	plugins: ['ava', 'import', 'promise', 'unicorn'],
+	plugins: ['jest', 'import', 'promise', 'unicorn'],
 	extends: [
 		'eslint:recommended',
-		'plugin:ava/recommended',
+		'plugin:jest/recommended',
 		'plugin:import/errors',
 		'plugin:import/warnings',
 		'plugin:promise/recommended',

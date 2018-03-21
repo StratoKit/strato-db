@@ -1,4 +1,4 @@
-import test from 'ava'
+import expect from 'expect'
 import {getModel, sharedSetup} from './_helpers'
 
 const withCols = sharedSetup(async () => {
@@ -21,50 +21,52 @@ const withCols = sharedSetup(async () => {
 })
 test(
 	'columns create',
-	withCols(async (m, t) => {
+	withCols(async m => {
 		const row = await m.db.get(`SELECT json, foo2, foo3 FROM ${m.name}`)
-		t.deepEqual(row, {json: `{"foo1":5}`, foo2: 6, foo3: null})
+		expect(row).toEqual({json: `{"foo1":5}`, foo2: 6, foo3: null})
 	})
 )
 test(
 	'columns order',
-	withCols(async (m, t) => {
+	withCols(async m => {
 		// id and json are calculated last
 		const l = m.columnArr.length
-		t.is(m.columnArr[l - 2].name, 'id')
-		t.is(m.columnArr[l - 1].name, 'json')
+		expect(m.columnArr[l - 2].name).toBe('id')
+		expect(m.columnArr[l - 1].name).toBe('json')
 	})
 )
 test(
 	'columns get',
-	withCols(async (m, t) => {
+	withCols(async m => {
 		// columns don't automatically change the original object
 		const saved = await m.get('meep')
-		t.falsy(saved.foo2)
-		t.is(saved.fooGet, 3)
+		expect(saved.foo2).toBeFalsy()
+		expect(saved.fooGet).toBe(3)
 		saved.id = 'meep2'
 		await m.set(saved)
 		const row = await m.db.get`SELECT * FROM ${m.name}ID WHERE id = ${saved.id}`
 		const json = JSON.parse(row.json)
 		// JSON does not include get columns
-		t.falsy(json.fooGet)
-		t.falsy(json.id)
-		t.is(json.foo1, 5)
+		expect(json.fooGet).toBeFalsy()
+		expect(json.id).toBeFalsy()
+		expect(json.foo1).toBe(5)
 	})
 )
 test(
 	'columns indexes',
-	withCols(async (m, t) => {
+	withCols(async m => {
 		// Indexes are created
 		const indexes = await m.db.all(
 			`SELECT * FROM SQLITE_MASTER WHERE type = 'index'`
 		)
-		t.true(indexes.some(i => i.name.includes('foo3')))
-		t.true(indexes.every(i => !i.name.includes('foo2')))
+		expect(indexes.some(i => i.name.includes('foo3'))).toBe(true)
+		expect(indexes.every(i => !i.name.includes('foo2'))).toBe(true)
 	})
 )
 
-test('jsonPath/sql and get', t => {
-	t.throws(() => getModel({columns: {foo: {jsonPath: 'foo', get: true}}}))
-	t.throws(() => getModel({columns: {foo: {sql: '1 + 1', get: true}}}))
+test('jsonPath/sql and get', () => {
+	expect(() =>
+		getModel({columns: {foo: {jsonPath: 'foo', get: true}}})
+	).toThrow()
+	expect(() => getModel({columns: {foo: {sql: '1 + 1', get: true}}})).toThrow()
 })

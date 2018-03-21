@@ -1,4 +1,4 @@
-import test from 'ava'
+import expect from 'expect'
 import DB from '../DB'
 import EventQueue from '../EventQueue'
 
@@ -14,69 +14,69 @@ const populate = (m, count) => {
 	}
 	return Promise.all(lots.map(data => m.add('t', data)))
 }
-test('add invalid event', async t => {
+test('add invalid event', async () => {
 	const m = getModel()
-	await t.throws(m.add())
-	await t.throws(m.add(''))
-	await t.throws(m.add(123))
+	await expect(m.add()).rejects.toThrow('type should be a non-empty string')
+	await expect(m.add('')).rejects.toThrow('type should be a non-empty string')
+	await expect(m.add(123)).rejects.toThrow('type should be a non-empty string')
 })
 
-test('_getLatestVersion', async t => {
+test('_getLatestVersion', async () => {
 	const m = getModel()
-	t.is(await m._getLatestVersion(), 1)
+	expect(await m._getLatestVersion()).toBe(0)
 	// internal API
 	m.knownV = 20
-	t.is(await m._getLatestVersion(), 20)
+	expect(await m._getLatestVersion()).toBe(20)
 	await m.set({v: 500, type: 'fooo'})
-	t.is(await m._getLatestVersion(), 500)
+	expect(await m._getLatestVersion()).toBe(500)
 })
 
-test('add event', async t => {
+test('add event', async () => {
 	const m = getModel()
 	const e = await m.add('test', {foo: 'hi'})
-	t.truthy(e.v)
-	t.truthy(e.ts)
-	t.is(e.data.foo, 'hi')
+	expect(e.v).toBeTruthy()
+	expect(e.ts).toBeTruthy()
+	expect(e.data.foo).toBe('hi')
 
-	await t.notThrows(populate(m, 200))
+	await expect(populate(m, 200)).resolves.not.toThrow()
 	const events = await m.search({type: 't'})
-	t.is(events.items.length, 200)
+	expect(events.items).toHaveLength(200)
 })
 
-test('getNext(undef/0)', async t => {
+test('getNext(undef/0)', async () => {
 	const m = getModel({knownV: 50})
 	await populate(m, 5)
 	const e = await m.getNext()
-	t.is(e.v, 51)
+	expect(e.v).toBe(51)
 })
 
-test('getNext() waits', async t => {
+test('getNext() waits', async () => {
 	const m = getModel({knownV: 10})
-	t.falsy(await m.get({v: 11}))
+	expect(await m.get({v: 11})).toBeFalsy()
 	const p = m.getNext()
 	await m.add('t')
 	const e = await p
-	t.is(e && e.v, 11)
+	expect(e && e.v).toBe(11)
 	const q = m.getNext(e.v)
 	await m.add('u')
 	const f = await q
-	t.is(f.v, 12)
-	t.is(f.type, 'u')
+	expect(f.v).toBe(12)
+	expect(f.type).toBe('u')
 })
 
-test('getNext(v, true) polls once', async t => {
+test('getNext(v, true) polls once', async () => {
 	const m = getModel({knownV: 10})
-	t.falsy(await m.get({v: 11}))
+	expect(await m.get({v: 11})).toBeFalsy()
 	const p = m.getNext(null, true)
 	await m.add('t')
 	const e = await p
-	t.is(e, undefined)
+	expect(e).toBe(undefined)
 	const f = await m.getNext(10, true)
-	t.is(f.v, 11)
-	t.is(f.type, 't')
+	expect(f.v).toBe(11)
+	expect(f.type).toBe('t')
 })
 
-test('allow JsonModel migrations', async t => {
+test('allow JsonModel migrations', async () => {
 	const m = getModel({
 		migrations: {
 			test: {
@@ -87,5 +87,5 @@ test('allow JsonModel migrations', async t => {
 		},
 	})
 	const e = await m.getNext()
-	t.true(e.data.hi)
+	expect(e.data.hi).toBe(true)
 })
