@@ -45,7 +45,7 @@ class EventQueue extends JsonModel {
 
 	async _getLatestVersion() {
 		const lastRow = await this.db.get(`SELECT MAX(v) AS v from ${this.quoted}`)
-		this.currentV = Math.max(this.knownV, lastRow.v || 1)
+		this.currentV = Math.max(this.knownV, lastRow.v || 0)
 		return this.currentV
 	}
 

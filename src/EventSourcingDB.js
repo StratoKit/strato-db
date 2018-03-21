@@ -229,7 +229,8 @@ class ESDB extends EventEmitter {
 	}
 
 	async handledVersion(v) {
-		if (v < (await this.getVersion())) {
+		if (v === 0) return
+		if (v <= (await this.getVersion())) {
 			const event = await this.history.get(v)
 			if (event.error) {
 				return Promise.reject(event)

@@ -170,12 +170,17 @@ test('applyEvent invalid', () => {
 
 test('waitForQueue', async () =>
 	withESDB(async (eSDB, queue) => {
+		await expect(eSDB.waitForQueue()).resolves.toBeFalsy()
 		await queue.add('ONE')
 		await queue.add('TWO')
 		expect(await eSDB.getVersion()).toBe(0)
 		const p = eSDB.waitForQueue()
 		await queue.add('THREE')
+		queue.add('FOUR')
 		expect((await p).type).toBe('TWO')
+		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
+		// This should return immediately, if not the test will time out 
+		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
 	}))
 
 test('incoming event', async () => {
