@@ -1,13 +1,13 @@
 {
 	"name": "strato-db",
-	"version": "0.0.0",
+	"version": "0.5.0",
 	"description": "NoSQL-hybrid with Event Sourcing based on sqlite",
 	"license": "MIT",
 	"repository": "Yaska/strato-db",
 	"author": {
 		"name": "Wout Mertens",
 		"email": "Wout.Mertens@gmail.com",
-		"url": ""
+		"url": "https://github.com/StratoKit/strato-db"
 	},
 	"engines": {
 		"node": ">=6"
