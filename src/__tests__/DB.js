@@ -1,7 +1,17 @@
 import expect from 'expect'
 /* eslint-disable import/no-named-as-default-member */
 import BP from 'bluebird'
-import DB, {sql} from '../DB'
+import DB, {sql, valToSql} from '../DB'
+
+test('valToSql', () => {
+	expect(valToSql(true)).toBe('1')
+	expect(valToSql(false)).toBe('0')
+	expect(valToSql(0)).toBe('0')
+	expect(valToSql(5.4)).toBe('5.4')
+	expect(valToSql("h'i")).toBe("'h''i'")
+	expect(valToSql(null)).toBe('NULL')
+	expect(valToSql()).toBe('NULL')
+})
 
 test(`sql.quoteId`, () => {
 	expect(sql.quoteId('a"ha"h""a a a a"')).toBe('"a""ha""h""""a a a a"""')
