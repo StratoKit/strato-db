@@ -62,6 +62,15 @@ test('set(obj, insertOnly)', async () => {
 	await expect(m.set({id: 234}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
 })
 
+test('set almost empty object', async () => {
+	const m = getModel()
+	await m.set({id: 'ta'})
+	expect(await m.db.all`SELECT * from ${m.name}ID`).toEqual([
+		{id: 'ta', json: null},
+	])
+	expect(await m.all()).toEqual([{id: 'ta'}])
+})
+
 test('update(obj)', async () => {
 	const m = getModel()
 	const obj = await m.update({hi: 5, ho: 8}, true)

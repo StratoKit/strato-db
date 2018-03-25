@@ -75,7 +75,7 @@ test('default w/ value()', async () => {
 	const m = getModel({columns: {v: {value: o => o.v, default: 5}}})
 	await m.set({id: 1})
 	expect(await m.db.all(`select * from ${m.name}`)).toEqual([
-		{id: '1', json: '{}', v: 5},
+		{id: '1', json: null, v: 5},
 	])
 	expect(m.columns.v.ignoreNull).toBe(false)
 })

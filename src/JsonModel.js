@@ -137,7 +137,10 @@ class JsonModel {
 			},
 			json: {
 				// Strip "get" columns from stored JSON (including id)
-				value: obj => JSON.stringify({...obj, ...this.jsonMask}),
+				value: obj => {
+					const json = JSON.stringify({...obj, ...this.jsonMask})
+					return json === '{}' ? null : json
+				},
 				// Allow overriding stringify but not type
 				...(columns && columns.json),
 				type: 'JSON',
