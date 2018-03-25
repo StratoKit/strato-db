@@ -317,6 +317,13 @@ class JsonModel {
 							: ''
 					}
 					${
+						// TODO enforce unique with triggers instead
+						// CREATE TABLE demo(id INTEGER PRIMARY KEY, k TEXT, otherstuff ANY);
+						// CREATE INDEX demo_k ON demo(k);
+						// CREATE TRIGGER demo_trigger1 BEFORE INSERT ON demo BEGIN
+						//   SELECT raise(ABORT,'uniqueness constraint failed on k')
+						//    FROM demo WHERE k=new.k;
+						// END;
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
