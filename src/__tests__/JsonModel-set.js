@@ -1,5 +1,5 @@
 import expect from 'expect'
-import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
+import {getModel} from './_helpers'
 
 test('set with id', async () => {
 	const m = getModel()

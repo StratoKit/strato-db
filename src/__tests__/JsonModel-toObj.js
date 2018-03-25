@@ -1,4 +1,4 @@
-import expect from 'expect';
+import expect from 'expect'
 import {getModel} from './_helpers'
 
 test('toObj nothing', () => {

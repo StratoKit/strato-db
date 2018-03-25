@@ -179,7 +179,7 @@ test('waitForQueue', async () =>
 		queue.add('FOUR')
 		expect((await p).type).toBe('TWO')
 		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
-		// This should return immediately, if not the test will time out 
+		// This should return immediately, if not the test will time out
 		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
 	}))
 
