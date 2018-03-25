@@ -827,6 +827,20 @@ class JsonModel {
 		return this.remove(idOrObj)
 	}
 
+	changeId(oldId, newId) {
+		if (newId == null) throw new TypeError('newId must be a valid id')
+		const idSql = this.columns[this.idCol].sql
+		return this.db
+			.run(`UPDATE ${this.quoted} SET ${idSql} = ? WHERE ${idSql} = ?`, [
+				newId,
+				oldId,
+			])
+			.then(({changes}) => {
+				if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
+				return undefined
+			})
+	}
+
 	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
 	async applyChanges(result) {
 		const {rm, set, ins, upd, sav} = result

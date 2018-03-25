@@ -42,7 +42,6 @@
 ## JsonModel
 
 * [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
-* [ ] add changeId function; use insert if there was no id
 * [ ] move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
 * [ ] column defs are migrations and recalculate all records if the version changes
 * [ ] when setting an object without Id, use INSERT so calculated Id has to be unique and can't silently overwrite

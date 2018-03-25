@@ -104,3 +104,33 @@ test('updateNoTrans not transactional', async () => {
 	await expect(m.updateNoTrans({id: 5, ho: 9}, true)).resolves.not.toThrow()
 	await m.db.run(`END`)
 })
+
+test('.changeId(oldId, newId)', async () => {
+	const m = getModel()
+	await m.set({id: 'a', t: 1})
+	await m.changeId('a', 'b')
+	expect(await m.all()).toEqual([{id: 'b', t: 1}])
+})
+test('.changeId(oldId, existing)', async () => {
+	const m = getModel()
+	await m.set({id: 'a', t: 1})
+	await m.set({id: 'b', t: 2})
+	await expect(m.changeId('a', 'b')).rejects.toThrow('SQLITE_CONSTRAINT')
+})
+test('.changeId(missing, newId)', async () => {
+	const m = getModel()
+	const p = m.changeId('a', 'b')
+	await expect(p).rejects.toThrow('not found')
+})
+test('.changeId(missing, newId) race', async () => {
+	const m = getModel()
+	const p = m.changeId('a', 'b')
+	await m.set({id: 'a'})
+	await expect(p).rejects.toThrow('not found')
+	expect(await m.all()).toEqual([{id: 'a'}])
+})
+test('.changeId(oldId, invalid)', async () => {
+	const m = getModel()
+	expect(() => m.changeId('a', null)).toThrow(TypeError)
+	expect(() => m.changeId('a', undefined)).toThrow(TypeError)
+})
