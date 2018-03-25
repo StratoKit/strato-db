@@ -11,7 +11,7 @@
 import debug from 'debug'
 import uuid from 'uuid'
 import jsurl from 'jsurl'
-import {sql} from './DB'
+import {sql, valToSql} from './DB'
 import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
 
@@ -49,6 +49,7 @@ const allowedTypes = {
 const knownColProps = {
 	alias: true,
 	autoIncrement: true,
+	default: true,
 	get: true,
 	ignoreNull: true,
 	in: true,
@@ -235,6 +236,20 @@ class JsonModel {
 					col.sql = col.quoted
 				}
 			}
+
+			if (col.default != null) {
+				col.ignoreNull = false
+				if (col.value) {
+					const prev = col.value
+					col.value = async o => {
+						const r = await prev(o)
+						return r == null ? col.default : r
+					}
+				} else {
+					col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
+				}
+			}
+
 			if (col.in) {
 				if (col.textSearch)
 					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
