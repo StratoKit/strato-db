@@ -222,7 +222,6 @@ class JsonModel {
 						`${name}: jsonPath is required when using isArray`
 					)
 				if (col.sql) {
-					col.select = `${col.sql} AS ${col.quoted}`
 					if (col.get)
 						throw new TypeError(`${name}: Cannot use get on sql column`)
 
