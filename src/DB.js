@@ -30,6 +30,14 @@ const dbgQ = debug('stratokit/DB:query')
 const RETRY_COUNT = 3
 
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
+
+export const valToSql = v => {
+	if (typeof v === 'boolean') return v ? '1' : '0'
+	if (typeof v === 'number') return v.toString()
+	if (v == null) return 'NULL'
+	return `'${v.toString().replace(/'/g, "''")}'`
+}
+
 // db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json = ${obj}JSON`
 export const sql = (...args) => {
 	const strings = args[0]

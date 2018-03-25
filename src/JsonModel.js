@@ -11,7 +11,7 @@
 import debug from 'debug'
 import uuid from 'uuid'
 import jsurl from 'jsurl'
-import {sql} from './DB'
+import {sql, valToSql} from './DB'
 import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
 
@@ -49,6 +49,7 @@ const allowedTypes = {
 const knownColProps = {
 	alias: true,
 	autoIncrement: true,
+	default: true,
 	get: true,
 	ignoreNull: true,
 	in: true,
@@ -111,7 +112,7 @@ class JsonModel {
 					: o => {
 							const id = o[idCol]
 							return id || id === 0 ? id : null
-						}
+					  }
 			} else if (value) {
 				idValue = async function(o) {
 					if (o[idCol] != null) return o[idCol]
@@ -136,7 +137,10 @@ class JsonModel {
 			},
 			json: {
 				// Strip "get" columns from stored JSON (including id)
-				value: obj => JSON.stringify({...obj, ...this.jsonMask}),
+				value: obj => {
+					const json = JSON.stringify({...obj, ...this.jsonMask})
+					return json === '{}' ? null : json
+				},
 				// Allow overriding stringify but not type
 				...(columns && columns.json),
 				type: 'JSON',
@@ -153,11 +157,10 @@ class JsonModel {
 			this.columns[name] = col
 
 			col.alias = col.alias || `_${i}`
-			if (this.columns[col.alias]) {
+			if (this.columns[col.alias])
 				throw new TypeError(
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
-			}
 			this.columns[col.alias] = col
 
 			Object.keys(col).forEach(k => {
@@ -195,12 +198,10 @@ class JsonModel {
 			}
 
 			if (col.jsonPath) {
-				if (col.get) {
-					throw new Error(`${name}: Cannot use get on jsonPath column`)
-				}
-				if (col.value || col.sql) {
-					throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
-				}
+				if (col.get)
+					throw new TypeError(`${name}: Cannot use get on jsonPath column`)
+				if (col.value || col.sql)
+					throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
 				if (col.isAnyOfArray) {
 					col.isArray = true
 					col.in = true
@@ -220,38 +221,49 @@ class JsonModel {
 				}
 				col.sql = `json_extract(json, '$.${col.jsonPath}')`
 			} else {
-				if (col.isArray) {
-					throw new Error(`${name}: jsonPath is required when using isArray`)
-				}
-
+				if (col.isArray)
+					throw new TypeError(
+						`${name}: jsonPath is required when using isArray`
+					)
 				if (col.sql) {
-					if (col.get) {
-						throw new Error(`${name}: Cannot use get on sql column`)
-					}
-					if (col.value) {
-						throw new Error(`${name}: Only one of jsonPath/value/sql allowed`)
-					}
-					col.select = `${col.sql} AS ${col.quoted}`
+					if (col.get)
+						throw new TypeError(`${name}: Cannot use get on sql column`)
+
+					if (col.value)
+						throw new TypeError(
+							`${name}: Only one of jsonPath/value/sql allowed`
+						)
 				} else {
-					if (!col.value) {
-						throw new Error(`${name}: One of jsonPath/value/sql required`)
-					}
+					if (!col.value)
+						throw new TypeError(`${name}: One of jsonPath/value/sql required`)
 					col.sql = col.quoted
 				}
 			}
-			if (col.in) {
-				if (col.textSearch) {
-					throw new Error(`${name}: Only one of in/textSearch allowed`)
+
+			if (col.default != null) {
+				col.ignoreNull = false
+				if (col.value) {
+					const prev = col.value
+					col.value = async o => {
+						const r = await prev(o)
+						return r == null ? col.default : r
+					}
+				} else {
+					col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
 				}
+			}
+
+			if (col.in) {
+				if (col.textSearch)
+					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
 				if (!col.isArray) {
 					col.where = arg => `${col.sql} IN (${arg.map(() => '?').join(',')})`
 					col.whereVal = matchThese => matchThese
 				}
 			}
 			if (col.textSearch) {
-				if (col.in) {
-					throw new Error(`${name}: Only one of in/textSearch allowed`)
-				}
+				if (col.in)
+					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
 				col.where = `${col.sql} LIKE ?`
 				col.whereVal = v => {
 					if (v == null) return
@@ -301,14 +313,14 @@ class JsonModel {
 						col.value
 							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
 									col.quoted
-								} ${col.type || 'BLOB'};`
+							  } ${col.type || 'BLOB'};`
 							: ''
 					}
 					${
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
-								)}
+							  )}
 						ON ${this.quoted}(${col.sql})
 						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
 					`
@@ -813,6 +825,20 @@ class JsonModel {
 	delete(idOrObj) {
 		if (DEV) deprecated('deleteMethod', 'use .remove() instead of .delete()')
 		return this.remove(idOrObj)
+	}
+
+	changeId(oldId, newId) {
+		if (newId == null) throw new TypeError('newId must be a valid id')
+		const idSql = this.columns[this.idCol].sql
+		return this.db
+			.run(`UPDATE ${this.quoted} SET ${idSql} = ? WHERE ${idSql} = ?`, [
+				newId,
+				oldId,
+			])
+			.then(({changes}) => {
+				if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
+				return undefined
+			})
 	}
 
 	// TODO move this to a JsonModel for ESDB? One that also caches per generation?

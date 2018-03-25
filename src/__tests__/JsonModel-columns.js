@@ -70,3 +70,22 @@ test('jsonPath/sql and get', () => {
 	).toThrow()
 	expect(() => getModel({columns: {foo: {sql: '1 + 1', get: true}}})).toThrow()
 })
+
+test('default w/ value()', async () => {
+	const m = getModel({columns: {v: {value: o => o.v, default: 5}}})
+	await m.set({id: 1})
+	expect(await m.db.all(`select * from ${m.name}`)).toEqual([
+		{id: '1', json: null, v: 5},
+	])
+	expect(m.columns.v.ignoreNull).toBe(false)
+})
+
+test('default w/ sql', async () => {
+	const m = getModel({columns: {v: {sql: 'hex(id)', default: 0}}})
+	expect(m.makeSelect({attrs: {v: 5}, sort: {v: -1}, cols: ['v']})).toEqual([
+		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY ifNull(hex(id),0) DESC',
+		[5],
+		undefined,
+	])
+	expect(m.columns.v.ignoreNull).toBe(false)
+})
