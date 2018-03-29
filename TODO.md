@@ -41,9 +41,12 @@
 
 ## JsonModel
 
-* [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
+* [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence. See TRIGGER comment
 * [ ] move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
 * [ ] column defs are migrations and recalculate all records if the version changes
+* [ ] allow `get` on `jsonPath` once we have versioned columns
+  * Support subpaths
+  * This allows being a little more schema-full
 * [ ] when setting an object without Id, use INSERT so calculated Id has to be unique and can't silently overwrite
 * [ ] foreign key support
 * [ ] `required` bool/validation function for object/column? Or leave that to `set`?
