@@ -61,7 +61,6 @@ class ESDB extends EventEmitter {
 			queue.searchOne()
 		}
 		this.history = sameDb ? this.queue : new EventQueue({db})
-		this._waitingFor = {}
 
 		this.models = {
 			...models,
@@ -112,7 +111,6 @@ class ESDB extends EventEmitter {
 
 	async dispatch(type, data, ts) {
 		const event = await this.queue.add(type, data, ts)
-		this.startPolling(event.v)
 		return this.handledVersion(event.v)
 	}
 
@@ -224,12 +222,16 @@ class ESDB extends EventEmitter {
 
 	async waitForQueue() {
 		const v = await this.queue._getLatestVersion()
-		this.startPolling(v)
 		return this.handledVersion(v)
 	}
 
+	_waitingFor = {}
+
+	_maxWaitingFor = 0
+
 	async handledVersion(v) {
 		if (v === 0) return
+		// We must get the version first because our history might contain future events
 		if (v <= (await this.getVersion())) {
 			const event = await this.history.get(v)
 			if (event.error) {
@@ -237,9 +239,8 @@ class ESDB extends EventEmitter {
 			}
 			return event
 		}
-		// TODO this might race, applyer should also resolve earlier promises
-		// maybe have a single promise for next event resolved and fetch from history if your event was earlier
 		if (!this._waitingFor[v]) {
+			if (v > this._maxWaitingFor) this._maxWaitingFor = v
 			const o = {}
 			this._waitingFor[v] = o
 			// eslint-disable-next-line promise/avoid-new
@@ -247,8 +248,36 @@ class ESDB extends EventEmitter {
 				o.resolve = resolve
 				o.reject = reject
 			})
+			this.startPolling(v)
 		}
 		return this._waitingFor[v].promise
+	}
+
+	triggerWaitingEvent(event) {
+		const o = this._waitingFor[event.v]
+		if (o) {
+			delete this._waitingFor[event.v]
+			if (event.error) {
+				o.reject(event)
+			} else {
+				o.resolve(event)
+			}
+		}
+		if (event.v >= this._maxWaitingFor) {
+			// Normally this will be empty but we might encounter a race condition
+			for (const [v, o] of Object.entries(this._waitingFor)) {
+				// eslint-disable-next-line promise/catch-or-return
+				this.history.get(v).then(event => {
+					if (event.error) {
+						o.reject(event)
+					} else {
+						o.resolve(event)
+					}
+					return undefined
+				}, o.reject)
+				delete this._waitingFor[v]
+			}
+		}
 	}
 
 	// This is the loop that applies events from the queue. Use startPolling(false) to always poll
@@ -368,15 +397,7 @@ class ESDB extends EventEmitter {
 			this.emit('result', event)
 		}
 		this.emit('handled', event)
-		const o = this._waitingFor[event.v]
-		if (o) {
-			delete this._waitingFor[event.v]
-			if (event.error) {
-				o.reject(event)
-			} else {
-				o.resolve(event)
-			}
-		}
+		this.triggerWaitingEvent(event)
 	}
 
 	async applyEvent(event) {
