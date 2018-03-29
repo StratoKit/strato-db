@@ -112,7 +112,7 @@ class ESDB extends EventEmitter {
 
 	async dispatch(type, data, ts) {
 		const event = await this.queue.add(type, data, ts)
-		this.checkForEvents()
+		this.startPolling(event.v)
 		return this.handledVersion(event.v)
 	}
 
@@ -224,7 +224,7 @@ class ESDB extends EventEmitter {
 
 	async waitForQueue() {
 		const v = await this.queue._getLatestVersion()
-		this.checkForEvents()
+		this.startPolling(v)
 		return this.handledVersion(v)
 	}
 
@@ -258,13 +258,15 @@ class ESDB extends EventEmitter {
 	// This should never throw, handling errors can be done in apply
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
+		let lastV = 0
 		// eslint-disable-next-line no-constant-condition
 		while (true) {
 			const event = await this.queue.getNext(
 				await this.getVersion(),
 				!this._isPolling
 			)
-			if (!event) return
+			if (!event) return lastV
+			lastV = event.v
 			if (!this._reduxInited) {
 				await this.redux.didInitialize
 				this._reduxInited = true
@@ -303,13 +305,17 @@ class ESDB extends EventEmitter {
 	}
 
 	checkForEvents() {
-		this.startPolling(true)
+		this.startPolling(1)
 	}
 
 	_waitingP = null
 
-	startPolling(once) {
-		if (!once && !this._isPolling) {
+	minVersion = 0
+
+	startPolling(wantVersion) {
+		if (wantVersion) {
+			if (wantVersion > this.minVersion) this.minVersion = wantVersion
+		} else if (!this._isPolling) {
 			this._isPolling = true
 			if (module.hot) {
 				module.hot.dispose(() => {
@@ -324,10 +330,13 @@ class ESDB extends EventEmitter {
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						err
 					)
+					return 0
 				})
 				// eslint-disable-next-line promise/always-return
-				.then(() => {
+				.then(v => {
+					if (this.minVersion > v) return this._waitForEvent()
 					this._waitingP = null
+					return undefined
 				})
 		}
 		return this._waitingP

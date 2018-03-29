@@ -183,6 +183,35 @@ test('waitForQueue', async () =>
 		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
 	}))
 
+test('waitForQueue race', async () =>
+	withESDB(async (eSDB, queue) => {
+		queue.add('1')
+		queue.add('2')
+		eSDB.waitForQueue()
+		queue.add('3')
+		await eSDB.handledVersion(3)
+		await eSDB.handledVersion(3)
+		queue.add('4')
+		queue.add('5')
+		queue.add('6')
+		eSDB.waitForQueue()
+		await eSDB.handledVersion(3)
+		await eSDB.handledVersion(3)
+		queue.add('7')
+		eSDB.waitForQueue()
+		await eSDB.waitForQueue()
+		queue.add('8')
+		queue.add('9')
+		await eSDB.handledVersion(9)
+		await eSDB.handledVersion(9)
+		queue.add('10')
+		queue.add('11')
+		queue.add('12')
+		const p = eSDB.handledVersion(12)
+		eSDB.startPolling(12)
+		await p
+	}))
+
 test('incoming event', async () => {
 	return withESDB(async eSDB => {
 		const event = await eSDB.queue.add('foobar')
