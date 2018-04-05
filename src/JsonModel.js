@@ -57,6 +57,7 @@ const knownColProps = {
 	isAnyOfArray: true,
 	isArray: true,
 	jsonPath: true,
+	parse: true,
 	slugValue: true,
 	sql: true,
 	textSearch: true,
@@ -72,6 +73,7 @@ const knownColProps = {
 // * value: function getting object and returning the value for the column; this creates a real column
 //   * right now the column value is not regenerated for existing rows
 // * slugValue: same as value, but the result is used to generate a unique slug
+// * parse: process the value after getting from DB
 // * jsonPath: path to a JSON value. Useful for indexing
 // * sql: any sql expression
 // * type: sql column type.
@@ -278,6 +280,11 @@ class JsonModel {
 				this.jsonMask[name] = undefined
 			}
 
+			if (col.parse && (!col.value || !col.get))
+				throw new TypeError(
+					`${col.name}: parse() requires a value function and get:true`
+				)
+
 			this.columnArr.push(col)
 		})
 
@@ -389,7 +396,7 @@ class JsonModel {
 	// Creates this.parseRow
 	_makeParseRow() {
 		const getCols = this.columnArr.filter(c => c.get)
-		const json = this.columns.json.alias
+		const jsonAlias = this.columns.json.alias
 		return (row, options) => {
 			const mapCols =
 				options && options.cols
@@ -399,11 +406,11 @@ class JsonModel {
 			for (const k of mapCols) {
 				const val = row[k.alias]
 				if (val != null) {
-					out[k.name] = val
+					out[k.name] = k.parse ? k.parse(val) : val
 				}
 			}
-			if (row[json]) {
-				Object.assign(out, JSON.parse(row[json]))
+			if (row[jsonAlias]) {
+				Object.assign(out, JSON.parse(row[jsonAlias]))
 			}
 			return out
 		}
@@ -421,7 +428,7 @@ class JsonModel {
 		const insertSql = `INSERT ${setSql}`
 		const updateSql = `INSERT OR REPLACE ${setSql}`
 		const selectIdxs = valueCols
-			.map(({get, name}, i) => ({get, name, i}))
+			.map(({get, name, parse}, i) => ({get, name, parse, i}))
 			.filter(c => c.get)
 		return (obj, insertOnly) =>
 			// value functions must be able to use other db during migrations, so call with our this
@@ -430,16 +437,16 @@ class JsonModel {
 				// eslint-disable-next-line promise/no-nesting
 				this.db
 					.run(insertOnly ? insertSql : updateSql, colVals)
-					.then(({lastID}) => {
+					.then(result => {
 						// Return what get(id) would return
 						const newObj = new Item()
 						Object.assign(newObj, obj)
-						selectIdxs.forEach(({name, i}) => {
-							newObj[name] = colVals[i]
+						selectIdxs.forEach(({name, parse, i}) => {
+							newObj[name] = parse ? parse(colVals[i]) : colVals[i]
 						})
 						if (newObj[this.idCol] == null) {
 							// This can only happen for integer ids, so we use the last inserted rowid
-							newObj[this.idCol] = lastID
+							newObj[this.idCol] = result.lastID
 						}
 						return newObj
 					})

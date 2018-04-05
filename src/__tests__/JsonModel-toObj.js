@@ -51,3 +51,24 @@ test('long number string id', async () => {
 	const o = await m.searchOne()
 	expect(o.id).toBe(id)
 })
+
+test('parse validity', async () => {
+	expect(() =>
+		getModel({columns: {f: {value: o => o.f, parse: v => `_${v}`}}})
+	).toThrow()
+	expect(() =>
+		getModel({columns: {f: {parse: v => `_${v}`, get: true}}})
+	).toThrow()
+})
+
+test('parse function', async () => {
+	const m = getModel({
+		columns: {
+			f: {value: o => o.f, parse: v => `_${v}`, get: true},
+		},
+	})
+	const o = await m.set({f: 'hi'})
+	expect(o.f).toBe('_hi')
+	const p = await m.get(o.id)
+	expect(p.f).toBe('_hi')
+})
