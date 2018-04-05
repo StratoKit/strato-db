@@ -89,3 +89,25 @@ test('default w/ sql', async () => {
 	])
 	expect(m.columns.v.ignoreNull).toBe(false)
 })
+
+test('value w type JSON', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			v: {value: o => o.v, type: 'JSON', get: true},
+		},
+	})
+	await m.set({v: {whee: true}})
+	await m.set({v: 5})
+	await m.set({other: true})
+	expect(await m.db.all('SELECT * FROM testing')).toEqual([
+		{id: 1, json: null, v: '{"whee":true}'},
+		{id: 2, json: null, v: 5},
+		{id: 3, json: '{"other":true}', v: null},
+	])
+	expect(await m.all()).toEqual([
+		{id: 1, v: {whee: true}},
+		{id: 2, v: 5},
+		{id: 3, other: true},
+	])
+})

@@ -143,9 +143,11 @@ class JsonModel {
 					const json = JSON.stringify({...obj, ...this.jsonMask})
 					return json === '{}' ? null : json
 				},
-				// Allow overriding stringify but not type
+				parse: JSON.parse,
+				// Allow overriding parse/stringify but not type
 				...(columns && columns.json),
 				type: 'JSON',
+				get: false,
 			},
 		}
 		// Note the order above, id and json should be calculated last
@@ -280,7 +282,15 @@ class JsonModel {
 				this.jsonMask[name] = undefined
 			}
 
-			if (col.parse && (!col.value || !col.get))
+			// Stringify/parse JSON type columns
+			if (col.value && col.type === 'JSON' && !col.parse) {
+				// TODO use attrs? extractJson? nullEmpty? jsonPath? (=> json is then just regular but slower)
+				const prevValue = col.value
+				col.value = obj => JSON.stringify(prevValue(obj))
+				col.parse = s => (s == null ? s : JSON.parse(s))
+			}
+
+			if (col.parse && (!col.value || !col.get) && col.name !== 'json')
 				throw new TypeError(
 					`${col.name}: parse() requires a value function and get:true`
 				)
@@ -397,6 +407,7 @@ class JsonModel {
 	_makeParseRow() {
 		const getCols = this.columnArr.filter(c => c.get)
 		const jsonAlias = this.columns.json.alias
+		const jsonParse = this.columns.json.parse
 		return (row, options) => {
 			const mapCols =
 				options && options.cols
@@ -410,7 +421,7 @@ class JsonModel {
 				}
 			}
 			if (row[jsonAlias]) {
-				Object.assign(out, JSON.parse(row[jsonAlias]))
+				Object.assign(out, jsonParse(row[jsonAlias]))
 			}
 			return out
 		}
