@@ -31,6 +31,16 @@ class EventQueue extends JsonModel {
 					index: true,
 					ignoreNull: false,
 				},
+				data: {
+					type: 'JSON',
+					value: o => o.data,
+					get: true,
+				},
+				result: {
+					type: 'JSON',
+					value: o => o.result,
+					get: true,
+				},
 			},
 		})
 		this.knownV = Number(knownV) || 0
@@ -49,6 +59,7 @@ class EventQueue extends JsonModel {
 		return this.currentV
 	}
 
+	// TODO just use transactions and manage knownV manually, no magic
 	async add(type, data, ts) {
 		if (this.knownV && !this._enforcedKnownV) {
 			const v = Number(this.knownV)
@@ -72,8 +83,8 @@ class EventQueue extends JsonModel {
 		ts = Number(ts) || Date.now()
 		// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID
 		const {lastID: v} = await this.db.run(
-			`INSERT INTO ${this.quoted}(type,ts,json) VALUES (?,?,?)`,
-			[type, ts, JSON.stringify({data})]
+			`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
+			[type, ts, JSON.stringify(data)]
 		)
 		this.currentV = v
 		const event = {v, type, ts, data}
