@@ -48,8 +48,8 @@ class ESDB extends EventEmitter {
 		if (!db || !models) {
 			throw new Error('db and models are required')
 		}
-		if (models.history || models.metadata) {
-			throw new Error('history and metadata are reserved model names')
+		if (models.metadata) {
+			throw new Error('metadata is a reserved model name')
 		}
 		this.db = db
 		this.queue = queue || new EventQueue({db})
@@ -58,9 +58,8 @@ class ESDB extends EventEmitter {
 			// Give the queue db a chance to already start up
 			// that way, our migrations aren't in hold state
 			// maybe we need a startDb function instead
-			queue.searchOne()
+			queue.get(0)
 		}
-		this.history = sameDb ? this.queue : new EventQueue({db})
 
 		this.models = {
 			...models,
@@ -167,45 +166,47 @@ class ESDB extends EventEmitter {
 	}
 
 	async reducer(state, event) {
-		event = await this.preprocessor(event)
-		if (event.error) {
-			// preprocess failed, we need to apply metadata and store
-			const metadata = await this.models.metadata.reducer(
-				this.store.metadata,
-				event
-			)
-			return {
-				...event,
-				result: {metadata},
+		return this.db.withTransaction(async () => {
+			event = await this.preprocessor(event)
+			if (event.error) {
+				// preprocess failed, we need to apply metadata and store
+				const metadata = await this.models.metadata.reducer(
+					this.store.metadata,
+					event
+				)
+				return {
+					...event,
+					result: {metadata},
+				}
 			}
-		}
-		const result = await this.modelReducer(this.reducerModels, event)
-		const hasError = this.reducerNames.some(n => result[n].error)
-		if (hasError) {
-			const error = {}
+			const result = await this.modelReducer(this.reducerModels, event)
+			const hasError = this.reducerNames.some(n => result[n].error)
+			if (hasError) {
+				const error = {}
+				for (const name of this.reducerNames) {
+					const r = result[name]
+					if (r.error) {
+						error[name] = r.error
+					}
+				}
+				return {
+					...event,
+					result: {metadata: result.metadata},
+					error,
+				}
+			}
 			for (const name of this.reducerNames) {
 				const r = result[name]
-				if (r.error) {
-					error[name] = r.error
+				if (r === false || r === this.store[name]) {
+					// no change
+					delete result[name]
 				}
 			}
 			return {
 				...event,
-				result: {metadata: result.metadata},
-				error,
+				result,
 			}
-		}
-		for (const name of this.reducerNames) {
-			const r = result[name]
-			if (r === this.store[name]) {
-				// no change
-				delete result[name]
-			}
-		}
-		return {
-			...event,
-			result,
-		}
+		})
 	}
 
 	getVersionP = null
@@ -233,7 +234,7 @@ class ESDB extends EventEmitter {
 		if (v === 0) return
 		// We must get the version first because our history might contain future events
 		if (v <= (await this.getVersion())) {
-			const event = await this.history.get(v)
+			const event = await this.queue.get(v)
 			if (event.error) {
 				return Promise.reject(event)
 			}
@@ -267,7 +268,7 @@ class ESDB extends EventEmitter {
 			// Normally this will be empty but we might encounter a race condition
 			for (const [v, o] of Object.entries(this._waitingFor)) {
 				// eslint-disable-next-line promise/catch-or-return
-				this.history.get(v).then(event => {
+				this.queue.get(v).then(event => {
 					if (event.error) {
 						o.reject(event)
 					} else {
@@ -401,56 +402,54 @@ class ESDB extends EventEmitter {
 	}
 
 	async applyEvent(event) {
-		const {db, store, modelNames, history} = this
-		// All the below must be started synchronously so
-		// no other requests on this db connection come between
-		// NOTE: due to sqlite and js serializing, the BEGIN transaction
-		// will run first even though it's a bunch of promises
-		// if not using sqlite, be careful
-		return db
-			.withTransaction(() => {
-				const promises = []
-				for (const name of modelNames) {
-					const r = event.result[name]
-					if (r) promises.push(store[name].applyChanges(r))
-				}
-				promises.push(history.set(event))
-				return Promise.all(promises).then(() =>
-					Promise.all(
-						this.deriverNames.map(name => {
-							const {store} = this
-							const model = store[name]
-							return this.models[name].deriver({
-								model,
-								store,
-								event,
-								result: event.result,
-							})
-						})
-					)
+		const {store, queue} = this
+		try {
+			// First write our result to the queue (strip metadata, it's only v)
+			const {result} = event
+			const {metadata} = result
+			delete result.metadata
+			await queue.set(event)
+
+			// Apply reducer results
+			await Promise.all(
+				Object.entries(result).map(
+					([name, r]) => r && store[name].applyChanges(r)
 				)
-			})
-			.catch(err => {
-				if (process.env.NODE_ENV !== 'test') {
-					// argh, now what? Probably retry applying, or crash the app…
-					// This can happen when DB has issue, or when .set refuses an object
-					// TODO consider latter case, maybe just consider transaction errored and store as error?
-					console.error(
-						`
+			)
+			await store.metadata.applyChanges(metadata)
+
+			// Apply derivers
+			await Promise.all(
+				this.deriverNames.map(name =>
+					this.models[name].deriver({
+						model: store[name],
+						store,
+						event,
+						result,
+					})
+				)
+			)
+		} catch (err) {
+			if (process.env.NODE_ENV !== 'test') {
+				// argh, now what? Probably retry applying, or crash the app…
+				// This can happen when DB has issue, or when .set refuses an object
+				// TODO consider latter case, maybe just consider transaction errored and store as error?
+				console.error(
+					`
 						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 						SEVERE DB ERROR
 					`,
-						err,
-						`
+					err,
+					`
 						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 					`
-					)
-				}
-				// eslint-disable-next-line promise/no-nesting
-				throw err
-			})
+				)
+			}
+			// eslint-disable-next-line promise/no-nesting
+			throw err
+		}
 	}
 }
 

@@ -74,8 +74,6 @@ test('create', () => {
 		expect(eSDB.queue).toBeTruthy()
 		expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
 		expect(eSDB.store.count).toBeTruthy()
-		expect(eSDB.history).toBeTruthy()
-		expect(() => withESDB(() => {}, {history: {}})).toThrow()
 		expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
 	})
 })
@@ -228,12 +226,11 @@ test('queue in same db', async () => {
 	const db = new DB()
 	const queue = new EQ({db})
 	const eSDB = new ESDB({db, queue, models: testModels})
-	expect(eSDB.history).toBe(queue)
 	queue.add('boop')
 	const {v} = await queue.add('moop')
 	eSDB.checkForEvents()
 	await eSDB.handledVersion(v)
-	const history = await eSDB.history.all()
+	const history = await eSDB.queue.all()
 	expect(history).toHaveLength(2)
 	expect(history[0].type).toBe('boop')
 	expect(history[0].result).toBeTruthy()
@@ -252,7 +249,6 @@ test('dispatch', async () => {
 			data: {woah: true},
 			result: {
 				count: {set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}]},
-				metadata: {set: [{id: 'version', v: 2}]},
 			},
 		})
 		expect(await event1P).toEqual({
@@ -262,7 +258,6 @@ test('dispatch', async () => {
 			data: 'indeed',
 			result: {
 				count: {set: [{id: 'count', total: 1, byType: {whattup: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
 			},
 		})
 	})
