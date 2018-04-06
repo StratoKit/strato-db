@@ -15,7 +15,7 @@
 	"scripts": {
 		"build": "NODE_ENV=production babel -s true --ignore __tests__ -D -d dist/ src/",
 		"test": "eslint src/**/*.js && NODE_ENV=test jest --coverage --color",
-		"test-watch": "NODE_ENV=test jest --color --watch",
+		"test-watch": "jest --color --watch",
 		"test-inspect": "NODE_ENV=test node --inspect ./node_modules/.bin/jest --runInBand --watch"
 	},
 	"main": "dist/index.js",
@@ -71,6 +71,10 @@
 		"bracketSpacing": false
 	},
 	"jest": {
+		"globals": {
+			"__PRODUCTION__": false,
+			"NODE_ENV": "test"
+		},
 		"testPathIgnorePatterns": [
 			"<rootDir>/dist/",
 			"<rootDir>/node_modules/",
