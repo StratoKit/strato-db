@@ -296,6 +296,9 @@ class ESDB extends EventEmitter {
 				!this._isPolling
 			)
 			if (!event) return lastV
+			// Clear previous result/error, if any
+			delete event.error
+			delete event.result
 			lastV = event.v
 			if (!this._reduxInited) {
 				await this.redux.didInitialize

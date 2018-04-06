@@ -387,3 +387,16 @@ test('event emitter', async () => {
 		expect(resulted).toBe(2)
 	})
 })
+
+test('event replay', async () =>
+	withESDB(async (eSDB, queue) => {
+		queue.set({
+			v: 1,
+			type: 'TEST',
+			data: {hi: true},
+			result: {},
+			error: {test: true},
+		})
+
+		await expect(eSDB.handledVersion(1)).resolves.not.toHaveProperty('error')
+	}))
