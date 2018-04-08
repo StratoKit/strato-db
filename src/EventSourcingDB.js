@@ -40,6 +40,22 @@ const metadata = {
 	},
 }
 
+const showHugeDbError = (err, where) => {
+	if (process.env.NODE_ENV !== 'test') {
+		console.error(
+			`
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+!!! SEVERE ERROR in ${where} !!!
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+		`,
+			err,
+			`
+-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+		`
+		)
+	}
+}
+
 class ESDB extends EventEmitter {
 	store = {}
 
@@ -174,10 +190,7 @@ class ESDB extends EventEmitter {
 					this.store.metadata,
 					event
 				)
-				return {
-					...event,
-					result: {metadata},
-				}
+				return {...event, result: {metadata}}
 			}
 			const result = await this.modelReducer(this.reducerModels, event)
 			const hasError = this.reducerNames.some(n => result[n].error)
@@ -189,11 +202,7 @@ class ESDB extends EventEmitter {
 						error[name] = r.error
 					}
 				}
-				return {
-					...event,
-					result: {metadata: result.metadata},
-					error,
-				}
+				return {...event, result: {metadata: result.metadata}, error}
 			}
 			for (const name of this.reducerNames) {
 				const r = result[name]
@@ -411,46 +420,58 @@ class ESDB extends EventEmitter {
 			const {result} = event
 			const {metadata} = result
 			delete result.metadata
-			await queue.set(event)
 
-			// Apply reducer results
-			await Promise.all(
-				Object.entries(result).map(
-					([name, r]) => r && store[name].applyChanges(r)
-				)
-			)
 			await store.metadata.applyChanges(metadata)
 
-			// Apply derivers
-			await Promise.all(
-				this.deriverNames.map(name =>
-					this.models[name].deriver({
-						model: store[name],
-						store,
-						event,
-						result,
-					})
+			// Apply reducer results
+			try {
+				await this.db.run('SAVEPOINT apply')
+				await Promise.all(
+					Object.entries(result).map(
+						([name, r]) => r && store[name].applyChanges(r)
+					)
 				)
-			)
-		} catch (err) {
-			if (process.env.NODE_ENV !== 'test') {
-				// argh, now what? Probably retry applying, or crash the app…
-				// This can happen when DB has issue, or when .set refuses an object
-				// TODO consider latter case, maybe just consider transaction errored and store as error?
-				console.error(
-					`
-						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-						SEVERE DB ERROR
-					`,
-					err,
-					`
-						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-						-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-					`
-				)
+				await this.db.run('RELEASE SAVEPOINT apply')
+			} catch (err) {
+				showHugeDbError(err, 'apply')
+				await this.db.run('ROLLBACK TO SAVEPOINT apply')
+				event.failedResult = event.result
+				delete event.result
+				event.error = {_apply: err.message || err}
 			}
-			// eslint-disable-next-line promise/no-nesting
+
+			await queue.set(event)
+
+			// !!! TODO store also after rollback
+
+			// Apply derivers
+			try {
+				await this.db.run('SAVEPOINT derive')
+				await Promise.all(
+					this.deriverNames.map(name =>
+						this.models[name].deriver({
+							model: store[name],
+							store,
+							event,
+							result,
+						})
+					)
+				)
+				await this.db.run('RELEASE SAVEPOINT derive')
+			} catch (err) {
+				showHugeDbError(err, 'derive')
+				await this.db.run('ROLLBACK TO SAVEPOINT derive')
+				event.failedResult = event.result
+				delete event.result
+				event.error = {_derive: err.message || err}
+				await queue.set(event)
+			}
+		} catch (err) {
+			// argh, now what? Probably retry applying, or crash the app…
+			// This can happen when DB has issue, or when .set refuses an object
+			// TODO consider latter case, maybe just consider transaction errored and store as error?
+			showHugeDbError(err, 'handleResult')
+
 			throw err
 		}
 	}
