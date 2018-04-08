@@ -876,8 +876,8 @@ class JsonModel {
 		if (rm) await Promise.all(rm.map(item => this.remove(item)))
 		if (ins) await Promise.all(ins.map(obj => this.set(obj, true)))
 		if (set) await Promise.all(set.map(obj => this.set(obj)))
-		if (upd) await Promise.all(upd.map(obj => this.update(obj)))
-		if (sav) await Promise.all(sav.map(obj => this.update(obj, true)))
+		if (upd) await Promise.all(upd.map(obj => this.updateNoTrans(obj)))
+		if (sav) await Promise.all(sav.map(obj => this.updateNoTrans(obj, true)))
 	}
 }
 
