@@ -65,6 +65,7 @@ export const sql = (...args) => {
 }
 sql.quoteId = quoteSqlId
 
+let connId = 1
 // This class lazily creates the db
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
@@ -73,7 +74,7 @@ class DB {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
-		this.name = path.basename(this.file, '.db')
+		this.name = `${path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
 		this.verbose = verbose
 		this.migrations = []
