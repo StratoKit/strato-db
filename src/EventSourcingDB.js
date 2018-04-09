@@ -298,11 +298,11 @@ class ESDB extends EventEmitter {
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
 		let lastV = 0
-		// eslint-disable-next-line no-constant-condition
-		while (true) {
+		// eslint-disable-next-line no-unmodified-loop-condition
+		while (!this._minVersion || this._minVersion > lastV) {
 			const event = await this.queue.getNext(
 				await this.getVersion(),
-				!this._isPolling
+				!(this._isPolling || this._minVersion)
 			)
 			if (!event) return lastV
 			// Clear previous result/error, if any
@@ -343,6 +343,7 @@ class ESDB extends EventEmitter {
 				return
 			}
 		}
+		return lastV
 		/* eslint-enable no-await-in-loop */
 	}
 
@@ -352,11 +353,11 @@ class ESDB extends EventEmitter {
 
 	_waitingP = null
 
-	minVersion = 0
+	_minVersion = 0
 
 	startPolling(wantVersion) {
 		if (wantVersion) {
-			if (wantVersion > this.minVersion) this.minVersion = wantVersion
+			if (wantVersion > this._minVersion) this._minVersion = wantVersion
 		} else if (!this._isPolling) {
 			this._isPolling = true
 			if (module.hot) {
@@ -374,10 +375,9 @@ class ESDB extends EventEmitter {
 					)
 					return 0
 				})
-				// eslint-disable-next-line promise/always-return
-				.then(v => {
-					if (this.minVersion > v) return this._waitForEvent()
+				.then(() => {
 					this._waitingP = null
+					this._minVersion = 0
 					return undefined
 				})
 		}

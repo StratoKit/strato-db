@@ -131,14 +131,16 @@ test('reducer', () => {
 
 test('applyEvent', () => {
 	return withESDB(async eSDB => {
-		await eSDB.applyEvent({
-			v: 1,
-			type: 'foo',
-			result: {
-				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
-			},
-		})
+		await eSDB.db.withTransaction(() =>
+			eSDB.applyEvent({
+				v: 1,
+				type: 'foo',
+				result: {
+					count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
+					metadata: {set: [{id: 'version', v: 1}]},
+				},
+			})
+		)
 		expect(await eSDB.store.count.get('count')).toEqual({
 			id: 'count',
 			total: 1,
