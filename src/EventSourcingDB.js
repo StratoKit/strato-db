@@ -89,6 +89,33 @@ class ESDB extends EventEmitter {
 		const reducers = {}
 		this.reducerModels = {}
 		const migrationOptions = {queue}
+		if (!sameDb) {
+			db.registerMigrations('historyExport', {
+				2018040800: {
+					up: async db => {
+						const oldTable = await db.all('PRAGMA table_info(history)')
+						if (
+							!(
+								oldTable.length === 4 &&
+								oldTable.some(c => c.name === 'json') &&
+								oldTable.some(c => c.name === 'v') &&
+								oldTable.some(c => c.name === 'type') &&
+								oldTable.some(c => c.name === 'ts')
+							)
+						)
+							return
+						let allDone = Promise.resolve()
+						await db.each('SELECT * from history', row => {
+							allDone = allDone.then(() =>
+								queue.set({...row, json: undefined, ...JSON.parse(row.json)})
+							)
+						})
+						await allDone
+						// not dropping table, you can do that yourself :)
+					},
+				},
+			})
+		}
 		for (const name of this.modelNames) {
 			const {
 				Model,
