@@ -209,40 +209,38 @@ class ESDB extends EventEmitter {
 	}
 
 	async reducer(state, event) {
-		return this.db.withTransaction(async () => {
-			event = await this.preprocessor(event)
-			if (event.error) {
-				// preprocess failed, we need to apply metadata and store
-				const metadata = await this.models.metadata.reducer(
-					this.store.metadata,
-					event
-				)
-				return {...event, result: {metadata}}
-			}
-			const result = await this.modelReducer(this.reducerModels, event)
-			const hasError = this.reducerNames.some(n => result[n].error)
-			if (hasError) {
-				const error = {}
-				for (const name of this.reducerNames) {
-					const r = result[name]
-					if (r.error) {
-						error[name] = r.error
-					}
-				}
-				return {...event, result: {metadata: result.metadata}, error}
-			}
+		event = await this.preprocessor(event)
+		if (event.error) {
+			// preprocess failed, we need to apply metadata and store
+			const metadata = await this.models.metadata.reducer(
+				this.store.metadata,
+				event
+			)
+			return {...event, result: {metadata}}
+		}
+		const result = await this.modelReducer(this.reducerModels, event)
+		const hasError = this.reducerNames.some(n => result[n].error)
+		if (hasError) {
+			const error = {}
 			for (const name of this.reducerNames) {
 				const r = result[name]
-				if (r === false || r === this.store[name]) {
-					// no change
-					delete result[name]
+				if (r.error) {
+					error[name] = r.error
 				}
 			}
-			return {
-				...event,
-				result,
+			return {...event, result: {metadata: result.metadata}, error}
+		}
+		for (const name of this.reducerNames) {
+			const r = result[name]
+			if (r === false || r === this.store[name]) {
+				// no change
+				delete result[name]
 			}
-		})
+		}
+		return {
+			...event,
+			result,
+		}
 	}
 
 	getVersionP = null
@@ -340,31 +338,31 @@ class ESDB extends EventEmitter {
 				await this.redux.didInitialize
 				this._reduxInited = true
 			}
-			try {
-				await this.redux.dispatch(event)
-			} catch (err) {
-				// Redux failed so we'll apply manually - TODO factor out
-				const metadata = await this.models.metadata.reducer(
-					this.store.metadata,
-					event
-				)
-				// Will never error
-				await this.handleResult({
-					...event,
-					error: {
-						...event.error,
-						_redux: {message: err.message, stack: err.stack},
-					},
-					result: {metadata},
-				})
-			}
-			if (this._applyingP) {
+			await this.db.withTransaction(async () => {
+				try {
+					await this.redux.dispatch(event)
+				} catch (err) {
+					// Redux failed so we'll apply manually - TODO factor out
+					const metadata = await this.models.metadata.reducer(
+						this.store.metadata,
+						event
+					)
+					// Will never error
+					await this.handleResult({
+						...event,
+						error: {
+							...event.error,
+							_redux: {message: err.message, stack: err.stack},
+						},
+						result: {metadata},
+					})
+				}
 				// This promise should always be there because the listeners are called
 				// synchronously after the dispatch
 				// We have to wait until the write applied before the next dispatch
 				// Will never error
-				await this._applyingP
-			}
+				return this._applyingP
+			})
 			if (this._reallyStop) {
 				this._reallyStop = false
 				return
