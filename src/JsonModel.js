@@ -808,7 +808,10 @@ class JsonModel {
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
 			dbg(`creating DataLoader for ${this.name}.${colName}`)
-			cache[key] = new DataLoader(ids => this.getAll(ids, colName))
+			// batchSize: max is SQLITE_MAX_VARIABLE_NUMBER, default 999. Lower => less latency
+			cache[key] = new DataLoader(ids => this.getAll(ids, colName), {
+				maxBatchSize: 100,
+			})
 		}
 		return cache[key].load(id)
 	}
