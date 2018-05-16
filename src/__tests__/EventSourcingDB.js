@@ -86,6 +86,13 @@ test('create with Model', () => {
 		{
 			count: {
 				Model: class Count extends JsonModel {
+					constructor(options) {
+						if (typeof options.dispatch !== 'function') {
+							throw new TypeError('Dispatch expected')
+						}
+						super(options)
+					}
+
 					foo() {
 						return true
 					}

@@ -116,6 +116,7 @@ class ESDB extends EventEmitter {
 				},
 			})
 		}
+		const dispatch = this.dispatch.bind(this)
 		for (const name of this.modelNames) {
 			const {
 				Model,
@@ -126,8 +127,14 @@ class ESDB extends EventEmitter {
 				preprocessor,
 			} = this.models[name]
 			this.store[name] = Model
-				? db.addModel(Model, {name, migrationOptions})
-				: db.addModel(JsonModel, {name, columns, migrations, migrationOptions})
+				? db.addModel(Model, {name, migrationOptions, dispatch})
+				: db.addModel(JsonModel, {
+						name,
+						columns,
+						migrations,
+						migrationOptions,
+						dispatch,
+				  })
 			if (reducer) {
 				this.reducerNames.push(name)
 				this.reducerModels[name] = this.store[name]
