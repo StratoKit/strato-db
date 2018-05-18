@@ -1,16 +1,18 @@
 import JsonModel from './JsonModel'
 
-const undefToNull = data => {
-	if (typeof data !== 'object') return data
+export const undefToNull = data => {
+	if (data === undefined || data === null) {
+		return null
+	}
+	if (typeof data !== 'object') {
+		return data
+	}
+	if (Array.isArray(data)) {
+		return data.map(undefToNull)
+	}
 	const out = {...data}
 	Object.entries(out).forEach(([key, value]) => {
-		if (value === undefined) {
-			out[key] = null
-		} else if (Array.isArray(value)) {
-			out[key] = value.map(undefToNull)
-		} else if (typeof value === 'object') {
-			out[key] = undefToNull(value)
-		}
+		out[key] = undefToNull(value)
 	})
 	return out
 }
