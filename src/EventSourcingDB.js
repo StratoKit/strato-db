@@ -135,17 +135,25 @@ class ESDB extends EventEmitter {
 						migrationOptions,
 						dispatch,
 				  })
-			if (reducer) {
+			let hasOne = false
+			if (reducer || (Model && Model.reducer)) {
 				this.reducerNames.push(name)
 				this.reducerModels[name] = this.store[name]
-				reducers[name] = reducer
+				reducers[name] = reducer || Model.reducer
+				hasOne = true
 			}
-			if (deriver) {
+			if (deriver || (Model && Model.deriver)) {
 				this.deriverNames.push(name)
+				hasOne = true
 			}
-			if (preprocessor) {
+			if (preprocessor || (Model && Model.preprocessor)) {
 				this.preprocNames.push(name)
+				hasOne = true
 			}
+			if (!hasOne)
+				throw new TypeError(
+					`${this.name}: At least one reducer, deriver or preprocessor required`
+				)
 		}
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
@@ -168,8 +176,10 @@ class ESDB extends EventEmitter {
 			const {store} = this
 			const model = store[name]
 			const {v, type} = event
+			const modelPreprocessor =
+				this.models[name].preprocessor || this.models[name].Model.preprocessor
 			// eslint-disable-next-line no-await-in-loop
-			const newEvent = await this.models[name].preprocessor({
+			const newEvent = await modelPreprocessor({
 				event,
 				model,
 				store,
@@ -480,14 +490,16 @@ class ESDB extends EventEmitter {
 			try {
 				await this.db.run('SAVEPOINT derive')
 				await Promise.all(
-					this.deriverNames.map(name =>
-						this.models[name].deriver({
+					this.deriverNames.map(name => {
+						const modelDeriver =
+							this.models[name].deriver || this.models[name].Model.deriver
+						return modelDeriver({
 							model: store[name],
 							store,
 							event,
 							result,
 						})
-					)
+					})
 				)
 				await this.db.run('RELEASE SAVEPOINT derive')
 			} catch (err) {
