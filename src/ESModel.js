@@ -73,8 +73,8 @@ class ESModel extends JsonModel {
 		if (id) return this.get(id)
 	}
 
-	updateNoTrans(obj, upsert) {
-		return this.update(obj, upsert)
+	updateNoTrans() {
+		throw new Error('Non-transactional changes are not possible with ESModel')
 	}
 
 	async remove(idOrObj) {
