@@ -1,4 +1,4 @@
-import ESModel, {getId} from '../ESModel'
+import ESModel, {undefToNull, getId} from '../ESModel'
 import {withESDB} from './_helpers'
 
 class ESModelCustomId extends ESModel {
@@ -32,6 +32,39 @@ class ESModelIntId extends ESModel {
 
 const sampleObject = {id: 'asd', meep: 'moop', top: 'kek'}
 
+test('undefToNull', () => {
+	const obj = {
+		a: 'b',
+		c: 4,
+		nested: {
+			stuff: 'test',
+			asd: undefined,
+			dsa: null,
+		},
+		array: [
+			'two plus two is',
+			undefined,
+			{minus: 1, thats: '?'},
+			null,
+			'quick maths',
+		],
+		zxc: null,
+		cxz: undefined,
+	}
+	expect(undefToNull(obj)).toEqual({
+		...obj,
+		nested: {...obj.nested, asd: null},
+		array: [
+			'two plus two is',
+			null,
+			{minus: 1, thats: '?'},
+			null,
+			'quick maths',
+		],
+		cxz: null,
+	})
+})
+
 test('create', () =>
 	withESDB(
 		async eSDB => {
@@ -60,8 +93,10 @@ test('getId custom idCol', () =>
 test('getId integer idCol', () =>
 	withESDB(
 		async eSDB => {
-			const result = await getId(eSDB.db.models.test, {top: 'kek'})
-			expect(result).toBe(1)
+			expect(await getId(eSDB.db.models.test, {top: 'kek'})).toBe(1)
+			expect(await getId(eSDB.db.models.test, {top: 'kek'})).toBe(2)
+			await eSDB.db.models.test.set({myId: 7, asd: 'dsa'})
+			expect(await getId(eSDB.db.models.test, {moop: 'meep'})).toBe(8)
 		},
 		{
 			test: {Model: ESModelIntId},
@@ -155,7 +190,7 @@ test('update w/ undefined values', () =>
 			await eSDB.db.models.test.set(sampleObject)
 			expect(
 				await eSDB.db.models.test.update({id: sampleObject.id, top: undefined})
-			).toEqual(sampleObject) // same behaviour as JsonModel.update()
+			).toEqual({...sampleObject, top: null}) // we cannot pass undefined here
 		},
 		{test: {Model: ESModel}}
 	))
@@ -179,6 +214,17 @@ test('update upsert', () =>
 			)
 		},
 		{test: {Model: ESModel}}
+	))
+
+test('update upsert w/o id', () =>
+	withESDB(
+		async eSDB => {
+			expect(await eSDB.db.models.test.update({top: 'kek'}, true)).toEqual({
+				myId: 1,
+				top: 'kek',
+			})
+		},
+		{test: {Model: ESModelIntId}}
 	))
 
 test('remove by id', () =>
