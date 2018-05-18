@@ -63,12 +63,12 @@ class ESModel extends JsonModel {
 	}
 
 	async update(obj, upsert) {
-		if (!obj[this.idCol]) {
+		if (!obj[this.idCol] && !upsert) {
 			throw new TypeError('No ID specified')
 		}
 		const {result: {[this.name]: {id}}} = await this.dispatch(
 			upsert ? this.SAV : this.UPD,
-			obj
+			undefToNull(obj)
 		)
 		if (id) return this.get(id)
 	}
