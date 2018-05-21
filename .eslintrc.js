@@ -42,6 +42,7 @@ module.exports = {
 		'no-eq-null': 0,
 		'no-extra-semi': 0,
 		'no-mixed-operators': 0,
+		'no-mixed-spaces-and-tabs': 0,
 		'no-multi-spaces': 0,
 		'no-trailing-spaces': 0,
 		'object-curly-spacing': 0,
