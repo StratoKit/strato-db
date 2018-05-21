@@ -17,7 +17,7 @@
 // TODO think about transient event errors vs event errors - if transient, event should be retried, no?
 // TODO jsonmodel that includes auto-caching between events, use pragma data_version to know when data changed
 
-import JsonModel from './JsonModel'
+import ESModel from './ESModel'
 import {createStore, combineReducers} from './async-redux'
 import EventQueue from './EventQueue'
 import EventEmitter from 'events'
@@ -59,6 +59,7 @@ const showHugeDbError = (err, where) => {
 class ESDB extends EventEmitter {
 	store = {}
 
+	// eslint-disable-next-line complexity
 	constructor({db, queue, models}) {
 		super()
 		if (!db || !models) {
@@ -116,29 +117,49 @@ class ESDB extends EventEmitter {
 				},
 			})
 		}
+		const dispatch = this.dispatch.bind(this)
 		for (const name of this.modelNames) {
 			const {
-				Model,
+				Model = ESModel,
 				columns,
 				migrations,
 				reducer,
 				deriver,
 				preprocessor,
 			} = this.models[name]
-			this.store[name] = Model
-				? db.addModel(Model, {name, migrationOptions})
-				: db.addModel(JsonModel, {name, columns, migrations, migrationOptions})
-			if (reducer) {
+			if (!Model) {
+				throw new TypeError('No Model specified')
+			}
+			const model = db.addModel(Model, {
+				name,
+				columns,
+				migrations,
+				migrationOptions,
+				dispatch,
+			})
+			model.reducer = reducer || Model.reducer
+			model.deriver = deriver || Model.deriver
+			model.preprocessor = preprocessor || Model.preprocessor
+			this.store[name] = model
+			let hasOne = false
+			if (model.reducer) {
 				this.reducerNames.push(name)
 				this.reducerModels[name] = this.store[name]
-				reducers[name] = reducer
+				reducers[name] = reducer || Model.reducer
+				hasOne = true
 			}
-			if (deriver) {
+			if (model.deriver) {
 				this.deriverNames.push(name)
+				hasOne = true
 			}
-			if (preprocessor) {
+			if (model.preprocessor) {
 				this.preprocNames.push(name)
+				hasOne = true
 			}
+			if (!hasOne)
+				throw new TypeError(
+					`${this.name}: At least one reducer, deriver or preprocessor required`
+				)
 		}
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
@@ -161,8 +182,9 @@ class ESDB extends EventEmitter {
 			const {store} = this
 			const model = store[name]
 			const {v, type} = event
+			const modelPreprocessor = this.models[name].preprocessor
 			// eslint-disable-next-line no-await-in-loop
-			const newEvent = await this.models[name].preprocessor({
+			const newEvent = await modelPreprocessor({
 				event,
 				model,
 				store,
@@ -473,14 +495,15 @@ class ESDB extends EventEmitter {
 			try {
 				await this.db.run('SAVEPOINT derive')
 				await Promise.all(
-					this.deriverNames.map(name =>
-						this.models[name].deriver({
+					this.deriverNames.map(name => {
+						const modelDeriver = this.models[name].deriver
+						return modelDeriver({
 							model: store[name],
 							store,
 							event,
 							result,
 						})
-					)
+					})
 				)
 				await this.db.run('RELEASE SAVEPOINT derive')
 			} catch (err) {
