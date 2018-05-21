@@ -85,8 +85,8 @@ class ESDB extends EventEmitter {
 
 		this.modelNames = Object.keys(this.models)
 		this.reducerNames = []
-		this.deriverNames = []
-		this.preprocNames = []
+		this.deriverModels = []
+		this.preprocModels = []
 		this.readWriters = []
 		const reducers = {}
 		this.reducerModels = {}
@@ -139,28 +139,28 @@ class ESDB extends EventEmitter {
 			model.reducer = reducer || Model.reducer
 			model.deriver = deriver || Model.deriver
 			model.preprocessor = preprocessor || Model.preprocessor
-			if (typeof model.setWriteable === 'function') this.readWriters.push(model)
 			this.store[name] = model
 
 			let hasOne = false
 			if (model.reducer) {
 				this.reducerNames.push(name)
-				this.reducerModels[name] = this.store[name]
-				reducers[name] = reducer || Model.reducer
+				this.reducerModels[name] = model
+				reducers[name] = model.reducer
 				hasOne = true
 			}
 			if (model.deriver) {
-				this.deriverNames.push(name)
+				this.deriverModels.push(model)
 				hasOne = true
 			}
 			if (model.preprocessor) {
-				this.preprocNames.push(name)
+				this.preprocModels.push(model)
 				hasOne = true
 			}
 			if (!hasOne)
 				throw new TypeError(
 					`${this.name}: At least one reducer, deriver or preprocessor required`
 				)
+			if (typeof model.setWriteable === 'function') this.readWriters.push(model)
 		}
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
@@ -179,17 +179,21 @@ class ESDB extends EventEmitter {
 	}
 
 	async preprocessor(event) {
-		for (const name of this.preprocNames) {
+		for (const model of this.preprocModels) {
+			const {name} = model
 			const {store} = this
-			const model = store[name]
 			const {v, type} = event
-			const modelPreprocessor = this.models[name].preprocessor
-			// eslint-disable-next-line no-await-in-loop
-			const newEvent = await modelPreprocessor({
-				event,
-				model,
-				store,
-			})
+			let newEvent
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				newEvent = await model.preprocessor({
+					event,
+					model,
+					store,
+				})
+			} catch (error) {
+				newEvent = {error}
+			}
 			if (newEvent) {
 				if (newEvent.error) {
 					return {
@@ -498,15 +502,14 @@ class ESDB extends EventEmitter {
 			try {
 				await this.db.run('SAVEPOINT derive')
 				await Promise.all(
-					this.deriverNames.map(name => {
-						const modelDeriver = this.models[name].deriver
-						return modelDeriver({
-							model: store[name],
+					this.deriverModels.map(model =>
+						model.deriver({
+							model,
 							store,
 							event,
 							result,
 						})
-					})
+					)
 				)
 				await this.db.run('RELEASE SAVEPOINT derive')
 			} catch (err) {
