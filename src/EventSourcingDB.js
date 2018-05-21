@@ -87,6 +87,7 @@ class ESDB extends EventEmitter {
 		this.reducerNames = []
 		this.deriverNames = []
 		this.preprocNames = []
+		this.readWriters = []
 		const reducers = {}
 		this.reducerModels = {}
 		const migrationOptions = {queue}
@@ -127,9 +128,7 @@ class ESDB extends EventEmitter {
 				deriver,
 				preprocessor,
 			} = this.models[name]
-			if (!Model) {
-				throw new TypeError('No Model specified')
-			}
+
 			const model = db.addModel(Model, {
 				name,
 				columns,
@@ -140,7 +139,9 @@ class ESDB extends EventEmitter {
 			model.reducer = reducer || Model.reducer
 			model.deriver = deriver || Model.deriver
 			model.preprocessor = preprocessor || Model.preprocessor
+			if (typeof model.setWriteable === 'function') this.readWriters.push(model)
 			this.store[name] = model
+
 			let hasOne = false
 			if (model.reducer) {
 				this.reducerNames.push(name)
@@ -461,7 +462,8 @@ class ESDB extends EventEmitter {
 	}
 
 	async applyEvent(event) {
-		const {store, queue} = this
+		const {store, queue, readWriters} = this
+		for (const model of readWriters) model.setWriteable(true)
 		try {
 			// First write our result to the queue (strip metadata, it's only v)
 			const {result} = event
@@ -517,12 +519,13 @@ class ESDB extends EventEmitter {
 			}
 		} catch (err) {
 			// argh, now what? Probably retry applying, or crash the app…
-			// This can happen when DB has issue, or when .set refuses an object
-			// TODO consider latter case, maybe just consider transaction errored and store as error?
+			// This can happen when DB has issue
 			showHugeDbError(err, 'handleResult')
 
 			throw err
 		}
+
+		for (const model of readWriters) model.setWriteable(false)
 	}
 }
 

@@ -17,19 +17,6 @@ export const undefToNull = data => {
 	return out
 }
 
-const DEV = process.env.NODE_ENV !== 'production'
-let unknown
-if (DEV) {
-	const warned = {}
-	const warner = type => (tag, msg) => {
-		if (warned[tag]) return
-		warned[tag] = true
-		// eslint-disable-next-line no-console
-		console.error(new Error(`!!! ${type} ${msg}`))
-	}
-	unknown = warner('UNKNOWN')
-}
-
 export const getId = async (model, data) => {
 	let id = data[model.idCol]
 	if (id == null) id = await model.columns[model.idCol].value(data)
@@ -42,6 +29,7 @@ class ESModel extends JsonModel {
 	constructor({dispatch, ...options}) {
 		super(options)
 		this.dispatch = dispatch
+		this.writeable = false
 	}
 
 	SET = `app/${this.name}/SET`
@@ -54,7 +42,14 @@ class ESModel extends JsonModel {
 
 	SAV = `app/${this.name}/SAV`
 
+	setWriteable(state) {
+		this.writeable = state
+	}
+
 	async set(obj, insertOnly) {
+		// Slight hack: use the writeable state to fall back to JsonModel behavior
+		// This makes deriver work without changes
+		if (this.writeable) return super.set(obj, insertOnly)
 		const {result: {[this.name]: {id}}} = await this.dispatch(
 			insertOnly ? this.INS : this.SET,
 			obj
@@ -63,6 +58,7 @@ class ESModel extends JsonModel {
 	}
 
 	async update(obj, upsert) {
+		if (this.writeable) return super.update(obj, upsert)
 		if (!obj[this.idCol] && !upsert) {
 			throw new TypeError('No ID specified')
 		}
@@ -73,11 +69,13 @@ class ESModel extends JsonModel {
 		if (id) return this.get(id)
 	}
 
-	updateNoTrans() {
+	updateNoTrans(obj, upsert) {
+		if (this.writeable) return super.updateNoTrans(obj, upsert)
 		throw new Error('Non-transactional changes are not possible with ESModel')
 	}
 
 	async remove(idOrObj) {
+		if (this.writeable) return super.remove(idOrObj)
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		await this.dispatch(this.RM, id)
 		return true
@@ -90,25 +88,10 @@ class ESModel extends JsonModel {
 		return ++this._maxId
 	}
 
-	async __performUpdate(obj, upsert) {
-		const id = obj[this.idCol]
-		const prev = await this.get(id)
-		if (!upsert && !prev) throw new Error(`Missing object ${obj[this.idCol]}`)
-		return super.set({...prev, ...obj})
-	}
-
 	async applyChanges(result) {
-		const {rm, set, ins, upd, sav, id} = result
-		if (DEV) {
-			const {rm, set, ins, upd, sav, id, ...rest} = result
-			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
-		}
-		if (rm) await Promise.all(rm.map(item => super.remove(item)))
-		if (ins) await Promise.all(ins.map(obj => super.set(obj, true)))
-		if (set) await Promise.all(set.map(obj => super.set(obj)))
-		if (upd) await Promise.all(upd.map(obj => this.__performUpdate(obj, false)))
-		if (sav) await Promise.all(sav.map(obj => this.__performUpdate(obj, true)))
+		const {id, ...rest} = result
 		this._maxId = 0
+		return super.applyChanges(rest)
 	}
 
 	static async reducer(model, {type, data}) {
@@ -142,6 +125,7 @@ class ESModel extends JsonModel {
 		}
 
 		return {
+			// We pass the id so our set etc can find it back quickly
 			id: data[model.idCol],
 			[dbAction]: [data],
 		}
