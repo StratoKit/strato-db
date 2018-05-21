@@ -83,7 +83,7 @@ test('default w/ value()', async () => {
 test('default w/ sql', async () => {
 	const m = getModel({columns: {v: {sql: 'hex(id)', default: 0}}})
 	expect(m.makeSelect({attrs: {v: 5}, sort: {v: -1}, cols: ['v']})).toEqual([
-		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY ifNull(hex(id),0) DESC',
+		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY _0 DESC',
 		[5],
 		undefined,
 	])

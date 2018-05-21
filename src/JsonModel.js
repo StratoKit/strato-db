@@ -637,7 +637,8 @@ class JsonModel {
 			`ORDER BY ${sortNames
 				.map(k => {
 					const col = this.columns[k]
-					const sql = (col && col.sql) || k
+					// If we selected we can use the alias
+					const sql = col ? (cols.includes(col.name) ? col.alias : col.sql) : k
 					return `${sql}${sort[k] < 0 ? ` DESC` : ``}`
 				})
 				.join(',')}`
