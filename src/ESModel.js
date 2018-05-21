@@ -19,7 +19,10 @@ export const undefToNull = data => {
 
 export const getId = async (model, data) => {
 	let id = data[model.idCol]
-	if (id == null) id = await model.columns[model.idCol].value(data)
+	if (id == null) {
+		// Be sure to call with model as this, like in JsonModel
+		id = await model.columns[model.idCol].value.call(model, data)
+	}
 	// This can only happen for integer ids
 	if (id == null) id = await model.getNextId()
 	return id
