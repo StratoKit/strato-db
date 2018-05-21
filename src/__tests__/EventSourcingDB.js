@@ -305,6 +305,16 @@ test('preprocessors', async () => {
 	)
 })
 
+test.skip('event error in reducer', () =>
+	withESDB(async eSDB => {
+		await eSDB.dispatch
+		// All the below: don't call next phases
+		// Error in preprocessor => error: _preprocess
+		// Error in reducer => error: _redux
+		// Error in apply => error: _apply
+		// Error in derive => error: _derive
+	}))
+
 test('event emitter', async () => {
 	return withESDB(async eSDB => {
 		let handled = 0,
