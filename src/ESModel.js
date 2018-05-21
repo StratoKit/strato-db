@@ -90,7 +90,7 @@ class ESModel extends JsonModel {
 		return ++this._maxId
 	}
 
-	async performUpdate(obj, upsert) {
+	async __performUpdate(obj, upsert) {
 		const id = obj[this.idCol]
 		const prev = await this.get(id)
 		if (!upsert && !prev) throw new Error(`Missing object ${obj[this.idCol]}`)
@@ -106,8 +106,8 @@ class ESModel extends JsonModel {
 		if (rm) await Promise.all(rm.map(item => super.remove(item)))
 		if (ins) await Promise.all(ins.map(obj => super.set(obj, true)))
 		if (set) await Promise.all(set.map(obj => super.set(obj)))
-		if (upd) await Promise.all(upd.map(obj => this.performUpdate(obj, false)))
-		if (sav) await Promise.all(sav.map(obj => this.performUpdate(obj, true)))
+		if (upd) await Promise.all(upd.map(obj => this.__performUpdate(obj, false)))
+		if (sav) await Promise.all(sav.map(obj => this.__performUpdate(obj, true)))
 		this._maxId = 0
 	}
 
