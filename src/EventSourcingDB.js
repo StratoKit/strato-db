@@ -468,8 +468,6 @@ class ESDB extends EventEmitter {
 			const {metadata} = result
 			delete result.metadata
 
-			await store.metadata.applyChanges(metadata)
-
 			// Apply reducer results
 			try {
 				await this.db.run('SAVEPOINT apply')
@@ -487,9 +485,12 @@ class ESDB extends EventEmitter {
 				event.error = {_apply: err.message || err}
 			}
 
-			await queue.set(event)
+			// Even if the apply failed we'll consider this event handled
+			// TODO maybe we should just halt instead
+			await store.metadata.applyChanges(metadata)
 
-			// !!! TODO store also after rollback
+			await queue.set(event)
+			if (event.error) return
 
 			// Apply derivers
 			try {
