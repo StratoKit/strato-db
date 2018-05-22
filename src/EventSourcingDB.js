@@ -434,8 +434,11 @@ class ESDB extends EventEmitter {
 					)
 					return 0
 				})
-				.then(() => {
+				.then(lastV => {
 					this._waitingP = null
+					// Subtle race condition: new wantVersion coming in between end of _wait and .then
+					if (this._minVersion && lastV < this._minVersion)
+						return this.startPolling(this._minVersion)
 					this._minVersion = 0
 					return undefined
 				})
