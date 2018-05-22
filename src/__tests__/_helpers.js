@@ -71,10 +71,18 @@ export const testModels = {
 const withDBs = fn => {
 	const db = new DB()
 	const queue = new EQ({db: new DB()})
-	return fn(db, queue)
+	try {
+		return fn(db, queue)
+	} finally {
+		db.close()
+	}
 }
 export const withESDB = (fn, models = testModels) =>
 	withDBs((db, queue) => {
 		const eSDB = new ESDB({db, queue, models})
-		return fn(eSDB, queue)
+		try {
+			return fn(eSDB, queue)
+		} finally {
+			eSDB.close()
+		}
 	})

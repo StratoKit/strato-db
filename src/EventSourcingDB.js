@@ -173,6 +173,13 @@ class ESDB extends EventEmitter {
 		this.checkForEvents()
 	}
 
+	close() {
+		return Promise.all([
+			this.rwDb && this.rwDb.close(),
+			this.db !== this.rwDb && this.db.close(),
+		])
+	}
+
 	async dispatch(type, data, ts) {
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
