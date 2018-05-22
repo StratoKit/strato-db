@@ -487,7 +487,7 @@ class ESDB extends EventEmitter {
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						err
 					)
-					return 0
+					process.exit(100)
 				})
 				.then(lastV => {
 					this._waitingP = null
