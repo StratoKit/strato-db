@@ -47,10 +47,9 @@ test('create with Model', () => {
 })
 
 test('create without given queue', async () => {
-	const db = new DB()
 	let eSDB
 	expect(() => {
-		eSDB = new ESDB({db, models: {}})
+		eSDB = new ESDB({models: {}})
 	}).not.toThrow()
 	await expect(eSDB.dispatch('hi')).resolves.toHaveProperty('v', 1)
 })
