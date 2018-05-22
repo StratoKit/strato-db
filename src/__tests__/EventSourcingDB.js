@@ -173,18 +173,18 @@ test('incoming event', async () => {
 	})
 })
 
+// Not to be encouraged but it's possible. You can lose events during rollbacks
 test('queue in same db', async () =>
 	tmp.withDir(
 		async ({path: dir}) => {
 			const file = sysPath.join(dir, 'db')
-			const db = new DB({file, name: 'Q'})
-			const queue = new EQ({db})
 			const eSDB = new ESDB({
 				file,
-				queue,
+				queueFile: file,
 				name: 'E',
 				models: testModels,
 			})
+			const {queue} = eSDB
 			queue.add('boop')
 			const {v} = await queue.add('moop')
 			eSDB.checkForEvents()
@@ -339,7 +339,7 @@ test('event emitter', async () => {
 		eSDB.on('error', event => {
 			errored++
 			expect(event.error).toBeTruthy()
-			expect(event.result).toBeTruthy()
+			expect(event.result).toBeUndefined()
 		})
 		eSDB.on('handled', event => {
 			handled++
