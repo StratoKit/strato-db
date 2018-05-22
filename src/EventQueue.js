@@ -1,5 +1,5 @@
 // TODO use PRAGMA data_version to detect changes from other processes
-
+// Note that this queue doesn't use any transactions by itself to prevent deadlocks
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
@@ -59,21 +59,19 @@ class EventQueue extends JsonModel {
 		return this.currentV
 	}
 
-	// TODO just use transactions and manage knownV manually, no magic
 	async add(type, data, ts) {
 		if (this.knownV && !this._enforcedKnownV) {
 			const v = Number(this.knownV)
 			// set the sqlite autoincrement value
-			await this.db.withTransaction(() =>
-				// Try changing current value, and insert if there was no change
-				this.db.exec(
-					`
+			// Try changing current value, and insert if there was no change
+			// This doesn't need a transaction, either one or the other runs
+			await this.db.exec(
+				`
 						UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
 						INSERT INTO sqlite_sequence (name, seq)
 							SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
 								(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
 					`
-				)
 			)
 			this._enforcedKnownV = true
 		}
@@ -115,11 +113,11 @@ class EventQueue extends JsonModel {
 			if (!this.nextAddedP) {
 				// eslint-disable-next-line promise/avoid-new
 				this.nextAddedP = new Promise(resolve => {
-					this.nextAddedResolve = () => {
+					this.nextAddedResolve = event => {
 						clearTimeout(this.addTimer)
 						this.nextAddedResolve = null
 						this.nextAddedP = null
-						resolve()
+						resolve(event)
 					}
 				})
 				// Wait no more than 10s at a time so we can also get events from other processes

@@ -17,10 +17,15 @@
 // TODO think about transient event errors vs event errors - if transient, event should be retried, no?
 // TODO jsonmodel that includes auto-caching between events, use pragma data_version to know when data changed
 
+import debug from 'debug'
+import DB from './DB'
 import ESModel from './ESModel'
+import JsonModel from './JsonModel'
 import {createStore, combineReducers} from './async-redux'
 import EventQueue from './EventQueue'
 import EventEmitter from 'events'
+
+const dbg = debug('stratokit/ESDB')
 
 const metadata = {
 	reducer: async (model, {v = 0}) => {
@@ -40,50 +45,108 @@ const metadata = {
 	},
 }
 
+const registerHistoryMigration = (rwDb, queue) => {
+	rwDb.registerMigrations('historyExport', {
+		2018040800: {
+			up: async db => {
+				const oldTable = await db.all('PRAGMA table_info(history)')
+				if (
+					!(
+						oldTable.length === 4 &&
+						oldTable.some(c => c.name === 'json') &&
+						oldTable.some(c => c.name === 'v') &&
+						oldTable.some(c => c.name === 'type') &&
+						oldTable.some(c => c.name === 'ts')
+					)
+				)
+					return
+				let allDone = Promise.resolve()
+				await db.each('SELECT * from history', row => {
+					allDone = allDone.then(() =>
+						queue.set({...row, json: undefined, ...JSON.parse(row.json)})
+					)
+				})
+				await allDone
+				// not dropping table, you can do that yourself :)
+				console.error(`!!! history table in ${rwDb.file} is no longer needed`)
+			},
+		},
+	})
+}
+
+const screenLine = '\n!!! -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n'
 const showHugeDbError = (err, where) => {
 	if (process.env.NODE_ENV !== 'test') {
 		console.error(
-			`
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-!!! SEVERE ERROR in ${where} !!!
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-		`,
+			`${screenLine}!!! SEVERE ERROR in ${where} !!!${screenLine}`,
 			err,
-			`
--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-		`
+			screenLine
 		)
 	}
 }
 
 class ESDB extends EventEmitter {
-	store = {}
-
 	// eslint-disable-next-line complexity
-	constructor({db, queue, models}) {
+	constructor({queue, models, queueFile, ...dbOptions}) {
 		super()
-		if (!db || !models) {
-			throw new Error('db and models are required')
+		if (dbOptions.db)
+			throw new TypeError(
+				'db is no longer an option, pass the db options instead, e.g. file, verbose, readOnly'
+			)
+		if (!models) throw new TypeError('models are required')
+		if (models.metadata)
+			throw new TypeError('metadata is a reserved model name')
+
+		if (
+			queue &&
+			queue.db.file === dbOptions.file &&
+			queue.db.file !== ':memory:'
+		) {
+			// We have to have the same connection or we can get deadlocks
+			this.rwDb = queue.db
+		} else {
+			this.rwDb = new DB(dbOptions)
 		}
-		if (models.metadata) {
-			throw new Error('metadata is a reserved model name')
+		// The RO DB needs to be the same for :memory: or it won't see anything
+		this.db =
+			this.rwDb.file === ':memory:'
+				? this.rwDb
+				: new DB({
+						...dbOptions,
+						name: dbOptions.name && `RO-${dbOptions.name}`,
+						waitForP: this.rwDb.dbP,
+						readOnly: true,
+				  })
+		if (queue) {
+			this.queue = queue
+		} else {
+			const qDb =
+				this.rwDb.file === queueFile && queueFile !== ':memory:'
+					? this.rwDb
+					: new DB({
+							...dbOptions,
+							name: `${dbOptions.name || ''}Queue`,
+							file: queueFile || dbOptions.file,
+					  })
+			this.queue = new EventQueue({db: qDb})
 		}
-		this.db = db
-		this.queue = queue || new EventQueue({db})
-		const sameDb = this.queue.db === db
-		if (!sameDb) {
-			// Give the queue db a chance to already start up
-			// that way, our migrations aren't in hold state
-			// maybe we need a startDb function instead
-			queue.get(0)
+		// Move history data to queue DB - makes no sense for :memory:
+		if (this.rwDb.file !== this.queue.file) {
+			registerHistoryMigration(this.rwDb, this.queue)
 		}
+
+		// Give the queue db a chance to already start up
+		// that way, our migrations aren't in hold state
+		// maybe we need a startDb function instead
+		this.queue.get(0)
 
 		this.models = {
 			...models,
 			metadata,
 		}
+		this.store = {}
+		this.rwStore = {}
 
-		this.modelNames = Object.keys(this.models)
 		this.reducerNames = []
 		this.deriverModels = []
 		this.preprocModels = []
@@ -91,77 +154,67 @@ class ESDB extends EventEmitter {
 		const reducers = {}
 		this.reducerModels = {}
 		const migrationOptions = {queue}
-		if (!sameDb) {
-			db.registerMigrations('historyExport', {
-				2018040800: {
-					up: async db => {
-						const oldTable = await db.all('PRAGMA table_info(history)')
-						if (
-							!(
-								oldTable.length === 4 &&
-								oldTable.some(c => c.name === 'json') &&
-								oldTable.some(c => c.name === 'v') &&
-								oldTable.some(c => c.name === 'type') &&
-								oldTable.some(c => c.name === 'ts')
-							)
-						)
-							return
-						let allDone = Promise.resolve()
-						await db.each('SELECT * from history', row => {
-							allDone = allDone.then(() =>
-								queue.set({...row, json: undefined, ...JSON.parse(row.json)})
-							)
-						})
-						await allDone
-						// not dropping table, you can do that yourself :)
-					},
-				},
-			})
-		}
-		const dispatch = this.dispatch.bind(this)
-		for (const name of this.modelNames) {
-			const {
-				Model = ESModel,
-				columns,
-				migrations,
-				reducer,
-				deriver,
-				preprocessor,
-			} = this.models[name]
 
-			const model = db.addModel(Model, {
+		const dispatch = this.dispatch.bind(this)
+		for (const [name, modelDef] of Object.entries(this.models)) {
+			const {columns, migrations, reducer, preprocessor} = modelDef
+			let {Model, RWModel, deriver} = modelDef
+			if (!RWModel) {
+				if (Model) {
+					RWModel = Model
+				} else {
+					RWModel = JsonModel
+					if (!deriver) deriver = ESModel.deriver
+				}
+			}
+			if (!Model) Model = ESModel
+
+			let hasOne = false
+
+			const rwModel = this.rwDb.addModel(RWModel, {
 				name,
 				columns,
 				migrations,
 				migrationOptions,
-				dispatch,
+				dispatch, // TODO should this be passed?
 			})
-			model.reducer = reducer || Model.reducer
-			model.deriver = deriver || Model.deriver
-			model.preprocessor = preprocessor || Model.preprocessor
-			this.store[name] = model
+			rwModel.deriver = deriver || RWModel.deriver
+			this.rwStore[name] = rwModel
+			if (typeof rwModel.setWriteable === 'function')
+				this.readWriters.push(rwModel)
+			if (rwModel.deriver) {
+				this.deriverModels.push(rwModel)
+				hasOne = true
+			}
 
-			let hasOne = false
+			let model
+			if (this.db === this.rwDb) {
+				model = rwModel
+			} else {
+				model = this.db.addModel(Model, {name, columns, dispatch})
+			}
+			model.preprocessor = preprocessor || Model.preprocessor
+			model.reducer = reducer || Model.reducer
+			this.store[name] = model
+			if (model.preprocessor) {
+				this.preprocModels.push(model)
+				hasOne = true
+			}
 			if (model.reducer) {
 				this.reducerNames.push(name)
 				this.reducerModels[name] = model
 				reducers[name] = model.reducer
 				hasOne = true
 			}
-			if (model.deriver) {
-				this.deriverModels.push(model)
-				hasOne = true
-			}
-			if (model.preprocessor) {
-				this.preprocModels.push(model)
-				hasOne = true
-			}
+
 			if (!hasOne)
 				throw new TypeError(
 					`${this.name}: At least one reducer, deriver or preprocessor required`
 				)
-			if (typeof model.setWriteable === 'function') this.readWriters.push(model)
 		}
+		// Kick off the DB so migrations are done
+		// TODO force RO DB to hold until RW DB is up
+		this.rwDb.openDB()
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
 			this.reducer.bind(this),
@@ -171,6 +224,13 @@ class ESDB extends EventEmitter {
 		)
 		this.redux.subscribe(this.handleResult)
 		this.checkForEvents()
+	}
+
+	close() {
+		return Promise.all([
+			this.rwDb && this.rwDb.close(),
+			this.db !== this.rwDb && this.db.close(),
+		])
 	}
 
 	async dispatch(type, data, ts) {
@@ -279,6 +339,7 @@ class ESDB extends EventEmitter {
 				return vObj ? vObj.v : 0
 			})
 		}
+		if (dbg.enabled) this.getVersionP.then(v => dbg('at version ', v))
 		return this.getVersionP
 	}
 
@@ -365,7 +426,8 @@ class ESDB extends EventEmitter {
 				await this.redux.didInitialize
 				this._reduxInited = true
 			}
-			await this.db.withTransaction(async () => {
+			await this.rwDb.withTransaction(async () => {
+				// TODO check that our version is the expected one
 				try {
 					await this.redux.dispatch(event)
 				} catch (err) {
@@ -425,10 +487,13 @@ class ESDB extends EventEmitter {
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						err
 					)
-					return 0
+					process.exit(100)
 				})
-				.then(() => {
+				.then(lastV => {
 					this._waitingP = null
+					// Subtle race condition: new wantVersion coming in between end of _wait and .then
+					if (this._minVersion && lastV < this._minVersion)
+						return this.startPolling(this._minVersion)
 					this._minVersion = 0
 					return undefined
 				})
@@ -457,16 +522,30 @@ class ESDB extends EventEmitter {
 		this._applyingP = null
 		if (event.error) {
 			// this throws if there is no listener
-			if (this.listenerCount('error')) this.emit('error', event)
+			if (this.listenerCount('error')) {
+				try {
+					this.emit('error', event)
+				} catch (err) {
+					console.error('!!! "error" event handler threw, ignoring', err)
+				}
+			}
 		} else {
-			this.emit('result', event)
+			try {
+				this.emit('result', event)
+			} catch (err) {
+				console.error('!!! "result" event handler threw, ignoring', err)
+			}
 		}
-		this.emit('handled', event)
+		try {
+			this.emit('handled', event)
+		} catch (err) {
+			console.error('!!! "handled" event handler threw, ignoring', err)
+		}
 		this.triggerWaitingEvent(event)
 	}
 
 	async applyEvent(event) {
-		const {store, queue, readWriters} = this
+		const {rwStore, rwDb, queue, readWriters} = this
 		for (const model of readWriters) model.setWriteable(true)
 		try {
 			// First write our result to the queue (strip metadata, it's only v)
@@ -474,51 +553,57 @@ class ESDB extends EventEmitter {
 			const {metadata} = result
 			delete result.metadata
 
-			// Apply reducer results
-			try {
-				await this.db.run('SAVEPOINT apply')
-				await Promise.all(
-					Object.entries(result).map(
-						([name, r]) => r && store[name].applyChanges(r)
+			if (Object.keys(result).length) {
+				// Apply reducer results
+				try {
+					await rwDb.run('SAVEPOINT apply')
+					await Promise.all(
+						Object.entries(result).map(
+							([name, r]) => r && rwStore[name].applyChanges(r)
+						)
 					)
-				)
-				await this.db.run('RELEASE SAVEPOINT apply')
-			} catch (err) {
-				showHugeDbError(err, 'apply')
-				await this.db.run('ROLLBACK TO SAVEPOINT apply')
-				event.failedResult = event.result
+					await rwDb.run('RELEASE SAVEPOINT apply')
+				} catch (err) {
+					showHugeDbError(err, 'apply')
+					await rwDb.run('ROLLBACK TO SAVEPOINT apply')
+					event.failedResult = event.result
+					delete event.result
+					event.error = {_apply: err.message || err}
+				}
+			} else {
 				delete event.result
-				event.error = {_apply: err.message || err}
 			}
 
 			// Even if the apply failed we'll consider this event handled
 			// TODO maybe we should just halt instead
-			await store.metadata.applyChanges(metadata)
+			await rwStore.metadata.applyChanges(metadata)
 
 			await queue.set(event)
 			if (event.error) return
 
 			// Apply derivers
-			try {
-				await this.db.run('SAVEPOINT derive')
-				await Promise.all(
-					this.deriverModels.map(model =>
-						model.deriver({
-							model,
-							store,
-							event,
-							result,
-						})
+			if (this.deriverModels.length) {
+				try {
+					await rwDb.run('SAVEPOINT derive')
+					await Promise.all(
+						this.deriverModels.map(model =>
+							model.deriver({
+								model,
+								store: this.rwStore,
+								event,
+								result,
+							})
+						)
 					)
-				)
-				await this.db.run('RELEASE SAVEPOINT derive')
-			} catch (err) {
-				showHugeDbError(err, 'derive')
-				await this.db.run('ROLLBACK TO SAVEPOINT derive')
-				event.failedResult = event.result
-				delete event.result
-				event.error = {_derive: err.message || err}
-				await queue.set(event)
+					await rwDb.run('RELEASE SAVEPOINT derive')
+				} catch (err) {
+					showHugeDbError(err, 'derive')
+					await rwDb.run('ROLLBACK TO SAVEPOINT derive')
+					event.failedResult = event.result
+					delete event.result
+					event.error = {_derive: err.message || err}
+					await queue.set(event)
+				}
 			}
 		} catch (err) {
 			// argh, now what? Probably retry applying, or crash the app…

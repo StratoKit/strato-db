@@ -1,7 +1,7 @@
 import expect from 'expect'
-import DB from '../DB'
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 import JsonModel from '../JsonModel'
-import EQ from '../EventQueue'
 import ESDB from '../EventSourcingDB'
 import {withESDB, testModels} from './_helpers'
 
@@ -45,10 +45,9 @@ test('create with Model', () => {
 })
 
 test('create without given queue', async () => {
-	const db = new DB()
 	let eSDB
 	expect(() => {
-		eSDB = new ESDB({db, models: {}})
+		eSDB = new ESDB({models: {}})
 	}).not.toThrow()
 	await expect(eSDB.dispatch('hi')).resolves.toHaveProperty('v', 1)
 })
@@ -172,21 +171,31 @@ test('incoming event', async () => {
 	})
 })
 
-test('queue in same db', async () => {
-	const db = new DB()
-	const queue = new EQ({db})
-	const eSDB = new ESDB({db, queue, models: testModels})
-	queue.add('boop')
-	const {v} = await queue.add('moop')
-	eSDB.checkForEvents()
-	await eSDB.handledVersion(v)
-	const history = await eSDB.queue.all()
-	expect(history).toHaveLength(2)
-	expect(history[0].type).toBe('boop')
-	expect(history[0].result).toBeTruthy()
-	expect(history[1].type).toBe('moop')
-	expect(history[1].result).toBeTruthy()
-})
+// Not to be encouraged but it's possible. You can lose events during rollbacks
+test('queue in same db', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const eSDB = new ESDB({
+				file,
+				queueFile: file,
+				name: 'E',
+				models: testModels,
+			})
+			const {queue} = eSDB
+			queue.add('boop')
+			const {v} = await queue.add('moop')
+			eSDB.checkForEvents()
+			await eSDB.handledVersion(v)
+			const history = await eSDB.queue.all()
+			expect(history).toHaveLength(2)
+			expect(history[0].type).toBe('boop')
+			expect(history[0].result).toBeTruthy()
+			expect(history[1].type).toBe('moop')
+			expect(history[1].result).toBeTruthy()
+		},
+		{unsafeCleanup: true}
+	))
 
 test('dispatch', async () => {
 	return withESDB(async eSDB => {
@@ -328,7 +337,7 @@ test('event emitter', async () => {
 		eSDB.on('error', event => {
 			errored++
 			expect(event.error).toBeTruthy()
-			expect(event.result).toBeTruthy()
+			expect(event.result).toBeUndefined()
 		})
 		eSDB.on('handled', event => {
 			handled++

@@ -200,7 +200,7 @@ test('update non-existent object', () =>
 		eSDB => {
 			expect(eSDB.db.models.test.update(sampleObject)).rejects.toHaveProperty(
 				'error._apply',
-				'Missing object asd'
+				'No object with id asd exists yet'
 			)
 		},
 		{test: {Model: ESModel}}

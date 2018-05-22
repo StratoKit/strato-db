@@ -56,6 +56,7 @@ test('sql`` on DB/db/fns', async () => {
 
 test('creates DB', async () => {
 	const db = new DB()
+	expect(db.dbP).toBeInstanceOf(Promise)
 	const version = await db.get('SELECT sqlite_version()')
 	expect(version['sqlite_version()']).toBeTruthy()
 	expect(db.models).toEqual({})
@@ -84,9 +85,17 @@ test('can register model', () => {
 
 test('has migration', async () => {
 	const db = new DB()
+	let canary = 0
+	// eslint-disable-next-line promise/catch-or-return
+	db.dbP.then(() => {
+		// This should run after the migrations
+		if (canary === 2) canary = 1
+		return true
+	})
 	db.registerMigrations('whee', {
 		0: {
 			up: db => {
+				if (canary === 0) canary = 2
 				expect(db.models).toEqual({})
 				return db.exec(`
 				CREATE TABLE foo(hi NUMBER);
@@ -97,6 +106,7 @@ test('has migration', async () => {
 	})
 	const row = await db.get('SELECT * FROM foo')
 	expect(row.hi).toBe(42)
+	expect(canary).toBe(1)
 	await db.close()
 })
 
@@ -188,6 +198,30 @@ test('close()', async () => {
 	`)
 	const {hi: hi2} = await db.get(`SELECT * FROM foo`)
 	expect(hi2).toBe(43)
+})
+
+test('waitForP', async () => {
+	let r
+	// eslint-disable-next-line promise/avoid-new
+	const waitForP = new Promise(resolve => {
+		r = resolve
+	})
+	const db = new DB({waitForP})
+	let canary = 0
+	// eslint-disable-next-line promise/catch-or-return
+	const p = db.get('SELECT 1').then(() => {
+		if (canary === 2) canary = 1
+		return true
+	})
+	// eslint-disable-next-line promise/catch-or-return
+	db.dbP.then(() => {
+		if (canary === 0) canary = 2
+		return true
+	})
+	expect(canary).toBe(0)
+	r()
+	await p
+	expect(canary).toBe(1)
 })
 
 test.skip('downwards migration', () => {}) // TODO

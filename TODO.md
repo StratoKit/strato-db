@@ -68,10 +68,5 @@
 * [ ] test for multi-process - especially store listeners should get (all missed?) events
 * [ ] think about transient event errors vs event errors vs db errors - if transient, event should be retried, no?
 * [ ] jsonmodel for ESDB that includes auto-caching between events, use pragma data_version to know when data changed, applyChanges
-* [ ] this might race, applyer should also resolve earlier promises
-  * maybe have a single promise for next event resolved and fetch from history if your event was earlier
 * [ ] factor out applying for reuse between redux error and apply
-* [ ] setting for query_only pragma between writes?
-  * only when you don't make any changes to the db between events
-  * counter-example: metadata for tracking sync status
 * [ ] IDEA eventually allow multiple ESDBs by storing version per queue name
