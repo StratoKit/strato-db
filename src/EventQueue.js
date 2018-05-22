@@ -113,11 +113,11 @@ class EventQueue extends JsonModel {
 			if (!this.nextAddedP) {
 				// eslint-disable-next-line promise/avoid-new
 				this.nextAddedP = new Promise(resolve => {
-					this.nextAddedResolve = () => {
+					this.nextAddedResolve = event => {
 						clearTimeout(this.addTimer)
 						this.nextAddedResolve = null
 						this.nextAddedP = null
-						resolve()
+						resolve(event)
 					}
 				})
 				// Wait no more than 10s at a time so we can also get events from other processes
