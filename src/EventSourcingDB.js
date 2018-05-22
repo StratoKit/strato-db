@@ -467,11 +467,25 @@ class ESDB extends EventEmitter {
 		this._applyingP = null
 		if (event.error) {
 			// this throws if there is no listener
-			if (this.listenerCount('error')) this.emit('error', event)
+			if (this.listenerCount('error')) {
+				try {
+					this.emit('error', event)
+				} catch (err) {
+					console.error('!!! "error" event handler threw, ignoring', err)
+				}
+			}
 		} else {
-			this.emit('result', event)
+			try {
+				this.emit('result', event)
+			} catch (err) {
+				console.error('!!! "result" event handler threw, ignoring', err)
+			}
 		}
-		this.emit('handled', event)
+		try {
+			this.emit('handled', event)
+		} catch (err) {
+			console.error('!!! "handled" event handler threw, ignoring', err)
+		}
 		this.triggerWaitingEvent(event)
 	}
 
