@@ -191,7 +191,7 @@ class DB {
 			await this._dbP
 		}
 		dbg('closing', this.file)
-		await this._realDb.close()
+		if (this._realDb) await this._realDb.close()
 		// Reset all
 		for (const m of [
 			'dbP',
