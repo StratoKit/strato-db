@@ -1,9 +1,7 @@
 import expect from 'expect'
 import sysPath from 'path'
 import tmp from 'tmp-promise'
-import DB from '../DB'
 import JsonModel from '../JsonModel'
-import EQ from '../EventQueue'
 import ESDB from '../EventSourcingDB'
 import {withESDB, testModels} from './_helpers'
 
