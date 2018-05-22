@@ -70,14 +70,19 @@ let connId = 1
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({file, readOnly, verbose, ...rest} = {}) {
+	constructor({file, readOnly, verbose, waitForP, name, ...rest} = {}) {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
-		this.name = `${path.basename(this.file, '.db')}|${connId++}`
+		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
 		this.verbose = verbose
 		this.migrations = []
+		this.waitForP = waitForP
+		// eslint-disable-next-line promise/avoid-new
+		this.dbP = new Promise(resolve => {
+			this._resolveDbP = resolve
+		})
 	}
 
 	// Store all your models here, by name
@@ -98,79 +103,92 @@ class DB {
 
 	sql = sql
 
-	openDB() {
-		if (this.dbP) {
-			return this.dbP
+	async _openDB() {
+		const {file, verbose, readOnly, waitForP} = this
+		if (waitForP) await waitForP
+
+		dbg(`${this.name} opening ${this.file}`)
+		const realDb = await sqlite.open(file, {
+			verbose,
+			// TODO: use the real constant
+			mode: readOnly ? 1 : undefined,
+			Promise: BP,
+		})
+		// Configure lock management
+		realDb.driver.configure('busyTimeout', 15000)
+		if (this.file !== ':memory:') {
+			// TODO configure auto vacuum
+			const [{journal_mode: journalMode}] = await realDb.all(
+				'PRAGMA journal_mode = wal'
+			)
+			if (journalMode !== 'wal') {
+				console.error(
+					`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
+				)
+			}
 		}
-		const {file, verbose, readOnly} = this
+		await realDb.run('PRAGMA foreign_keys = ON')
 
-		dbg(`opening ${this.file}`)
-		this.dbP = sqlite
-			.open(file, {
-				verbose,
-				// TODO: use the real constant
-				mode: readOnly ? 1 : undefined,
-				Promise: BP,
-			})
-			.then(async realDb => {
-				// Configure lock management
-				realDb.driver.configure('busyTimeout', 15000)
-				if (this.file !== ':memory:') {
-					// TODO configure auto vacuum
-					const [{journal_mode: journalMode}] = await realDb.all(
-						'PRAGMA journal_mode = wal'
+		this._realDb = realDb
+		this._db = {models: {}}
+		for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
+			this._db[method] = (...args) => {
+				if (Array.isArray(args[0])) {
+					args = sql(...args)
+				}
+				if (dbgQ.enabled)
+					dbgQ(
+						this.name,
+						method,
+						...args.map(a => String(a).replace(/\s+/g, ' '))
 					)
-					if (journalMode !== 'wal') {
-						console.error(
-							`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
-						)
-					}
-				}
-				await realDb.run('PRAGMA foreign_keys = ON')
+				return realDb[method](...args)
+			}
+		}
+		this._db.each = this._realEach.bind(this)
+		if (readOnly) {
+			this._db.withTransaction = () => {
+				const error = new Error(`DB ${this.name} is readonly`)
+				console.error('!!! RO', error)
+				throw error
+			}
+		} else {
+			this._db.withTransaction = this._withTransaction.bind(this)
+			await this.runMigrations()
+		}
+		// Make all accesses direct to the DB object, bypass .hold()
+		for (const method of [
+			'all',
+			'exec',
+			'get',
+			'prepare',
+			'run',
+			'each',
+			'withTransaction',
+		]) {
+			this[method] = this._db[method]
+		}
+		dbg(`${this.name} ${file} opened`)
 
-				this._realDb = realDb
-				this._db = {
-					models: {},
-				}
-				for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
-					this._db[method] = (...args) => {
-						if (Array.isArray(args[0])) {
-							args = sql(...args)
-						}
-						if (dbgQ.enabled)
-							dbgQ(
-								this.name,
-								method,
-								...args.map(a => String(a).replace(/\s+/g, ' '))
-							)
-						return realDb[method](...args)
-					}
-				}
-				this._db.each = this._realEach.bind(this)
-				this._db.withTransaction = this._withTransaction.bind(this)
-				if (!readOnly) await this.runMigrations()
-				// Make all accesses direct to the DB object, bypass .hold()
-				for (const method of [
-					'all',
-					'exec',
-					'get',
-					'prepare',
-					'run',
-					'each',
-					'withTransaction',
-				]) {
-					this[method] = this._db[method]
-				}
-				dbg(`${file} opened`)
-				return this
+		return this
+	}
+
+	openDB() {
+		const {_resolveDbP} = this
+		if (_resolveDbP) {
+			this._resolveDbP = null
+			this._dbP = this._openDB().then(result => {
+				_resolveDbP(result)
+				this._dbP = null
+				return result
 			})
-
+		}
 		return this.dbP
 	}
 
 	async close() {
-		if (this.dbP) {
-			await this.dbP
+		if (this._dbP) {
+			await this._dbP
 		}
 		dbg('closing', this.file)
 		await this._realDb.close()
@@ -189,6 +207,10 @@ class DB {
 		]) {
 			delete this[m]
 		}
+		// eslint-disable-next-line promise/avoid-new
+		this.dbP = new Promise(resolve => {
+			this._resolveDbP = resolve
+		})
 		return this
 	}
 
