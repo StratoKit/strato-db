@@ -1,4 +1,6 @@
 import expect from 'expect'
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 import DB from '../DB'
 import JsonModel from '../JsonModel'
 import EQ from '../EventQueue'
@@ -172,21 +174,31 @@ test('incoming event', async () => {
 	})
 })
 
-test('queue in same db', async () => {
-	const db = new DB()
-	const queue = new EQ({db})
-	const eSDB = new ESDB({db, queue, models: testModels})
-	queue.add('boop')
-	const {v} = await queue.add('moop')
-	eSDB.checkForEvents()
-	await eSDB.handledVersion(v)
-	const history = await eSDB.queue.all()
-	expect(history).toHaveLength(2)
-	expect(history[0].type).toBe('boop')
-	expect(history[0].result).toBeTruthy()
-	expect(history[1].type).toBe('moop')
-	expect(history[1].result).toBeTruthy()
-})
+test('queue in same db', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db = new DB({file, name: 'Q'})
+			const queue = new EQ({db})
+			const eSDB = new ESDB({
+				file,
+				queue,
+				name: 'E',
+				models: testModels,
+			})
+			queue.add('boop')
+			const {v} = await queue.add('moop')
+			eSDB.checkForEvents()
+			await eSDB.handledVersion(v)
+			const history = await eSDB.queue.all()
+			expect(history).toHaveLength(2)
+			expect(history[0].type).toBe('boop')
+			expect(history[0].result).toBeTruthy()
+			expect(history[1].type).toBe('moop')
+			expect(history[1].result).toBeTruthy()
+		},
+		{unsafeCleanup: true}
+	))
 
 test('dispatch', async () => {
 	return withESDB(async eSDB => {

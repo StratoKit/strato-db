@@ -61,7 +61,8 @@
 		"fs-extra": "^5.0.0",
 		"jest-cli": "^23.0.0-alpha.0",
 		"makfy": "^1.2.0",
-		"prettier": "^1.11.1"
+		"prettier": "^1.11.1",
+		"tmp-promise": "^1.0.4"
 	},
 	"prettier": {
 		"useTabs": true,
