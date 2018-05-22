@@ -59,7 +59,7 @@
 		"eslint-plugin-unicorn": "^4.0.2",
 		"expect": "^23.0.0-alpha.0",
 		"fs-extra": "^5.0.0",
-		"jest-cli": "^23.0.0-alpha.0",
+		"jest-cli": "^23.0.0-charlie.2",
 		"makfy": "^1.2.0",
 		"prettier": "^1.11.1",
 		"tmp-promise": "^1.0.4"
