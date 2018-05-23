@@ -127,10 +127,6 @@ class ESDB extends EventEmitter {
 			registerHistoryMigration(this.rwDb, this.queue)
 		}
 
-		// Give the queue db a chance to already start up
-		// that way, our migrations aren't in hold state
-		// maybe we need a startDb function instead
-		this.queue.get(0)
 		this.store = {}
 		this.rwStore = {}
 
@@ -199,8 +195,7 @@ class ESDB extends EventEmitter {
 					`${this.name}: At least one reducer, deriver or preprocessor required`
 				)
 		}
-		// Kick off the DB so migrations are done
-		this.rwDb.openDB()
+
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
 			this.reducer.bind(this),
