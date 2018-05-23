@@ -1,23 +1,4 @@
 /* eslint-disable no-console */
-// TODO accept column def and create/add if needed, see
-// pragma table_info("_migrations");
-// cid|name|type|notnull|dflt_value|pk
-// 0|runKey|STRING|0||0
-// 1|ts|DATETIME|0||0
-// 2|up|BOOLEAN|0||0
-// TODO manage indexes, look at PRAGMA index_list
-// TODO pragma recursive_triggers
-// TODO in development, invert PRAGMA reverse_unordered_selects every so often
-// TODO run PRAGMA quick_check at startup
-// TODO pragma journal_size_limit setting, default to 2MB
-// TODO PRAGMA schema.synchronous = extra
-// TODO run pragma optimize every few hours
-// TODO figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection
-// TODO report: .dump should include user_version
-// TODO put all metadata in stratodb_meta table, including queue version etc
-// TODO prepared statements; calling them ensures serial access because of binding
-//   => prepare, allow .get/all/etc; while those are active calls are queued up
-// https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
 import path from 'path'
 import sqlite from 'sqlite'
 import BP from 'bluebird'
@@ -110,14 +91,13 @@ class DB {
 		dbg(`${this.name} opening ${this.file}`)
 		const realDb = await sqlite.open(file, {
 			verbose,
-			// TODO: use the real constant
+			// SQLITE3 OPEN_READONLY: 1
 			mode: readOnly ? 1 : undefined,
 			Promise: BP,
 		})
 		// Configure lock management
 		realDb.driver.configure('busyTimeout', 15000)
 		if (this.file !== ':memory:') {
-			// TODO configure auto vacuum
 			const [{journal_mode: journalMode}] = await realDb.all(
 				'PRAGMA journal_mode = wal'
 			)
@@ -247,7 +227,6 @@ class DB {
 		return this._hold('_withTransaction', args)
 	}
 
-	// TODO maybe this should return a ReadableStream or an async iterator
 	_realEach(...args) {
 		const onRow = args.pop()
 		// err is always null, no reason to have it
@@ -307,10 +286,6 @@ class DB {
 	}
 
 	async __withTransaction(fn, count = RETRY_COUNT) {
-		// TODO keep a separate connection for transactions
-		// TODO test multi-process
-		// TODO run this synchronously
-
 		try {
 			await this._db.run(`BEGIN IMMEDIATE`)
 		} catch (err) {

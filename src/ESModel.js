@@ -46,6 +46,7 @@ class ESModel extends JsonModel {
 	SAV = `app/${this.name}/SAV`
 
 	setWriteable(state) {
+		// Note: during writeable, no events are created. Be careful.
 		this.writeable = state
 	}
 

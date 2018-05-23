@@ -1,13 +1,3 @@
-// TODO unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
-// TODO add changeId function; use insert if there was no id
-// TODO move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
-// TODO column defs are migrations and recalculate all records if the version changes
-// TODO when setting an object without Id, use INSERT so calculated Id has to be unique and can't silently overwrite
-// TODO use db.prepare for all applicable queries https://github.com/mapbox/node-sqlite3/wiki/API#databasepreparesql-param--callback
-//   This could be done by making a .prepare() method that takes the attributes and options you would be using, and then using that as a ref
-//   e.g. q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort
-//   However, `where` parameter values should be allowed to change
-//   Probable makeSelect would need to return an intermediate query object
 import debug from 'debug'
 import uuid from 'uuid'
 import jsurl from 'jsurl'
@@ -284,7 +274,6 @@ class JsonModel {
 
 			// Stringify/parse JSON type columns
 			if (col.value && col.type === 'JSON' && !col.parse) {
-				// TODO use attrs? extractJson? nullEmpty? jsonPath? (=> json is then just regular but slower)
 				const prevValue = col.value
 				col.value = obj => JSON.stringify(prevValue(obj))
 				col.parse = s => (s == null ? s : JSON.parse(s))
@@ -334,13 +323,6 @@ class JsonModel {
 							: ''
 					}
 					${
-						// TODO enforce unique with triggers instead
-						// CREATE TABLE demo(id INTEGER PRIMARY KEY, k TEXT, otherstuff ANY);
-						// CREATE INDEX demo_k ON demo(k);
-						// CREATE TRIGGER demo_trigger1 BEFORE INSERT ON demo BEGIN
-						//   SELECT raise(ABORT,'uniqueness constraint failed on k')
-						//    FROM demo WHERE k=new.k;
-						// END;
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
@@ -379,10 +361,6 @@ class JsonModel {
 			if (m) wrappedMigrations[k] = wrapMigration(m)
 		})
 
-		// TODO drop indexes for columns that were removed
-		// this should run before runMigrations, and requires knowing that these are called tablename_colName
-		// => requires an onOpened hook in DB, or moving index management to db
-		// (select * from sqlite_master where type = "index" and name like 'tablename_%';)
 		this.db.registerMigrations(name, wrappedMigrations)
 
 		this.parseRow = this._makeParseRow()
@@ -870,7 +848,6 @@ class JsonModel {
 			})
 	}
 
-	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
 	async applyChanges(result) {
 		const {rm, set, ins, upd, sav} = result
 		if (DEV) {

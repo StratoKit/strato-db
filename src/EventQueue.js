@@ -1,5 +1,4 @@
-// TODO use PRAGMA data_version to detect changes from other processes
-// Note that this queue doesn't use any transactions by itself to prevent deadlocks
+// Note that this queue doesn't use any transactions by itself, to prevent deadlocks
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
@@ -121,7 +120,6 @@ class EventQueue extends JsonModel {
 					}
 				})
 				// Wait no more than 10s at a time so we can also get events from other processes
-				// TODO if single process, don't time out
 				this.addTimer = setTimeout(
 					() => this.nextAddedResolve && this.nextAddedResolve(),
 					10000

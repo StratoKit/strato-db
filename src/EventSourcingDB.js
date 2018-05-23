@@ -8,15 +8,6 @@
 // * Once all reducers ran, the changes are applied and the db is at version v
 // * To make changes to a table, change the reducer and rebuild the DB, or migrate the table
 
-// TODO implement this.stopPolling - currently incomplete
-// TODO use query_only pragma between writes
-// TODO promises for each deriver so they can depend on each other
-// TODO decide if we keep .store or instead use .db.models
-// TODO test for multi-process - especially store listeners should get (all missed?) events
-// IDEA eventually allow multiple ESDBs by storing version per queue name
-// TODO think about transient event errors vs event errors - if transient, event should be retried, no?
-// TODO jsonmodel that includes auto-caching between events, use pragma data_version to know when data changed
-
 import debug from 'debug'
 import DB from './DB'
 import ESModel from './ESModel'
@@ -172,7 +163,7 @@ class ESDB extends EventEmitter {
 				columns,
 				migrations,
 				migrationOptions,
-				dispatch, // TODO should this be passed?
+				dispatch,
 			})
 			rwModel.deriver = deriver || RWModel.deriver
 			this.rwStore[name] = rwModel
@@ -209,7 +200,6 @@ class ESDB extends EventEmitter {
 				)
 		}
 		// Kick off the DB so migrations are done
-		// TODO force RO DB to hold until RW DB is up
 		this.rwDb.openDB()
 		this.modelReducer = combineReducers(reducers, true)
 		this.redux = createStore(
@@ -335,6 +325,7 @@ class ESDB extends EventEmitter {
 				return vObj ? vObj.v : 0
 			})
 		}
+		// eslint-disable-next-line promise/catch-or-return
 		if (dbg.enabled) this.getVersionP.then(v => dbg('at version ', v))
 		return this.getVersionP
 	}
@@ -423,7 +414,6 @@ class ESDB extends EventEmitter {
 				this._reduxInited = true
 			}
 			await this.rwDb.withTransaction(async () => {
-				// TODO check that our version is the expected one
 				try {
 					await this.redux.dispatch(event)
 				} catch (err) {
@@ -483,6 +473,7 @@ class ESDB extends EventEmitter {
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						err
 					)
+					// eslint-disable-next-line unicorn/no-process-exit
 					process.exit(100)
 				})
 				.then(lastV => {
@@ -571,7 +562,6 @@ class ESDB extends EventEmitter {
 			}
 
 			// Even if the apply failed we'll consider this event handled
-			// TODO maybe we should just halt instead
 			await rwStore.metadata.applyChanges(metadata)
 
 			await queue.set(event)

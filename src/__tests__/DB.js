@@ -224,8 +224,6 @@ test('waitForP', async () => {
 	expect(canary).toBe(1)
 })
 
-test.skip('downwards migration', () => {}) // TODO
-
 test('withTransaction', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
@@ -248,5 +246,3 @@ test('withTransaction rollback', async () => {
 	).rejects.toThrow('ignoreme')
 	expect(await db.all`SELECT * from foo`).toEqual([])
 })
-
-test.skip('withTransaction busy wait', () => {}) // TODO

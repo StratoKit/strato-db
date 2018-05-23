@@ -33,5 +33,3 @@ test('slugifyString', () => {
 	expect(() => slugifyString(0, true)).not.toThrow()
 	expect(slugifyString(null, true).length === 12).toBe(true)
 })
-
-test.skip('uniqueSlugId', () => {}) // TODO
