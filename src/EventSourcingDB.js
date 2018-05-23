@@ -96,6 +96,7 @@ class ESDB extends EventEmitter {
 		if (!models) throw new TypeError('models are required')
 		if (models.metadata)
 			throw new TypeError('metadata is a reserved model name')
+		models = {...models, metadata}
 
 		if (
 			queue &&
@@ -139,11 +140,6 @@ class ESDB extends EventEmitter {
 		// that way, our migrations aren't in hold state
 		// maybe we need a startDb function instead
 		this.queue.get(0)
-
-		this.models = {
-			...models,
-			metadata,
-		}
 		this.store = {}
 		this.rwStore = {}
 
@@ -156,7 +152,7 @@ class ESDB extends EventEmitter {
 		const migrationOptions = {queue}
 
 		const dispatch = this.dispatch.bind(this)
-		for (const [name, modelDef] of Object.entries(this.models)) {
+		for (const [name, modelDef] of Object.entries(models)) {
 			const {columns, migrations, reducer, preprocessor} = modelDef
 			let {Model, RWModel, deriver} = modelDef
 			if (!RWModel) {
@@ -299,7 +295,7 @@ class ESDB extends EventEmitter {
 		event = await this.preprocessor(event)
 		if (event.error) {
 			// preprocess failed, we need to apply metadata and store
-			const metadata = await this.models.metadata.reducer(
+			const metadata = await this.store.metadata.reducer(
 				this.store.metadata,
 				event
 			)
@@ -431,8 +427,8 @@ class ESDB extends EventEmitter {
 				try {
 					await this.redux.dispatch(event)
 				} catch (err) {
-					// Redux failed so we'll apply manually - TODO factor out
-					const metadata = await this.models.metadata.reducer(
+					// Redux failed so we'll apply manually
+					const metadata = await this.store.metadata.reducer(
 						this.store.metadata,
 						event
 					)
