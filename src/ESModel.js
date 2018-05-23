@@ -54,10 +54,8 @@ class ESModel extends JsonModel {
 		// Slight hack: use the writeable state to fall back to JsonModel behavior
 		// This makes deriver work without changes
 		if (this.writeable) return super.set(obj, insertOnly)
-		const {result: {[this.name]: {id}}} = await this.dispatch(
-			insertOnly ? this.INS : this.SET,
-			obj
-		)
+		const {result} = await this.dispatch(insertOnly ? this.INS : this.SET, obj)
+		const {id} = result[this.name]
 		if (id) return this.get(id)
 	}
 
@@ -66,10 +64,11 @@ class ESModel extends JsonModel {
 		if (!obj[this.idCol] && !upsert) {
 			throw new TypeError('No ID specified')
 		}
-		const {result: {[this.name]: {id}}} = await this.dispatch(
+		const {result} = await this.dispatch(
 			upsert ? this.SAV : this.UPD,
 			undefToNull(obj)
 		)
+		const {id} = result[this.name]
 		if (id) return this.get(id)
 	}
 
