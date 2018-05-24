@@ -51,15 +51,21 @@ let connId = 1
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({file, readOnly, verbose, waitForP, name, ...rest} = {}) {
+	constructor({
+		file,
+		readOnly,
+		verbose,
+		waitForP,
+		onWillOpen,
+		name,
+		...rest
+	} = {}) {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
-		this.verbose = verbose
-		this.migrations = []
-		this.waitForP = waitForP
+		this.options = {waitForP, onWillOpen, verbose, migrations: []}
 		// eslint-disable-next-line promise/avoid-new
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
@@ -85,7 +91,12 @@ class DB {
 	sql = sql
 
 	async _openDB() {
-		const {file, verbose, readOnly, waitForP} = this
+		const {
+			file,
+			readOnly,
+			options: {verbose, waitForP, onWillOpen},
+		} = this
+		if (onWillOpen) await onWillOpen()
 		if (waitForP) await waitForP
 
 		dbg(`${this.name} opening ${this.file}`)
@@ -246,7 +257,7 @@ class DB {
 			}
 			// Separate with space, it sorts before other things
 			const runKey = `${key} ${name}`
-			this.migrations.push({
+			this.options.migrations.push({
 				...obj,
 				runKey,
 			})
@@ -322,7 +333,7 @@ class DB {
 	}
 
 	async runMigrations() {
-		const migrations = sortBy(this.migrations, ({runKey}) => runKey)
+		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		const didRun = await this._getRanMigrations()
 		await this._withTransaction(async () => {
 			for (const {runKey, up} of migrations) {

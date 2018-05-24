@@ -224,6 +224,31 @@ test('waitForP', async () => {
 	expect(canary).toBe(1)
 })
 
+test('onWillOpen', async () => {
+	let t = 0
+	let r
+	// eslint-disable-next-line promise/avoid-new
+	const p = new Promise(resolve => {
+		r = resolve
+	})
+	const db = new DB({
+		waitForP: p,
+		onWillOpen() {
+			if (t === 0) t = 1
+			r()
+		},
+	})
+	db.registerMigrations('meep', {
+		c: {
+			up: () => {
+				if (t === 1) t = 2
+			},
+		},
+	})
+	await db.openDB()
+	expect(t).toBe(2)
+})
+
 test('withTransaction', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
