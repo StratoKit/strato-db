@@ -7,20 +7,32 @@ import {withESDB, testModels} from './_helpers'
 
 const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
 
-test('create', () => {
-	return withESDB(eSDB => {
-		// eSDB.listen(changes => eSDB.reducers.count.get('count'))
-		// await queue.add('whee')
-		expect(eSDB.db).toBeTruthy()
-		expect(eSDB.queue).toBeTruthy()
-		expect(eSDB.models).toBeUndefined()
-		expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
-		expect(eSDB.store.count).toBeTruthy()
-		expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
-		expect(eSDB.rwStore.count).toBeTruthy()
-		expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
-	})
-})
+test('create', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const queueFile = sysPath.join(dir, 'q')
+			const eSDB = new ESDB({
+				file,
+				queueFile,
+				name: 'E',
+				models: testModels,
+			})
+			// eSDB.listen(changes => eSDB.reducers.count.get('count'))
+			expect(eSDB.db).toBeTruthy()
+			expect(eSDB.rwDb).toBeTruthy()
+			expect(eSDB.queue).toBeTruthy()
+			expect(eSDB.models).toBeUndefined()
+			expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
+			expect(eSDB.store.count).toBeTruthy()
+			expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
+			expect(eSDB.rwStore.count).toBeTruthy()
+			expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
+			// Make sure the read-only database can start
+			await eSDB.store.count.all()
+		},
+		{unsafeCleanup: true}
+	))
 
 test('create with Model', () => {
 	return withESDB(

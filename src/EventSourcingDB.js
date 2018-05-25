@@ -106,8 +106,12 @@ class ESDB extends EventEmitter {
 				: new DB({
 						...dbOptions,
 						name: dbOptions.name && `RO-${dbOptions.name}`,
-						waitForP: this.rwDb.dbP,
 						readOnly: true,
+						onWillOpen: async () => {
+							// Make sure migrations happened before opening
+							await this.queue.db.openDB()
+							await this.rwDb.openDB()
+						},
 				  })
 		if (queue) {
 			this.queue = queue
