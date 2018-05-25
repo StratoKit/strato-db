@@ -2,6 +2,7 @@
 
 ## General
 
+* [ ] Make safe for use in multi-process writers (migrations, ESDB)
 * [ ] Get started on documentation
 * [ ] Release as open source
 * [ ] Try to clean up the API, make it consistent between classes. Ideas:
@@ -25,6 +26,7 @@
 
 ### Nice to have
 
+* [ ] remove waitForP again - onWillOpen can simply return that promise if needed
 * [ ] pragma recursive_triggers
 * [ ] PRAGMA schema.synchronous = extra (make configurable)
 * [ ] pragma journal_size_limit setting, default to 4MB (1000 pages)
