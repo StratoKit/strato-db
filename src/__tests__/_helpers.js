@@ -26,10 +26,15 @@ export const testModels = {
 		columns: {
 			total: {type: 'INTEGER', value: o => o.total, get: true},
 		},
-		// Needs JsonModel to create intermediate jM to set values
-		// migrations: {
-		// 	0: {up(db, jM) => jM.set({id: 'count', total: 0, byType: {}})},
-		// },
+		migrations: {
+			init: {
+				up({db, model, queue}) {
+					expect(db).toBeTruthy()
+					expect(queue).toBeTruthy()
+					return model.set({id: 'count', total: 0, byType: {}})
+				},
+			},
+		},
 		reducer: async (model, {type}) => {
 			if (!model) {
 				return {}

@@ -140,7 +140,7 @@ class ESDB extends EventEmitter {
 		this.readWriters = []
 		const reducers = {}
 		this.reducerModels = {}
-		const migrationOptions = {queue}
+		const migrationOptions = {queue: this.queue}
 
 		const dispatch = this.dispatch.bind(this)
 		for (const [name, modelDef] of Object.entries(models)) {

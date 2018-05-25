@@ -28,8 +28,11 @@ test('create', () =>
 			expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
 			expect(eSDB.rwStore.count).toBeTruthy()
 			expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
-			// Make sure the read-only database can start
-			await eSDB.store.count.all()
+			// Make sure the read-only database can start (no timeout)
+			// and that migrations work
+			expect(await eSDB.store.count.all()).toEqual([
+				{id: 'count', total: 0, byType: {}},
+			])
 		},
 		{unsafeCleanup: true}
 	))
