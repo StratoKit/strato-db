@@ -56,6 +56,7 @@ test('sql`` on DB/db/fns', async () => {
 
 test('creates DB', async () => {
 	const db = new DB()
+	expect(db.dbP).toBeInstanceOf(Promise)
 	const version = await db.get('SELECT sqlite_version()')
 	expect(version['sqlite_version()']).toBeTruthy()
 	expect(db.models).toEqual({})
@@ -84,9 +85,17 @@ test('can register model', () => {
 
 test('has migration', async () => {
 	const db = new DB()
+	let canary = 0
+	// eslint-disable-next-line promise/catch-or-return
+	db.dbP.then(() => {
+		// This should run after the migrations
+		if (canary === 2) canary = 1
+		return true
+	})
 	db.registerMigrations('whee', {
 		0: {
 			up: db => {
+				if (canary === 0) canary = 2
 				expect(db.models).toEqual({})
 				return db.exec(`
 				CREATE TABLE foo(hi NUMBER);
@@ -97,6 +106,7 @@ test('has migration', async () => {
 	})
 	const row = await db.get('SELECT * FROM foo')
 	expect(row.hi).toBe(42)
+	expect(canary).toBe(1)
 	await db.close()
 })
 
@@ -190,7 +200,54 @@ test('close()', async () => {
 	expect(hi2).toBe(43)
 })
 
-test.skip('downwards migration', () => {}) // TODO
+test('waitForP', async () => {
+	let r
+	// eslint-disable-next-line promise/avoid-new
+	const waitForP = new Promise(resolve => {
+		r = resolve
+	})
+	const db = new DB({waitForP})
+	let canary = 0
+	// eslint-disable-next-line promise/catch-or-return
+	const p = db.get('SELECT 1').then(() => {
+		if (canary === 2) canary = 1
+		return true
+	})
+	// eslint-disable-next-line promise/catch-or-return
+	db.dbP.then(() => {
+		if (canary === 0) canary = 2
+		return true
+	})
+	expect(canary).toBe(0)
+	r()
+	await p
+	expect(canary).toBe(1)
+})
+
+test('onWillOpen', async () => {
+	let t = 0
+	let r
+	// eslint-disable-next-line promise/avoid-new
+	const p = new Promise(resolve => {
+		r = resolve
+	})
+	const db = new DB({
+		waitForP: p,
+		onWillOpen() {
+			if (t === 0) t = 1
+			r()
+		},
+	})
+	db.registerMigrations('meep', {
+		c: {
+			up: () => {
+				if (t === 1) t = 2
+			},
+		},
+	})
+	await db.openDB()
+	expect(t).toBe(2)
+})
 
 test('withTransaction', async () => {
 	const db = new DB()
@@ -214,5 +271,3 @@ test('withTransaction rollback', async () => {
 	).rejects.toThrow('ignoreme')
 	expect(await db.all`SELECT * from foo`).toEqual([])
 })
-
-test.skip('withTransaction busy wait', () => {}) // TODO

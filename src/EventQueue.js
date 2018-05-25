@@ -1,5 +1,4 @@
-// TODO use PRAGMA data_version to detect changes from other processes
-
+// Note that this queue doesn't use any transactions by itself, to prevent deadlocks
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
@@ -31,6 +30,16 @@ class EventQueue extends JsonModel {
 					index: true,
 					ignoreNull: false,
 				},
+				data: {
+					type: 'JSON',
+					value: o => o.data,
+					get: true,
+				},
+				result: {
+					type: 'JSON',
+					value: o => o.result,
+					get: true,
+				},
 			},
 		})
 		this.knownV = Number(knownV) || 0
@@ -53,16 +62,15 @@ class EventQueue extends JsonModel {
 		if (this.knownV && !this._enforcedKnownV) {
 			const v = Number(this.knownV)
 			// set the sqlite autoincrement value
-			await this.db.withTransaction(() =>
-				// Try changing current value, and insert if there was no change
-				this.db.exec(
-					`
+			// Try changing current value, and insert if there was no change
+			// This doesn't need a transaction, either one or the other runs
+			await this.db.exec(
+				`
 						UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
 						INSERT INTO sqlite_sequence (name, seq)
 							SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
 								(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
 					`
-				)
 			)
 			this._enforcedKnownV = true
 		}
@@ -72,8 +80,8 @@ class EventQueue extends JsonModel {
 		ts = Number(ts) || Date.now()
 		// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID
 		const {lastID: v} = await this.db.run(
-			`INSERT INTO ${this.quoted}(type,ts,json) VALUES (?,?,?)`,
-			[type, ts, JSON.stringify({data})]
+			`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
+			[type, ts, JSON.stringify(data)]
 		)
 		this.currentV = v
 		const event = {v, type, ts, data}
@@ -104,15 +112,14 @@ class EventQueue extends JsonModel {
 			if (!this.nextAddedP) {
 				// eslint-disable-next-line promise/avoid-new
 				this.nextAddedP = new Promise(resolve => {
-					this.nextAddedResolve = () => {
+					this.nextAddedResolve = event => {
 						clearTimeout(this.addTimer)
 						this.nextAddedResolve = null
 						this.nextAddedP = null
-						resolve()
+						resolve(event)
 					}
 				})
 				// Wait no more than 10s at a time so we can also get events from other processes
-				// TODO if single process, don't time out
 				this.addTimer = setTimeout(
 					() => this.nextAddedResolve && this.nextAddedResolve(),
 					10000

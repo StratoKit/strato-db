@@ -17,7 +17,7 @@ test('makeSelect basic', () => {
 		sort: {name: 1, date: -2},
 	})
 	expect(q).toEqual(
-		'SELECT json_extract(json, \'$.meep\') AS _2,name,date,"id" AS _3 FROM "testing" tbl WHERE("foo"=?)AND(json_extract(json, \'$.bar\')=?) ORDER BY name,date DESC,"id" LIMIT 20 OFFSET 5'
+		'SELECT json_extract(json, \'$.meep\') AS _2,name,date,"id" AS _3 FROM "testing" tbl WHERE("foo"=?)AND(json_extract(json, \'$.bar\')=?) ORDER BY name,date DESC,_3 LIMIT 20 OFFSET 5'
 	)
 	expect(v).toEqual([0, 3])
 	expect(s).toEqual(['name', 'date', '_3'])
@@ -51,7 +51,7 @@ test('makeSelect sort w/ jsonPath', () => {
 	const m = getModel({columns: {foo: {jsonPath: 'foo'}}})
 	const [q] = m.makeSelect({limit: 1, sort: {foo: -1}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2,json_extract(json, '$.foo') AS _0 FROM "testing" tbl ORDER BY json_extract(json, '$.foo') DESC,"id" LIMIT 1`
+		`SELECT "id" AS _1,"json" AS _2,json_extract(json, '$.foo') AS _0 FROM "testing" tbl ORDER BY _0 DESC,_1 LIMIT 1`
 	)
 })
 

@@ -15,7 +15,7 @@
 	"scripts": {
 		"build": "NODE_ENV=production babel -s true --ignore __tests__ -D -d dist/ src/",
 		"test": "eslint src/**/*.js && NODE_ENV=test jest --coverage --color",
-		"test-watch": "NODE_ENV=test jest --color --watch",
+		"test-watch": "jest --color --watch",
 		"test-inspect": "NODE_ENV=test node --inspect ./node_modules/.bin/jest --runInBand --watch"
 	},
 	"main": "dist/index.js",
@@ -36,7 +36,7 @@
 		"bluebird": "^3.5.1",
 		"dataloader": "^1.4.0",
 		"debug": "^3.1.0",
-		"jsurl": "github:wmertens/jsurl#jsurl2",
+		"jsurl": "git+https://github.com/wmertens/jsurl.git#jsurl2",
 		"lodash": "^4.17.5",
 		"sqlite": "^2.9.1",
 		"uuid": "^3.2.1"
@@ -59,9 +59,10 @@
 		"eslint-plugin-unicorn": "^4.0.2",
 		"expect": "^23.0.0-alpha.0",
 		"fs-extra": "^5.0.0",
-		"jest-cli": "^23.0.0-alpha.0",
+		"jest-cli": "^23.0.0-charlie.2",
 		"makfy": "^1.2.0",
-		"prettier": "^1.11.1"
+		"prettier": "^1.11.1",
+		"tmp-promise": "^1.0.4"
 	},
 	"prettier": {
 		"useTabs": true,
@@ -71,6 +72,10 @@
 		"bracketSpacing": false
 	},
 	"jest": {
+		"globals": {
+			"__PRODUCTION__": false,
+			"NODE_ENV": "test"
+		},
 		"testPathIgnorePatterns": [
 			"<rootDir>/dist/",
 			"<rootDir>/node_modules/",

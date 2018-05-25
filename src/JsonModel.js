@@ -1,13 +1,3 @@
-// TODO unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
-// TODO add changeId function; use insert if there was no id
-// TODO move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
-// TODO column defs are migrations and recalculate all records if the version changes
-// TODO when setting an object without Id, use INSERT so calculated Id has to be unique and can't silently overwrite
-// TODO use db.prepare for all applicable queries https://github.com/mapbox/node-sqlite3/wiki/API#databasepreparesql-param--callback
-//   This could be done by making a .prepare() method that takes the attributes and options you would be using, and then using that as a ref
-//   e.g. q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort
-//   However, `where` parameter values should be allowed to change
-//   Probable makeSelect would need to return an intermediate query object
 import debug from 'debug'
 import uuid from 'uuid'
 import jsurl from 'jsurl'
@@ -57,6 +47,7 @@ const knownColProps = {
 	isAnyOfArray: true,
 	isArray: true,
 	jsonPath: true,
+	parse: true,
 	slugValue: true,
 	sql: true,
 	textSearch: true,
@@ -72,6 +63,7 @@ const knownColProps = {
 // * value: function getting object and returning the value for the column; this creates a real column
 //   * right now the column value is not regenerated for existing rows
 // * slugValue: same as value, but the result is used to generate a unique slug
+// * parse: process the value after getting from DB
 // * jsonPath: path to a JSON value. Useful for indexing
 // * sql: any sql expression
 // * type: sql column type.
@@ -141,9 +133,11 @@ class JsonModel {
 					const json = JSON.stringify({...obj, ...this.jsonMask})
 					return json === '{}' ? null : json
 				},
-				// Allow overriding stringify but not type
+				parse: JSON.parse,
+				// Allow overriding parse/stringify but not type
 				...(columns && columns.json),
 				type: 'JSON',
+				get: false,
 			},
 		}
 		// Note the order above, id and json should be calculated last
@@ -278,6 +272,18 @@ class JsonModel {
 				this.jsonMask[name] = undefined
 			}
 
+			// Stringify/parse JSON type columns
+			if (col.value && col.type === 'JSON' && !col.parse) {
+				const prevValue = col.value
+				col.value = obj => JSON.stringify(prevValue(obj))
+				col.parse = s => (s == null ? s : JSON.parse(s))
+			}
+
+			if (col.parse && (!col.value || !col.get) && col.name !== 'json')
+				throw new TypeError(
+					`${col.name}: parse() requires a value function and get:true`
+				)
+
 			this.columnArr.push(col)
 		})
 
@@ -317,13 +323,6 @@ class JsonModel {
 							: ''
 					}
 					${
-						// TODO enforce unique with triggers instead
-						// CREATE TABLE demo(id INTEGER PRIMARY KEY, k TEXT, otherstuff ANY);
-						// CREATE INDEX demo_k ON demo(k);
-						// CREATE TRIGGER demo_trigger1 BEFORE INSERT ON demo BEGIN
-						//   SELECT raise(ABORT,'uniqueness constraint failed on k')
-						//    FROM demo WHERE k=new.k;
-						// END;
 						col.index
 							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
 									`${name}_${col.name}`
@@ -362,10 +361,6 @@ class JsonModel {
 			if (m) wrappedMigrations[k] = wrapMigration(m)
 		})
 
-		// TODO drop indexes for columns that were removed
-		// this should run before runMigrations, and requires knowing that these are called tablename_colName
-		// => requires an onOpened hook in DB, or moving index management to db
-		// (select * from sqlite_master where type = "index" and name like 'tablename_%';)
 		this.db.registerMigrations(name, wrappedMigrations)
 
 		this.parseRow = this._makeParseRow()
@@ -389,7 +384,8 @@ class JsonModel {
 	// Creates this.parseRow
 	_makeParseRow() {
 		const getCols = this.columnArr.filter(c => c.get)
-		const json = this.columns.json.alias
+		const jsonAlias = this.columns.json.alias
+		const jsonParse = this.columns.json.parse
 		return (row, options) => {
 			const mapCols =
 				options && options.cols
@@ -399,11 +395,11 @@ class JsonModel {
 			for (const k of mapCols) {
 				const val = row[k.alias]
 				if (val != null) {
-					out[k.name] = val
+					out[k.name] = k.parse ? k.parse(val) : val
 				}
 			}
-			if (row[json]) {
-				Object.assign(out, JSON.parse(row[json]))
+			if (row[jsonAlias]) {
+				Object.assign(out, jsonParse(row[jsonAlias]))
 			}
 			return out
 		}
@@ -421,7 +417,7 @@ class JsonModel {
 		const insertSql = `INSERT ${setSql}`
 		const updateSql = `INSERT OR REPLACE ${setSql}`
 		const selectIdxs = valueCols
-			.map(({get, name}, i) => ({get, name, i}))
+			.map(({get, name, parse}, i) => ({get, name, parse, i}))
 			.filter(c => c.get)
 		return (obj, insertOnly) =>
 			// value functions must be able to use other db during migrations, so call with our this
@@ -430,16 +426,16 @@ class JsonModel {
 				// eslint-disable-next-line promise/no-nesting
 				this.db
 					.run(insertOnly ? insertSql : updateSql, colVals)
-					.then(({lastID}) => {
+					.then(result => {
 						// Return what get(id) would return
 						const newObj = new Item()
 						Object.assign(newObj, obj)
-						selectIdxs.forEach(({name, i}) => {
-							newObj[name] = colVals[i]
+						selectIdxs.forEach(({name, parse, i}) => {
+							newObj[name] = parse ? parse(colVals[i]) : colVals[i]
 						})
 						if (newObj[this.idCol] == null) {
 							// This can only happen for integer ids, so we use the last inserted rowid
-							newObj[this.idCol] = lastID
+							newObj[this.idCol] = result.lastID
 						}
 						return newObj
 					})
@@ -619,7 +615,8 @@ class JsonModel {
 			`ORDER BY ${sortNames
 				.map(k => {
 					const col = this.columns[k]
-					const sql = (col && col.sql) || k
+					// If we selected we can use the alias
+					const sql = col ? (cols.includes(col.name) ? col.alias : col.sql) : k
 					return `${sql}${sort[k] < 0 ? ` DESC` : ``}`
 				})
 				.join(',')}`
@@ -790,7 +787,10 @@ class JsonModel {
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
 			dbg(`creating DataLoader for ${this.name}.${colName}`)
-			cache[key] = new DataLoader(ids => this.getAll(ids, colName))
+			// batchSize: max is SQLITE_MAX_VARIABLE_NUMBER, default 999. Lower => less latency
+			cache[key] = new DataLoader(ids => this.getAll(ids, colName), {
+				maxBatchSize: 100,
+			})
 		}
 		return cache[key].load(id)
 	}
@@ -848,7 +848,6 @@ class JsonModel {
 			})
 	}
 
-	// TODO move this to a JsonModel for ESDB? One that also caches per generation?
 	async applyChanges(result) {
 		const {rm, set, ins, upd, sav} = result
 		if (DEV) {
@@ -858,8 +857,8 @@ class JsonModel {
 		if (rm) await Promise.all(rm.map(item => this.remove(item)))
 		if (ins) await Promise.all(ins.map(obj => this.set(obj, true)))
 		if (set) await Promise.all(set.map(obj => this.set(obj)))
-		if (upd) await Promise.all(upd.map(obj => this.update(obj)))
-		if (sav) await Promise.all(sav.map(obj => this.update(obj, true)))
+		if (upd) await Promise.all(upd.map(obj => this.updateNoTrans(obj)))
+		if (sav) await Promise.all(sav.map(obj => this.updateNoTrans(obj, true)))
 	}
 }
 

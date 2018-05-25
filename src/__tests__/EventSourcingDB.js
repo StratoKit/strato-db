@@ -1,84 +1,41 @@
 import expect from 'expect'
-import DB from '../DB'
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 import JsonModel from '../JsonModel'
-import EQ from '../EventQueue'
 import ESDB from '../EventSourcingDB'
-
-const testModels = {
-	count: {
-		// shortName: 'c',
-		columns: {
-			total: {type: 'INTEGER', value: o => o.total, get: true},
-		},
-		// Needs JsonModel to create intermediate jM to set values
-		// migrations: {
-		// 	0: {up(db, jM) => jM.set({id: 'count', total: 0, byType: {}})},
-		// },
-		reducer: async (model, {type}) => {
-			if (!model) {
-				return {}
-			}
-			if (type === 'errorme') throw new Error('error for you')
-			const c = (await model.get('count')) || {
-				id: 'count',
-				total: 0,
-				byType: {},
-			}
-			c.total++
-			c.byType[type] = (c.byType[type] || 0) + 1
-			return {
-				set: [c],
-				// audit: '',
-			}
-		},
-	},
-	ignorer: {
-		reducer: (model = null) => model,
-	},
-	deriver: {
-		deriver: async ({model, store, result, event}) => {
-			if (result !== event.result) {
-				throw new Error('Expecting event.result as separate input')
-			}
-			if (event.result.count) {
-				const currentCount = await store.count.get('count')
-				await model.set({
-					id: 'descCount',
-					desc: `Total: ${currentCount.total}, seen types: ${Object.keys(
-						currentCount.byType
-					)}`,
-				})
-			}
-		},
-	},
-}
+import {withESDB, testModels} from './_helpers'
 
 const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
 
-const withDBs = fn => {
-	const db = new DB()
-	const queue = new EQ({db: new DB()})
-	return fn(db, queue)
-}
-const withESDB = (fn, models = testModels) =>
-	withDBs((db, queue) => {
-		const eSDB = new ESDB({db, queue, models})
-		return fn(eSDB, queue)
-	})
-
-test('create', () => {
-	return withESDB(eSDB => {
-		// eSDB.listen(changes => eSDB.reducers.count.get('count'))
-		// await queue.add('whee')
-		expect(eSDB.db).toBeTruthy()
-		expect(eSDB.queue).toBeTruthy()
-		expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
-		expect(eSDB.store.count).toBeTruthy()
-		expect(eSDB.history).toBeTruthy()
-		expect(() => withESDB(() => {}, {history: {}})).toThrow()
-		expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
-	})
-})
+test('create', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const queueFile = sysPath.join(dir, 'q')
+			const eSDB = new ESDB({
+				file,
+				queueFile,
+				name: 'E',
+				models: testModels,
+			})
+			// eSDB.listen(changes => eSDB.reducers.count.get('count'))
+			expect(eSDB.db).toBeTruthy()
+			expect(eSDB.rwDb).toBeTruthy()
+			expect(eSDB.queue).toBeTruthy()
+			expect(eSDB.models).toBeUndefined()
+			expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
+			expect(eSDB.store.count).toBeTruthy()
+			expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
+			expect(eSDB.rwStore.count).toBeTruthy()
+			expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
+			// Make sure the read-only database can start (no timeout)
+			// and that migrations work
+			expect(await eSDB.store.count.all()).toEqual([
+				{id: 'count', total: 0, byType: {}},
+			])
+		},
+		{unsafeCleanup: true}
+	))
 
 test('create with Model', () => {
 	return withESDB(
@@ -88,6 +45,13 @@ test('create with Model', () => {
 		{
 			count: {
 				Model: class Count extends JsonModel {
+					constructor(options) {
+						if (typeof options.dispatch !== 'function') {
+							throw new TypeError('Dispatch expected')
+						}
+						super(options)
+					}
+
 					foo() {
 						return true
 					}
@@ -99,10 +63,9 @@ test('create with Model', () => {
 })
 
 test('create without given queue', async () => {
-	const db = new DB()
 	let eSDB
 	expect(() => {
-		eSDB = new ESDB({db, models: {}})
+		eSDB = new ESDB({models: {}})
 	}).not.toThrow()
 	await expect(eSDB.dispatch('hi')).resolves.toHaveProperty('v', 1)
 })
@@ -133,14 +96,16 @@ test('reducer', () => {
 
 test('applyEvent', () => {
 	return withESDB(async eSDB => {
-		await eSDB.applyEvent({
-			v: 1,
-			type: 'foo',
-			result: {
-				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
-			},
-		})
+		await eSDB.db.withTransaction(() =>
+			eSDB.applyEvent({
+				v: 1,
+				type: 'foo',
+				result: {
+					count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
+					metadata: {set: [{id: 'version', v: 1}]},
+				},
+			})
+		)
 		expect(await eSDB.store.count.get('count')).toEqual({
 			id: 'count',
 			total: 1,
@@ -224,22 +189,31 @@ test('incoming event', async () => {
 	})
 })
 
-test('queue in same db', async () => {
-	const db = new DB()
-	const queue = new EQ({db})
-	const eSDB = new ESDB({db, queue, models: testModels})
-	expect(eSDB.history).toBe(queue)
-	queue.add('boop')
-	const {v} = await queue.add('moop')
-	eSDB.checkForEvents()
-	await eSDB.handledVersion(v)
-	const history = await eSDB.history.all()
-	expect(history).toHaveLength(2)
-	expect(history[0].type).toBe('boop')
-	expect(history[0].result).toBeTruthy()
-	expect(history[1].type).toBe('moop')
-	expect(history[1].result).toBeTruthy()
-})
+// Not to be encouraged but it's possible. You can lose events during rollbacks
+test('queue in same db', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const eSDB = new ESDB({
+				file,
+				queueFile: file,
+				name: 'E',
+				models: testModels,
+			})
+			const {queue} = eSDB
+			queue.add('boop')
+			const {v} = await queue.add('moop')
+			eSDB.checkForEvents()
+			await eSDB.handledVersion(v)
+			const history = await eSDB.queue.all()
+			expect(history).toHaveLength(2)
+			expect(history[0].type).toBe('boop')
+			expect(history[0].result).toBeTruthy()
+			expect(history[1].type).toBe('moop')
+			expect(history[1].result).toBeTruthy()
+		},
+		{unsafeCleanup: true}
+	))
 
 test('dispatch', async () => {
 	return withESDB(async eSDB => {
@@ -252,7 +226,6 @@ test('dispatch', async () => {
 			data: {woah: true},
 			result: {
 				count: {set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}]},
-				metadata: {set: [{id: 'version', v: 2}]},
 			},
 		})
 		expect(await event1P).toEqual({
@@ -262,7 +235,6 @@ test('dispatch', async () => {
 			data: 'indeed',
 			result: {
 				count: {set: [{id: 'count', total: 1, byType: {whattup: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
 			},
 		})
 	})
@@ -360,6 +332,16 @@ test('preprocessors', async () => {
 	)
 })
 
+test.skip('event error in reducer', () =>
+	withESDB(async eSDB => {
+		await eSDB.dispatch
+		// All the below: don't call next phases
+		// Error in preprocessor => error: _preprocess
+		// Error in reducer => error: _redux
+		// Error in apply => error: _apply
+		// Error in derive => error: _derive
+	}))
+
 test('event emitter', async () => {
 	return withESDB(async eSDB => {
 		let handled = 0,
@@ -373,7 +355,7 @@ test('event emitter', async () => {
 		eSDB.on('error', event => {
 			errored++
 			expect(event.error).toBeTruthy()
-			expect(event.result).toBeTruthy()
+			expect(event.result).toBeUndefined()
 		})
 		eSDB.on('handled', event => {
 			handled++
@@ -392,3 +374,16 @@ test('event emitter', async () => {
 		expect(resulted).toBe(2)
 	})
 })
+
+test('event replay', async () =>
+	withESDB(async (eSDB, queue) => {
+		queue.set({
+			v: 1,
+			type: 'TEST',
+			data: {hi: true},
+			result: {},
+			error: {test: true},
+		})
+
+		await expect(eSDB.handledVersion(1)).resolves.not.toHaveProperty('error')
+	}))

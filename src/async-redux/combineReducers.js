@@ -61,12 +61,13 @@ function getUnexpectedStateShapeWarningMessage(
 	}
 }
 
-// TODO this doesn't make sense because the full state is not managed by the reducers,
-// and the init is handled by the model.
-// Instead, return `false` if no changes, change description otherwise
 function assertReducerShape(reducers) {
 	Object.keys(reducers).forEach(key => {
 		const reducer = reducers[key]
+
+		// This doesn't make sense for us because async reducers always get their model
+		// and the model inits itself. We could add an init event if knownV is 0…
+		/*
 		const initialState = reducer(undefined, {type: ActionTypes.INIT})
 
 		if (typeof initialState === 'undefined') {
@@ -78,6 +79,7 @@ function assertReducerShape(reducers) {
 					`you can use null instead of undefined.`
 			)
 		}
+		*/
 
 		const type =
 			'@@redux/PROBE_UNKNOWN_ACTION_' +

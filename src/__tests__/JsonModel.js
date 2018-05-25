@@ -182,7 +182,7 @@ test('idCol', async () => {
 	await m.remove(n.v)
 	expect(await m.get(n.v)).toBeFalsy()
 	expect(m.makeSelect({limit: 2})).toEqual([
-		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY "v" LIMIT 2`,
+		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY _1 LIMIT 2`,
 		[],
 		['_1', '_2'],
 	])

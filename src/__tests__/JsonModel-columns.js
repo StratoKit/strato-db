@@ -83,9 +83,31 @@ test('default w/ value()', async () => {
 test('default w/ sql', async () => {
 	const m = getModel({columns: {v: {sql: 'hex(id)', default: 0}}})
 	expect(m.makeSelect({attrs: {v: 5}, sort: {v: -1}, cols: ['v']})).toEqual([
-		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY ifNull(hex(id),0) DESC',
+		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY _0 DESC',
 		[5],
 		undefined,
 	])
 	expect(m.columns.v.ignoreNull).toBe(false)
+})
+
+test('value w type JSON', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			v: {value: o => o.v, type: 'JSON', get: true},
+		},
+	})
+	await m.set({v: {whee: true}})
+	await m.set({v: 5})
+	await m.set({other: true})
+	expect(await m.db.all('SELECT * FROM testing')).toEqual([
+		{id: 1, json: null, v: '{"whee":true}'},
+		{id: 2, json: null, v: 5},
+		{id: 3, json: '{"other":true}', v: null},
+	])
+	expect(await m.all()).toEqual([
+		{id: 1, v: {whee: true}},
+		{id: 2, v: 5},
+		{id: 3, other: true},
+	])
 })

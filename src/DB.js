@@ -1,23 +1,4 @@
 /* eslint-disable no-console */
-// TODO accept column def and create/add if needed, see
-// pragma table_info("_migrations");
-// cid|name|type|notnull|dflt_value|pk
-// 0|runKey|STRING|0||0
-// 1|ts|DATETIME|0||0
-// 2|up|BOOLEAN|0||0
-// TODO manage indexes, look at PRAGMA index_list
-// TODO pragma recursive_triggers
-// TODO in development, invert PRAGMA reverse_unordered_selects every so often
-// TODO run PRAGMA quick_check at startup
-// TODO pragma journal_size_limit setting, default to 2MB
-// TODO PRAGMA schema.synchronous = extra
-// TODO run pragma optimize every few hours
-// TODO figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection
-// TODO report: .dump should include user_version
-// TODO put all metadata in stratodb_meta table, including queue version etc
-// TODO prepared statements; calling them ensures serial access because of binding
-//   => prepare, allow .get/all/etc; while those are active calls are queued up
-// https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
 import path from 'path'
 import sqlite from 'sqlite'
 import BP from 'bluebird'
@@ -65,18 +46,30 @@ export const sql = (...args) => {
 }
 sql.quoteId = quoteSqlId
 
+let connId = 1
 // This class lazily creates the db
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({file, readOnly, verbose, ...rest} = {}) {
+	constructor({
+		file,
+		readOnly,
+		verbose,
+		waitForP,
+		onWillOpen,
+		name,
+		...rest
+	} = {}) {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
-		this.name = path.basename(this.file, '.db')
+		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
-		this.verbose = verbose
-		this.migrations = []
+		this.options = {waitForP, onWillOpen, verbose, migrations: []}
+		// eslint-disable-next-line promise/avoid-new
+		this.dbP = new Promise(resolve => {
+			this._resolveDbP = resolve
+		})
 	}
 
 	// Store all your models here, by name
@@ -97,82 +90,99 @@ class DB {
 
 	sql = sql
 
-	openDB() {
-		if (this.dbP) {
-			return this.dbP
+	async _openDB() {
+		const {
+			file,
+			readOnly,
+			options: {verbose, waitForP, onWillOpen},
+		} = this
+		if (onWillOpen) await onWillOpen()
+		if (waitForP) await waitForP
+
+		dbg(`${this.name} opening ${this.file}`)
+		const realDb = await sqlite.open(file, {
+			verbose,
+			// SQLITE3 OPEN_READONLY: 1
+			mode: readOnly ? 1 : undefined,
+			Promise: BP,
+		})
+		// Configure lock management
+		realDb.driver.configure('busyTimeout', 15000)
+		if (this.file !== ':memory:') {
+			const [{journal_mode: journalMode}] = await realDb.all(
+				'PRAGMA journal_mode = wal'
+			)
+			if (journalMode !== 'wal') {
+				console.error(
+					`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
+				)
+			}
 		}
-		const {file, verbose, readOnly} = this
+		await realDb.run('PRAGMA foreign_keys = ON')
 
-		dbg(`opening ${this.file}`)
-		this.dbP = sqlite
-			.open(file, {
-				verbose,
-				// TODO: use the real constant
-				mode: readOnly ? 1 : undefined,
-				Promise: BP,
-			})
-			.then(async realDb => {
-				// Configure lock management
-				realDb.driver.configure('busyTimeout', 15000)
-				if (this.file !== ':memory:') {
-					// TODO configure auto vacuum
-					const [{journal_mode: journalMode}] = await realDb.all(
-						'PRAGMA journal_mode = wal'
+		this._realDb = realDb
+		this._db = {models: {}}
+		for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
+			this._db[method] = (...args) => {
+				if (Array.isArray(args[0])) {
+					args = sql(...args)
+				}
+				if (dbgQ.enabled)
+					dbgQ(
+						this.name,
+						method,
+						...args.map(a => String(a).replace(/\s+/g, ' '))
 					)
-					if (journalMode !== 'wal') {
-						console.error(
-							`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
-						)
-					}
-				}
-				await realDb.run('PRAGMA foreign_keys = ON')
+				return realDb[method](...args)
+			}
+		}
+		this._db.each = this._realEach.bind(this)
+		if (readOnly) {
+			this._db.withTransaction = () => {
+				const error = new Error(`DB ${this.name} is readonly`)
+				console.error('!!! RO', error)
+				throw error
+			}
+		} else {
+			this._db.withTransaction = this._withTransaction.bind(this)
+			await this.runMigrations()
+		}
+		// Make all accesses direct to the DB object, bypass .hold()
+		for (const method of [
+			'all',
+			'exec',
+			'get',
+			'prepare',
+			'run',
+			'each',
+			'withTransaction',
+		]) {
+			this[method] = this._db[method]
+		}
+		dbg(`${this.name} ${file} opened`)
 
-				this._realDb = realDb
-				this._db = {
-					models: {},
-				}
-				for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
-					this._db[method] = (...args) => {
-						if (Array.isArray(args[0])) {
-							args = sql(...args)
-						}
-						if (dbgQ.enabled)
-							dbgQ(
-								this.name,
-								method,
-								...args.map(a => String(a).replace(/\s+/g, ' '))
-							)
-						return realDb[method](...args)
-					}
-				}
-				this._db.each = this._realEach.bind(this)
-				this._db.withTransaction = this._withTransaction.bind(this)
-				if (!readOnly) await this.runMigrations()
-				// Make all accesses direct to the DB object, bypass .hold()
-				for (const method of [
-					'all',
-					'exec',
-					'get',
-					'prepare',
-					'run',
-					'each',
-					'withTransaction',
-				]) {
-					this[method] = this._db[method]
-				}
-				dbg(`${file} opened`)
-				return this
+		return this
+	}
+
+	openDB() {
+		const {_resolveDbP} = this
+		if (_resolveDbP) {
+			this._resolveDbP = null
+			this._dbP = this._openDB().then(result => {
+				_resolveDbP(result)
+				this._dbP = null
+				return result
 			})
-
+		}
 		return this.dbP
 	}
 
 	async close() {
-		if (this.dbP) {
-			await this.dbP
+		if (this._dbP) {
+			await this._dbP
 		}
 		dbg('closing', this.file)
-		await this._realDb.close()
+		if (this._realDb) await this._realDb.close()
 		// Reset all
 		for (const m of [
 			'dbP',
@@ -188,6 +198,10 @@ class DB {
 		]) {
 			delete this[m]
 		}
+		// eslint-disable-next-line promise/avoid-new
+		this.dbP = new Promise(resolve => {
+			this._resolveDbP = resolve
+		})
 		return this
 	}
 
@@ -224,7 +238,6 @@ class DB {
 		return this._hold('_withTransaction', args)
 	}
 
-	// TODO maybe this should return a ReadableStream or an async iterator
 	_realEach(...args) {
 		const onRow = args.pop()
 		// err is always null, no reason to have it
@@ -244,7 +257,7 @@ class DB {
 			}
 			// Separate with space, it sorts before other things
 			const runKey = `${key} ${name}`
-			this.migrations.push({
+			this.options.migrations.push({
 				...obj,
 				runKey,
 			})
@@ -284,10 +297,6 @@ class DB {
 	}
 
 	async __withTransaction(fn, count = RETRY_COUNT) {
-		// TODO keep a separate connection for transactions
-		// TODO test multi-process
-		// TODO run this synchronously
-
 		try {
 			await this._db.run(`BEGIN IMMEDIATE`)
 		} catch (err) {
@@ -324,7 +333,7 @@ class DB {
 	}
 
 	async runMigrations() {
-		const migrations = sortBy(this.migrations, ({runKey}) => runKey)
+		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		const didRun = await this._getRanMigrations()
 		await this._withTransaction(async () => {
 			for (const {runKey, up} of migrations) {
