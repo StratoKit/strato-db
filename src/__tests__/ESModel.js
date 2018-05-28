@@ -136,6 +136,7 @@ test('set w/o id int', () =>
 				eSDB.db.models.test.set(sampleWithoutId),
 			])
 			expect(await getId(eSDB.db.models.test, {top: 'kek'})).toEqual(4)
+			expect(await eSDB.db.models.test.count()).toEqual(3)
 		},
 		{test: {Model: ESModelIntId}}
 	))
@@ -143,16 +144,12 @@ test('set w/o id int', () =>
 test('set insertOnly', () =>
 	withESDB(
 		async eSDB => {
-			expect(
+			await expect(
 				Promise.all([
 					eSDB.db.models.test.set(sampleObject, true),
 					eSDB.db.models.test.set(sampleObject, true),
-					eSDB.db.models.test.set(sampleObject, true),
 				])
-			).rejects.toHaveProperty(
-				'error._apply',
-				'SQLITE_CONSTRAINT: UNIQUE constraint failed: test.id'
-			)
+			).rejects.toHaveProperty('error.test')
 		},
 		{test: {Model: ESModel}}
 	))
@@ -176,8 +173,8 @@ test('update', () =>
 
 test('update w/o id', () =>
 	withESDB(
-		eSDB => {
-			expect(eSDB.db.models.test.update({top: 'kek'})).rejects.toThrow(
+		async eSDB => {
+			await expect(eSDB.db.models.test.update({top: 'kek'})).rejects.toThrow(
 				'No ID specified'
 			)
 		},
@@ -197,11 +194,10 @@ test('update w/ undefined values', () =>
 
 test('update non-existent object', () =>
 	withESDB(
-		eSDB => {
-			expect(eSDB.db.models.test.update(sampleObject)).rejects.toHaveProperty(
-				'error._apply',
-				'No object with id asd exists yet'
-			)
+		async eSDB => {
+			await expect(
+				eSDB.db.models.test.update(sampleObject)
+			).rejects.toHaveProperty('error.test')
 		},
 		{test: {Model: ESModel}}
 	))
@@ -251,12 +247,9 @@ test('remove by object without id', () =>
 	withESDB(
 		async eSDB => {
 			await eSDB.db.models.test.set(sampleObject)
-			expect(
+			await expect(
 				eSDB.db.models.test.remove({...sampleObject, id: undefined})
-			).rejects.toHaveProperty(
-				'error._redux.message',
-				"Cannot read property 'id' of undefined"
-			)
+			).rejects.toThrow()
 		},
 		{test: {Model: ESModel}}
 	))

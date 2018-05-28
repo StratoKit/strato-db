@@ -1,3 +1,7 @@
+// Drop-in replacement for JsonModel
+// Caveats:
+// * `.update()` returns the current object at the time of returning, not the one that was updated
+//
 import JsonModel from './JsonModel'
 
 export const undefToNull = data => {
@@ -28,6 +32,12 @@ export const getId = async (model, data) => {
 	return id
 }
 
+const REMOVE = 0
+const SET = 1
+const INSERT = 2
+const UPDATE = 3
+const SAVE = 4
+
 class ESModel extends JsonModel {
 	constructor({dispatch, ...options}) {
 		super(options)
@@ -35,15 +45,7 @@ class ESModel extends JsonModel {
 		this.writeable = false
 	}
 
-	SET = `app/${this.name}/SET`
-
-	UPD = `app/${this.name}/UPD`
-
-	INS = `app/${this.name}/INS`
-
-	RM = `app/${this.name}/RM`
-
-	SAV = `app/${this.name}/SAV`
+	TYPE = `es/${this.name}`
 
 	setWriteable(state) {
 		// Note: during writeable, no events are created. Be careful.
@@ -54,21 +56,29 @@ class ESModel extends JsonModel {
 		// Slight hack: use the writeable state to fall back to JsonModel behavior
 		// This makes deriver work without changes
 		if (this.writeable) return super.set(obj, insertOnly)
-		const {result} = await this.dispatch(insertOnly ? this.INS : this.SET, obj)
-		const {id} = result[this.name]
-		if (id) return this.get(id)
+		const {
+			result: {[this.name]: r},
+		} = await this.dispatch(this.TYPE, [insertOnly ? INSERT : SET, obj])
+		const out = r && (r.ins ? r.ins[0] : r.set[0])
+		return out
 	}
 
-	async update(obj, upsert) {
-		if (this.writeable) return super.update(obj, upsert)
-		if (!obj[this.idCol] && !upsert) {
+	async update(o, upsert) {
+		if (this.writeable) return super.update(o, upsert)
+		let id = o[this.idCol]
+		if (id == null && !upsert) {
 			throw new TypeError('No ID specified')
 		}
-		const {result} = await this.dispatch(
-			upsert ? this.SAV : this.UPD,
-			undefToNull(obj)
-		)
-		const {id} = result[this.name]
+		const {result} = await this.dispatch(this.TYPE, [
+			upsert ? SAVE : UPDATE,
+			undefToNull(o),
+		])
+		if (id == null) {
+			const r = result[this.name]
+			const out = r && (r.ins ? r.ins[0] : r.upd[0])
+			id = out && out[this.idCol]
+		}
+		// Note, his could return a later version of the object
 		if (id) return this.get(id)
 	}
 
@@ -80,7 +90,8 @@ class ESModel extends JsonModel {
 	async remove(idOrObj) {
 		if (this.writeable) return super.remove(idOrObj)
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		await this.dispatch(this.RM, id)
+		if (id == null) throw new TypeError('No ID specified')
+		await this.dispatch(this.TYPE, [REMOVE, id])
 		return true
 	}
 
@@ -92,45 +103,35 @@ class ESModel extends JsonModel {
 	}
 
 	async applyChanges(result) {
-		const {id, ...rest} = result
 		this._maxId = 0
-		return super.applyChanges(rest)
+		return super.applyChanges(result)
 	}
 
 	static async reducer(model, {type, data}) {
-		if (!model) return false
-		if (!type.startsWith(`app/${model.name}/`)) return false
+		if (!model || type !== model.TYPE) return false
 
-		let dbAction
-
-		switch (type) {
-			case model.SET: {
-				data[model.idCol] = await getId(model, data)
-				dbAction = 'set'
-				break
-			}
-			case model.UPD:
-				dbAction = 'upd'
-				break
-			case model.INS:
-				data[model.idCol] = await getId(model, data)
-				dbAction = 'ins'
-				break
-			case model.RM:
-				dbAction = 'rm'
-				break
-			case model.SAV:
-				data[model.idCol] = await getId(model, data)
-				dbAction = 'sav'
-				break
+		let [action, obj] = data
+		if (action === REMOVE) {
+			if (await model.exists({[model.idCol]: obj})) return {rm: [obj]}
+			return false
+		}
+		let id = obj[model.idCol]
+		if (id == null) {
+			id = await getId(model, obj)
+			obj = {...obj, [model.idCol]: id}
+		}
+		const exists = await model.exists({[model.idCol]: id})
+		switch (action) {
+			case SET:
+				return exists ? {set: [obj]} : {ins: [obj]}
+			case INSERT:
+				return exists ? {error: `object ${id} already exists`} : {ins: [obj]}
+			case UPDATE:
+				return exists ? {upd: [obj]} : {error: `object ${id} does not exist`}
+			case SAVE:
+				return exists ? {upd: [obj]} : {ins: [obj]}
 			default:
 				throw new TypeError('db action not found')
-		}
-
-		return {
-			// We pass the id so our set etc can find it back quickly
-			id: data[model.idCol],
-			[dbAction]: [data],
 		}
 	}
 }
