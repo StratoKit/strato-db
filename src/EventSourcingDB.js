@@ -472,8 +472,11 @@ class ESDB extends EventEmitter {
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						err
 					)
+					// Crash program but leave some time to notify
 					// eslint-disable-next-line unicorn/no-process-exit
-					process.exit(100)
+					setTimeout(() => process.exit(100), 50)
+
+					throw new Error(err)
 				})
 				.then(lastV => {
 					this._waitingP = null
