@@ -106,6 +106,8 @@
 
 ### Nice to have
 
+* [ ] Enforce known v on open instead of add
+  * `model.onDbOpened`?
 * [ ] cancellable getNext Promise
 * [ ] use pragma data_version to poll DB in getNext
 * [ ] test multi-process changes

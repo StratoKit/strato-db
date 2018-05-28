@@ -59,6 +59,7 @@ class EventQueue extends JsonModel {
 	}
 
 	async add(type, data, ts) {
+		// This can cause out-of-order execution for first event
 		if (this.knownV && !this._enforcedKnownV) {
 			const v = Number(this.knownV)
 			// set the sqlite autoincrement value

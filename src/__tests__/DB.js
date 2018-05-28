@@ -249,6 +249,38 @@ test('onWillOpen', async () => {
 	expect(t).toBe(2)
 })
 
+test.skip('model.onDbOpened', async () => {
+	// TODO - onDidOpen is no good for models
+	let t = 0
+	let r
+	// eslint-disable-next-line promise/avoid-new
+	const p = new Promise(resolve => {
+		r = resolve
+	})
+	const db = new DB({
+		waitForP: p,
+		onWillOpen() {
+			if (t === 0) t = 1
+			r()
+		},
+		onDidOpen() {
+			if (t === 2) t = 3
+			r()
+		},
+	})
+	db.registerMigrations('meep', {
+		c: {
+			up: () => {
+				if (t === 1) t = 2
+			},
+		},
+	})
+	await db.exec('SELECT 1').then(() => {
+		if (t === 3) t = 4
+	})
+	expect(t).toBe(4)
+})
+
 test('withTransaction', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
