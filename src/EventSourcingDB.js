@@ -167,7 +167,7 @@ class ESDB extends EventEmitter {
 			})
 			rwModel.deriver = deriver || RWModel.deriver
 			this.rwStore[name] = rwModel
-			if (typeof rwModel.setWriteable === 'function')
+			if (typeof rwModel.setWritable === 'function')
 				this.readWriters.push(rwModel)
 			if (rwModel.deriver) {
 				this.deriverModels.push(rwModel)
@@ -535,7 +535,7 @@ class ESDB extends EventEmitter {
 
 	async applyEvent(event) {
 		const {rwStore, rwDb, queue, readWriters} = this
-		for (const model of readWriters) model.setWriteable(true)
+		for (const model of readWriters) model.setWritable(true)
 		try {
 			// First write our result to the queue (strip metadata, it's only v)
 			const {result} = event
@@ -601,7 +601,7 @@ class ESDB extends EventEmitter {
 			throw err
 		}
 
-		for (const model of readWriters) model.setWriteable(false)
+		for (const model of readWriters) model.setWritable(false)
 	}
 }
 

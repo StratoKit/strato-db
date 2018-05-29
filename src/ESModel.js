@@ -42,20 +42,20 @@ class ESModel extends JsonModel {
 	constructor({dispatch, ...options}) {
 		super(options)
 		this.dispatch = dispatch
-		this.writeable = false
+		this.writable = false
 	}
 
 	TYPE = `es/${this.name}`
 
-	setWriteable(state) {
-		// Note: during writeable, no events are created. Be careful.
-		this.writeable = state
+	setWritable(state) {
+		// Slight hack: use the writable state to fall back to JsonModel behavior
+		// This makes deriver and migrations work without changes
+		// Note: during writable, no events are created. Be careful.
+		this.writable = state
 	}
 
 	async set(obj, insertOnly) {
-		// Slight hack: use the writeable state to fall back to JsonModel behavior
-		// This makes deriver work without changes
-		if (this.writeable) return super.set(obj, insertOnly)
+		if (this.writable) return super.set(obj, insertOnly)
 		const {
 			result: {[this.name]: r},
 		} = await this.dispatch(this.TYPE, [insertOnly ? INSERT : SET, obj])
@@ -64,7 +64,7 @@ class ESModel extends JsonModel {
 	}
 
 	async update(o, upsert) {
-		if (this.writeable) return super.update(o, upsert)
+		if (this.writable) return super.update(o, upsert)
 		let id = o[this.idCol]
 		if (id == null && !upsert) {
 			throw new TypeError('No ID specified')
@@ -83,12 +83,12 @@ class ESModel extends JsonModel {
 	}
 
 	updateNoTrans(obj, upsert) {
-		if (this.writeable) return super.updateNoTrans(obj, upsert)
+		if (this.writable) return super.updateNoTrans(obj, upsert)
 		throw new Error('Non-transactional changes are not possible with ESModel')
 	}
 
 	async remove(idOrObj) {
-		if (this.writeable) return super.remove(idOrObj)
+		if (this.writable) return super.remove(idOrObj)
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		if (id == null) throw new TypeError('No ID specified')
 		await this.dispatch(this.TYPE, [REMOVE, id])
