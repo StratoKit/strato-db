@@ -119,6 +119,7 @@
 
 ### Nice to have
 
+* [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
 * [ ] think about transient event errors vs event errors vs db errors - if transient, event should be retried, no? Maybe configuration on what to do with errors.
   * When an apply failed due to non-transient error, should the application halt or ignore?
 * [ ] finish stopPolling implementation

@@ -95,6 +95,10 @@ class ESModel extends JsonModel {
 		return true
 	}
 
+	changeId() {
+		throw new Error(`ESModel doesn't support changeId yet`)
+	}
+
 	_maxId = 0
 
 	async getNextId() {
