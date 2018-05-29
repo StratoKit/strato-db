@@ -260,7 +260,7 @@ class Foo {
 	}
 }
 
-test('ItemClass set', async () =>
+test('ItemClass set', () =>
 	withESDB(
 		async eSDB => {
 			const {m} = eSDB.store
@@ -277,4 +277,45 @@ test('ItemClass set', async () =>
 				},
 			},
 		}
+	))
+
+test('preprocessor', () => {
+	let ok
+	return withESDB(
+		async eSDB => {
+			const {m} = eSDB.store
+			await m.set({id: 'a', meep: 'moop'})
+			expect(ok).toBe(true)
+		},
+		{
+			m: {
+				Model: ESModel,
+				reducer: (model, event) => {
+					if (!model) return false
+					if (event.type === model.TYPE && event.data[2]) ok = true
+					return ESModel.reducer(model, event)
+				},
+			},
+		}
+	)
+})
+
+test('events', () =>
+	withESDB(
+		async (eSDB, queue) => {
+			const {m} = eSDB.store
+			await m.set({meep: 'moop'})
+			await m.update({id: 1, beep: 'boop'})
+			await m.set({meep: 'moop'}, true)
+			await m.update({id: 3, beep: 'boop'}, true)
+			await m.remove(3)
+			const events = await queue.all()
+			expect(
+				events.map(e => {
+					e.ts = 0
+					return e
+				})
+			).toMatchSnapshot()
+		},
+		{m: {columns: {id: {type: 'INTEGER'}}}}
 	))

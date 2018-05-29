@@ -2,6 +2,9 @@
 // Caveats:
 // * `.update()` returns the current object at the time of returning, not the one that was updated
 //
+// Events all type `es/name` and data `[actionEnum, objOrId, id]`
+// The id is assigned by the preprocessor
+
 import JsonModel from './JsonModel'
 
 export const undefToNull = data => {
@@ -56,11 +59,13 @@ class ESModel extends JsonModel {
 
 	async set(obj, insertOnly) {
 		if (this.writable) return super.set(obj, insertOnly)
-		const {
-			result: {[this.name]: r},
-		} = await this.dispatch(this.TYPE, [insertOnly ? INSERT : SET, obj])
-		const out = r && (r.ins ? r.ins[0] : r.set[0])
-		return this.get(out[this.idCol])
+		const {data} = await this.dispatch(this.TYPE, [
+			insertOnly ? INSERT : SET,
+			obj,
+		])
+		const id = data[2]
+		// Note, his could return a later version of the object
+		return this.get(id)
 	}
 
 	async update(o, upsert) {
@@ -69,17 +74,13 @@ class ESModel extends JsonModel {
 		if (id == null && !upsert) {
 			throw new TypeError('No ID specified')
 		}
-		const {result} = await this.dispatch(this.TYPE, [
+		const {data} = await this.dispatch(this.TYPE, [
 			upsert ? SAVE : UPDATE,
 			undefToNull(o),
 		])
-		if (id == null) {
-			const r = result[this.name]
-			const out = r && (r.ins ? r.ins[0] : r.upd[0])
-			id = out && out[this.idCol]
-		}
+		id = data[2]
 		// Note, his could return a later version of the object
-		if (id) return this.get(id)
+		return this.get(id)
 	}
 
 	updateNoTrans(obj, upsert) {
@@ -111,20 +112,28 @@ class ESModel extends JsonModel {
 		return super.applyChanges(result)
 	}
 
+	static async preprocessor({model, event}) {
+		if (event.type !== model.TYPE) return
+		if (event.data[0] > REMOVE) {
+			// Always overwrite, so repeat events get correct ids
+			event.data[2] = await getId(model, event.data[1])
+			return event
+		}
+	}
+
 	static async reducer(model, {type, data}) {
 		if (!model || type !== model.TYPE) return false
 
-		let [action, obj] = data
+		let [action, obj, id] = data
 		if (action === REMOVE) {
 			if (await model.exists({[model.idCol]: obj})) return {rm: [obj]}
 			return false
 		}
-		let id = obj[model.idCol]
-		if (id == null) {
-			id = await getId(model, obj)
-			obj = {...obj, [model.idCol]: id}
-		}
+
+		if (obj[model.idCol] == null) obj = {...obj, [model.idCol]: id}
+
 		const exists = await model.exists({[model.idCol]: id})
+
 		switch (action) {
 			case SET:
 				return exists ? {set: [obj]} : {ins: [obj]}
