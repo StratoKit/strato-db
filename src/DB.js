@@ -336,6 +336,8 @@ class DB {
 		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		await this._withTransaction(async () => {
 			const didRun = await this._getRanMigrations()
+			for (const model of Object.values(this.models))
+				if (model.setWritable) model.setWritable(true)
 			for (const {runKey, up} of migrations) {
 				if (!didRun[runKey]) {
 					dbg(this.name, 'start migration', runKey)
@@ -344,6 +346,8 @@ class DB {
 					await this._markMigration(runKey, 1) // eslint-disable-line no-await-in-loop
 				}
 			}
+			for (const model of Object.values(this.models))
+				if (model.setWritable) model.setWritable(false)
 		})
 		this.migrationsRan = true
 	}

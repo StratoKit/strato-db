@@ -118,6 +118,29 @@ test('refuses late migrations', async () => {
 	await db.close()
 })
 
+test('runs migrations in writable mode', async () => {
+	const db = new DB()
+	let f = 0
+	db.registerMigrations('whee', {
+		0: {
+			up: () => {
+				if (f === 1) f = 2
+			},
+		},
+	})
+	db.addModel(
+		class T {
+			setWritable(v) {
+				if (v && f === 0) f = 1
+				if (!v && f === 2) f = 3
+			}
+		}
+	)
+	await db.openDB()
+	expect(f).toBe(3)
+	await db.close()
+})
+
 test('sorts migrations', async () => {
 	const db = new DB()
 	const arr = []
