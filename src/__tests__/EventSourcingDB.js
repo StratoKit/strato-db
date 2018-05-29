@@ -254,15 +254,13 @@ test('reducer migration', async () => {
 			count: {
 				...testModels.count,
 				migrations: {
-					foo: {
-						async up({db, model, queue}) {
-							expect(step).toBe(0)
-							step = 1
-							expect(db).toBeTruthy()
-							expect(model).toBeTruthy()
-							expect(queue).toBeTruthy()
-							await queue.add('foo', 0)
-						},
+					async foo({db, model, queue}) {
+						expect(step).toBe(0)
+						step = 1
+						expect(db).toBeTruthy()
+						expect(model).toBeTruthy()
+						expect(queue).toBeTruthy()
+						await queue.add('foo', 0)
 					},
 				},
 			},

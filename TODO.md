@@ -55,7 +55,7 @@
   * => prepare, allow .get/all/etc; while those are active calls are queued up
     https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
   * [ ] what happens with them on schema change?
-* [ ] allow migrations to be functions (so no `up`); if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
+* [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
 
 ### Someday
 

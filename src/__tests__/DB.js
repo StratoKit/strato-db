@@ -89,13 +89,13 @@ test('has migration', async () => {
 	// eslint-disable-next-line promise/catch-or-return
 	db.dbP.then(() => {
 		// This should run after the migrations
-		if (canary === 2) canary = 1
+		if (canary === 2) canary = 3
 		return true
 	})
 	db.registerMigrations('whee', {
 		0: {
 			up: db => {
-				if (canary === 0) canary = 2
+				if (canary === 0) canary = 1
 				expect(db.models).toEqual({})
 				return db.exec(`
 				CREATE TABLE foo(hi NUMBER);
@@ -103,10 +103,16 @@ test('has migration', async () => {
 			`)
 			},
 		},
+		1: db => {
+			if (canary === 1) canary = 2
+			return db.exec(`
+				INSERT INTO foo VALUES (42);
+			`)
+		},
 	})
 	const row = await db.get('SELECT * FROM foo')
 	expect(row.hi).toBe(42)
-	expect(canary).toBe(1)
+	expect(canary).toBe(3)
 	await db.close()
 })
 
@@ -122,10 +128,8 @@ test('runs migrations in writable mode', async () => {
 	const db = new DB()
 	let f = 0
 	db.registerMigrations('whee', {
-		0: {
-			up: () => {
-				if (f === 1) f = 2
-			},
+		0() {
+			if (f === 1) f = 2
 		},
 	})
 	db.addModel(

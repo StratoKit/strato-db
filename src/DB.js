@@ -249,10 +249,12 @@ class DB {
 			throw new Error('migrations already done')
 		}
 		for (const key of Object.keys(migrations)) {
-			const obj = migrations[key]
-			if (!obj.up) {
+			let obj = migrations[key]
+			if (typeof obj === 'function') {
+				obj = {up: obj}
+			} else if (!obj.up) {
 				throw new Error(
-					`Migration ${key} for "${name}" must have an "up(db)" function`
+					`Migration ${key} for "${name}" must be a function or have an "up({db, model, ...rest})" attribute`
 				)
 			}
 			// Separate with space, it sorts before other things

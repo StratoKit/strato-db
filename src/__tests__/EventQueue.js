@@ -79,10 +79,8 @@ test('getNext(v, true) polls once', async () => {
 test('allow JsonModel migrations', async () => {
 	const m = getModel({
 		migrations: {
-			test: {
-				up({model}) {
-					return model.add('TEST', {hi: true})
-				},
+			test({model}) {
+				return model.add('TEST', {hi: true})
 			},
 		},
 	})

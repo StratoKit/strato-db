@@ -289,21 +289,15 @@ class JsonModel {
 
 		const allMigrations = {
 			...migrations,
-			0: {
-				// We make id a real column to allow foreign keys
-				up: ({db}) => {
-					const {quoted, type, autoIncrement} = this.columns[idCol]
-					const keySql = `${type} PRIMARY KEY ${
-						type === 'INTEGER' && autoIncrement ? 'AUTOINCREMENT' : ''
-					}`
-					return db.exec(`
+			// We make id a real column to allow foreign keys
+			0: ({db}) => {
+				const {quoted, type, autoIncrement} = this.columns[idCol]
+				const keySql = `${type} PRIMARY KEY ${
+					type === 'INTEGER' && autoIncrement ? 'AUTOINCREMENT' : ''
+				}`
+				return db.exec(`
 						CREATE TABLE ${this.quoted}(${quoted} ${keySql}, json JSON);
 					`)
-				},
-				down: ({db}) =>
-					db.exec(`
-						DROP TABLE ${this.quoted};
-					`),
 			},
 		}
 		for (const col of this.columnArr) {
@@ -312,9 +306,8 @@ class JsonModel {
 				continue
 			}
 
-			allMigrations[`0_${col.name}`] = {
-				up: ({db}) =>
-					db.exec(`
+			allMigrations[`0_${col.name}`] = ({db}) =>
+				db.exec(`
 					${
 						col.value
 							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
@@ -332,15 +325,14 @@ class JsonModel {
 					`
 							: ''
 					}
-				`),
-			}
+				`)
 		}
 
 		// Wrap the migration functions to provide their arguments
 		const wrappedMigrations = {}
 		const wrapMigration = m => {
-			const wrap = key =>
-				m[key] &&
+			const wrap = fn =>
+				fn &&
 				(db => {
 					if (!db.models[name]) {
 						// Create a patched version of all models that uses the migration db
@@ -349,12 +341,10 @@ class JsonModel {
 						})
 					}
 					const model = db.models[name]
-					return m[key]({...migrationOptions, db, model})
+					return fn({...migrationOptions, db, model})
 				})
-			return {
-				up: wrap('up'),
-				down: wrap('down'),
-			}
+			const wrapped = typeof m === 'function' ? wrap(m) : {up: wrap(m.up)}
+			return wrapped
 		}
 		Object.keys(allMigrations).forEach(k => {
 			const m = allMigrations[k]

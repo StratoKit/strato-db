@@ -20,14 +20,12 @@ test('migrations', async () => {
 			},
 		},
 		migrations: {
-			meep: {
-				up: async ({db, model, hi}) => {
-					expect(db).toBeTruthy()
-					expect(model).toBeTruthy()
-					expect(hi).toBe(3)
-					const d = await model.set({foo: 1})
-					expect(d.foo).toBe(5)
-				},
+			meep: async ({db, model, hi}) => {
+				expect(db).toBeTruthy()
+				expect(model).toBeTruthy()
+				expect(hi).toBe(3)
+				const d = await model.set({foo: 1})
+				expect(d.foo).toBe(5)
 			},
 		},
 		migrationOptions: {
