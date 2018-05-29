@@ -144,24 +144,20 @@ class ESDB extends EventEmitter {
 
 		const dispatch = this.dispatch.bind(this)
 		for (const [name, modelDef] of Object.entries(models)) {
-			const {columns, migrations, reducer, preprocessor} = modelDef
-			let {Model, RWModel, deriver} = modelDef
-			if (!RWModel) {
-				if (Model) {
-					RWModel = Model
-				} else {
-					RWModel = JsonModel
-					if (!deriver) deriver = ESModel.deriver
-				}
-			}
-			if (!Model) Model = ESModel
+			const {
+				reducer,
+				preprocessor,
+				deriver,
+				Model = ESModel,
+				RWModel = Model,
+				...rest
+			} = modelDef
 
 			let hasOne = false
 
 			const rwModel = this.rwDb.addModel(RWModel, {
 				name,
-				columns,
-				migrations,
+				...rest,
 				migrationOptions,
 				dispatch,
 			})
@@ -178,7 +174,7 @@ class ESDB extends EventEmitter {
 			if (this.db === this.rwDb) {
 				model = rwModel
 			} else {
-				model = this.db.addModel(Model, {name, columns, dispatch})
+				model = this.db.addModel(Model, {name, ...rest, dispatch})
 			}
 			model.preprocessor = preprocessor || Model.preprocessor
 			model.reducer = reducer || Model.reducer
