@@ -334,8 +334,8 @@ class DB {
 
 	async runMigrations() {
 		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
-		const didRun = await this._getRanMigrations()
 		await this._withTransaction(async () => {
+			const didRun = await this._getRanMigrations()
 			for (const {runKey, up} of migrations) {
 				if (!didRun[runKey]) {
 					dbg(this.name, 'start migration', runKey)

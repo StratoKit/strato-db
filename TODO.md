@@ -20,10 +20,6 @@
 
 ## DB
 
-### Important
-
-* [ ] mark migrations in progress for multi-process starting at the same time
-
 ### Nice to have
 
 * [ ] remove waitForP again - onWillOpen can simply return that promise if needed
