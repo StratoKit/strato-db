@@ -6,7 +6,8 @@
 * [ ] Get started on documentation
 * [ ] Release as open source
 * [ ] Try to clean up the API, make it consistent between classes. Ideas:
-  * DB and ESDB to have same API surface, and JM/EM are automatic so ES is optional for plugins like uploads
+  * DB and ESDB to have same API surface (.addModel)
+  * join JsonModel and ESModel code, switch behavior based on `dispatch` option
   * db.models => db.store or eSDB.store => eSDB.models
   * column.jsonPath => column.path
   * columns are shortcuts for attribute searches, `set()` enforced values, where clauses, actual columns, indexes etc. Not very pretty right now.
