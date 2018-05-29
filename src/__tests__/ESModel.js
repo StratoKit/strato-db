@@ -253,3 +253,28 @@ test('remove by object without id', () =>
 		},
 		{test: {Model: ESModel}}
 	))
+
+class Foo {
+	getF() {
+		return this.f
+	}
+}
+
+test('ItemClass set', async () =>
+	withESDB(
+		async eSDB => {
+			const {m} = eSDB.store
+			const setted = await m.set({id: 4, f: 'meep'})
+			expect(setted instanceof Foo).toBe(true)
+			expect(setted.getF()).toBe('meep')
+		},
+		{
+			m: {
+				Model: class extends ESModel {
+					constructor(o) {
+						super({...o, ItemClass: Foo})
+					}
+				},
+			},
+		}
+	))

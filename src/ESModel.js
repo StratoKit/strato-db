@@ -60,7 +60,7 @@ class ESModel extends JsonModel {
 			result: {[this.name]: r},
 		} = await this.dispatch(this.TYPE, [insertOnly ? INSERT : SET, obj])
 		const out = r && (r.ins ? r.ins[0] : r.set[0])
-		return out
+		return this.get(out[this.idCol])
 	}
 
 	async update(o, upsert) {
