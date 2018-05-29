@@ -106,6 +106,7 @@
 
 * [ ] Enforce known v on open instead of add
   * `model.onDbOpened`?
+  * sometimes `queue in same db` fails due to ordering, possibly due to this
 * [ ] cancellable getNext Promise
 * [ ] use pragma data_version to poll DB in getNext
 * [ ] test multi-process changes
@@ -118,6 +119,7 @@
 * !!! Multi-process handling:
   * [ ] When handling event, check that the DB is on `event.v - 1`, else try again
   * [ ] Store listeners should also get events handled by other processes
+  * [ ] ESModel getNextId should only work during reducer run and be reset before
 
 ### Nice to have
 
