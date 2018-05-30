@@ -284,15 +284,15 @@ test('preprocessor', () => {
 	return withESDB(
 		async eSDB => {
 			const {m} = eSDB.store
-			await m.set({id: 'a', meep: 'moop'})
+			await m.set({hi: 'a', meep: 'moop'})
 			expect(ok).toBe(true)
 		},
 		{
 			m: {
-				Model: ESModel,
+				idCol: 'hi',
 				reducer: (model, event) => {
 					if (!model) return false
-					if (event.type === model.TYPE && event.data[2]) ok = true
+					if (event.type === model.TYPE && event.data[1] === 'a') ok = true
 					return ESModel.reducer(model, event)
 				},
 			},

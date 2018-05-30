@@ -5,10 +5,10 @@ Array [
   Object {
     "data": Array [
       1,
+      1,
       Object {
         "meep": "moop",
       },
-      1,
     ],
     "result": Object {
       "m": Object {
@@ -27,11 +27,11 @@ Array [
   Object {
     "data": Array [
       3,
+      1,
       Object {
         "beep": "boop",
         "id": 1,
       },
-      1,
     ],
     "result": Object {
       "m": Object {
@@ -50,10 +50,10 @@ Array [
   Object {
     "data": Array [
       2,
+      2,
       Object {
         "meep": "moop",
       },
-      2,
     ],
     "result": Object {
       "m": Object {
@@ -72,11 +72,11 @@ Array [
   Object {
     "data": Array [
       4,
+      3,
       Object {
         "beep": "boop",
         "id": 3,
       },
-      3,
     ],
     "result": Object {
       "m": Object {

@@ -2,8 +2,8 @@
 // Caveats:
 // * `.update()` returns the current object at the time of returning, not the one that was updated
 //
-// Events all type `es/name` and data `[actionEnum, objOrId, id]`
-// The id is assigned by the preprocessor
+// Events all type `es/name` and data `[actionEnum, id, obj]`
+// The id is assigned by the preprocessor except for RM
 
 import JsonModel from './JsonModel'
 
@@ -61,9 +61,10 @@ class ESModel extends JsonModel {
 		if (this.writable) return super.set(obj, insertOnly)
 		const {data} = await this.dispatch(this.TYPE, [
 			insertOnly ? INSERT : SET,
+			null,
 			obj,
 		])
-		const id = data[2]
+		const id = data[1]
 		// Note, his could return a later version of the object
 		return this.get(id)
 	}
@@ -76,9 +77,10 @@ class ESModel extends JsonModel {
 		}
 		const {data} = await this.dispatch(this.TYPE, [
 			upsert ? SAVE : UPDATE,
+			null,
 			undefToNull(o),
 		])
-		id = data[2]
+		id = data[1]
 		// Note, his could return a later version of the object
 		return this.get(id)
 	}
@@ -116,7 +118,7 @@ class ESModel extends JsonModel {
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > REMOVE) {
 			// Always overwrite, so repeat events get correct ids
-			event.data[2] = await getId(model, event.data[1])
+			event.data[1] = await getId(model, event.data[2])
 			return event
 		}
 	}
@@ -124,9 +126,9 @@ class ESModel extends JsonModel {
 	static async reducer(model, {type, data}) {
 		if (!model || type !== model.TYPE) return false
 
-		let [action, obj, id] = data
+		let [action, id, obj] = data
 		if (action === REMOVE) {
-			if (await model.exists({[model.idCol]: obj})) return {rm: [obj]}
+			if (await model.exists({[model.idCol]: id})) return {rm: [id]}
 			return false
 		}
 
