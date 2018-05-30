@@ -12,6 +12,7 @@
   * column.jsonPath => column.path
   * columns are shortcuts for attribute searches, `set()` enforced values, where clauses, actual columns, indexes etc. Not very pretty right now.
   * add column type `VIRTUAL`
+* [ ] optimize
 
 ## node-sqlite3
 
@@ -133,3 +134,4 @@
 * [ ] jsonmodel for ESDB that includes auto-caching between events, use pragma data_version to know when data changed, applyChanges
 * [ ] reduce metadata in apply, so storing event errors on preprocess/reduce is simpler
 * [ ] IDEA eventually allow multiple ESDBs by storing version per queue name
+* [ ] optimization: if multiple events in queue, do per 10 in the same transaction
