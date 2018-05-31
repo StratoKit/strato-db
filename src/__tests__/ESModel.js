@@ -36,6 +36,7 @@ test('undefToNull', () => {
 	const obj = {
 		a: 'b',
 		c: 4,
+		d: new Date('2007-01-01'),
 		nested: {
 			stuff: 'test',
 			asd: undefined,
