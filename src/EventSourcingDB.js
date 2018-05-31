@@ -11,7 +11,6 @@
 import debug from 'debug'
 import DB from './DB'
 import ESModel from './ESModel'
-import JsonModel from './JsonModel'
 import {createStore, combineReducers} from './async-redux'
 import EventQueue from './EventQueue'
 import EventEmitter from 'events'
