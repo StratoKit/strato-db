@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 import expect from 'expect'
 import sysPath from 'path'
 import tmp from 'tmp-promise'
@@ -385,3 +386,20 @@ test('event replay', async () =>
 
 		await expect(eSDB.handledVersion(1)).resolves.not.toHaveProperty('error')
 	}))
+
+test('wait for RO db', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const eSDB = new ESDB({
+				file: sysPath.join(dir, 'db'),
+				queueFile: sysPath.join(dir, 'q'),
+				name: 'E',
+				models: testModels,
+			})
+			for (let i = 1; i <= 100; i++) {
+				await eSDB.dispatch('foo')
+				expect(await eSDB.store.count.get('count')).toHaveProperty('total', i)
+			}
+		},
+		{unsafeCleanup: true}
+	))

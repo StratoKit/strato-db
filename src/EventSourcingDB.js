@@ -407,8 +407,10 @@ class ESDB extends EventEmitter {
 				await this.redux.didInitialize
 				this._reduxInited = true
 			}
-			await this.rwDb.withTransaction(async () => {
+			const doneEvent = await this.rwDb.withTransaction(async () => {
 				try {
+					// TODO just wait for the dispatch
+					// and call apply directly, not via redux
 					await this.redux.dispatch(event)
 				} catch (err) {
 					// Redux failed so we'll apply manually
@@ -417,7 +419,7 @@ class ESDB extends EventEmitter {
 						event
 					)
 					// Will never error
-					await this.handleResult({
+					this.handleResult({
 						...event,
 						error: {
 							...event.error,
@@ -432,6 +434,7 @@ class ESDB extends EventEmitter {
 				// Will never error
 				return this._applyingP
 			})
+			this.triggerWaitingEvent(doneEvent)
 			if (this._reallyStop) {
 				this._reallyStop = false
 				return
@@ -525,7 +528,6 @@ class ESDB extends EventEmitter {
 		} catch (err) {
 			console.error('!!! "handled" event handler threw, ignoring', err)
 		}
-		this.triggerWaitingEvent(event)
 	}
 
 	async applyEvent(event) {
@@ -562,10 +564,9 @@ class ESDB extends EventEmitter {
 			await rwStore.metadata.applyChanges(metadata)
 
 			await queue.set(event)
-			if (event.error) return
 
 			// Apply derivers
-			if (this.deriverModels.length) {
+			if (!event.error && this.deriverModels.length) {
 				try {
 					await rwDb.run('SAVEPOINT derive')
 					await Promise.all(
@@ -594,9 +595,11 @@ class ESDB extends EventEmitter {
 			showHugeDbError(err, 'handleResult')
 
 			throw err
+		} finally {
+			for (const model of readWriters) model.setWritable(false)
 		}
 
-		for (const model of readWriters) model.setWritable(false)
+		return event
 	}
 }
 
