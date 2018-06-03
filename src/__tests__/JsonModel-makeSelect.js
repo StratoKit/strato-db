@@ -66,9 +66,11 @@ test('makeSelect isArray', () => {
 test('makeSelect textSearch', () => {
 	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
 	expect(m.makeSelect({attrs: {foo: 'meep'}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
 		['%meep%'],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
+		['%meep%'],
 	])
 })
 
@@ -78,16 +80,22 @@ test('makeSelect textSearch falsy', () => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
 		[],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl',
+		[],
 	])
 	expect(m.makeSelect({attrs: {foo: null}})).toEqual([
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
 		[],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl',
+		[],
 	])
 	expect(m.makeSelect({attrs: {foo: 0}})).toEqual([
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
 		['%0%'],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
+		['%0%'],
 	])
 })
 
@@ -135,6 +143,8 @@ test('col.where', () => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(foo = ?)`,
 		['moop'],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE(foo = ?)',
+		['moop'],
 	])
 })
 
@@ -146,6 +156,8 @@ test('col.where fn', () => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(3)`,
 		[4, '123'],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)AND(3)',
+		[4, '123'],
 	])
 })
 
@@ -157,6 +169,8 @@ test('col.whereVal fn', () => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(ohai)`,
 		[5, 'meep,moop'],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)AND(ohai)',
+		[5, 'meep,moop'],
 	])
 })
 
@@ -168,5 +182,7 @@ test('col.whereVal fn falsy', () => {
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)`,
 		[5],
 		undefined,
+		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)',
+		[5],
 	])
 })

@@ -41,8 +41,9 @@ test('search cursor', async () => {
 			{id: 8, c: 'e', d: 'e'},
 		],
 		cursor: '!e~e~8',
+		total: 8,
 	})
-	const n = await m.search(null, {...q, cursor: o.cursor})
+	const n = await m.search(null, {...q, cursor: o.cursor, noTotal: true})
 	expect(n).toEqual({
 		items: [
 			{id: 9, c: 'e', d: 'e'},
@@ -55,6 +56,7 @@ test('search cursor', async () => {
 	expect(l).toEqual({
 		items: [{id: 6, c: 'c', d: 'd'}, {id: 7, c: 'c', d: 'd'}],
 		cursor: undefined,
+		total: 8,
 	})
 })
 

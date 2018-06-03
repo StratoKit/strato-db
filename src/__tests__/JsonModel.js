@@ -185,5 +185,7 @@ test('idCol', async () => {
 		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY _1 LIMIT 2`,
 		[],
 		['_1', '_2'],
+		'SELECT COUNT(*) as t from "testing" tbl',
+		[],
 	])
 })

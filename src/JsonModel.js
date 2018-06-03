@@ -469,6 +469,7 @@ class JsonModel {
 						'joinVals',
 						'limit',
 						'noCursor',
+						'noTotal',
 						'offset',
 						'sort',
 						'where',
@@ -489,9 +490,10 @@ class JsonModel {
 			sort,
 			cursor,
 			noCursor,
+			noTotal,
 		} = options
 		cols = cols || this.selectColNames
-		let cursorColNames
+		let cursorColNames, cursorQ, cursorArgs
 		const makeCursor = limit && !noCursor
 
 		if (makeCursor || cursor) {
@@ -527,19 +529,14 @@ class JsonModel {
 			const vals = jsurl.parse(cursor)
 			const getDir = i => (sort[sortNames[i]] < 0 ? '<' : '>')
 			const l = vals.length - 1
-			let cursorQ = `${cursorColNames[l]}${getDir(l)}?`
-			const args = [vals[l]]
+			cursorQ = `${cursorColNames[l]}${getDir(l)}?`
+			cursorArgs = [vals[l]]
 			for (let i = l - 1; i >= 0; i--) {
 				cursorQ =
 					`(${cursorColNames[i]}${getDir(i)}=?` +
 					` AND (${cursorColNames[i]}!=? OR ${cursorQ}))`
 				const val = vals[i]
-				args.unshift(val, val)
-			}
-
-			where = {
-				...where,
-				[cursorQ]: args,
+				cursorArgs.unshift(val, val)
 			}
 		}
 
@@ -611,9 +608,6 @@ class JsonModel {
 				})
 				.join(',')}`
 
-		const whereQ =
-			conds.length && `WHERE${conds.map(c => `(${c})`).join('AND')}`
-
 		// note: if preparing, this can be replaced with LIMIT(?,?)
 		// First is offset (can be 0) and second is limit (-1 for no limit)
 		const limitQ = limit && `LIMIT ${Number(limit) || 10}`
@@ -623,10 +617,25 @@ class JsonModel {
 			vals.unshift(...joinVals)
 		}
 
-		const q = [selectQ, join, whereQ, orderQ, limitQ, offsetQ]
+		const calcTotal = !(noTotal || noCursor)
+		const allConds = cursorQ ? [...conds, cursorQ] : conds
+		const allVals = cursorArgs ? [...(vals || []), ...cursorArgs] : vals
+		const allWhereQ =
+			allConds.length && `WHERE${allConds.map(c => `(${c})`).join('AND')}`
+		const whereQ =
+			calcTotal &&
+			conds.length &&
+			`WHERE${conds.map(c => `(${c})`).join('AND')}`
+
+		const q = [selectQ, join, allWhereQ, orderQ, limitQ, offsetQ]
 			.filter(Boolean)
 			.join(' ')
-		return [q, vals, cursorColNames]
+		const totalQ =
+			calcTotal &&
+			[`SELECT COUNT(*) as t from ${this.quoted} tbl`, join, whereQ]
+				.filter(Boolean)
+				.join(' ')
+		return [q, allVals, cursorColNames, totalQ, vals]
 	}
 
 	searchOne(attrs, options) {
@@ -649,29 +658,33 @@ class JsonModel {
 	// returns {items[], cursor}. If no cursor, you got all the results
 	// cursor: pass previous cursor to get the next page
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
-	search(attrs, {itemsOnly, ...options} = {}) {
-		const [q, vals, cursorKeys] = this.makeSelect({
+	async search(attrs, {itemsOnly, ...options} = {}) {
+		const [q, vals, cursorKeys, totalQ, totalVals] = this.makeSelect({
 			attrs,
 			noCursor: itemsOnly,
 			...options,
 		})
-		return this.db.all(q, vals).then(rows => {
-			const items = this.toObj(rows, options)
-			if (itemsOnly) return items
-			let cursor
-			if (
-				options &&
-				!options.noCursor &&
-				options.limit &&
-				rows.length === options.limit
-			) {
-				const last = rows[rows.length - 1]
-				cursor = jsurl.stringify(cursorKeys.map(k => last[k]), {
-					short: true,
-				})
-			}
-			return {items, cursor}
-		})
+		const [rows, totalO] = await Promise.all([
+			this.db.all(q, vals),
+			totalQ && this.db.get(totalQ, totalVals),
+		])
+		const items = this.toObj(rows, options)
+		if (itemsOnly) return items
+		let cursor
+		if (
+			options &&
+			!options.noCursor &&
+			options.limit &&
+			rows.length === options.limit
+		) {
+			const last = rows[rows.length - 1]
+			cursor = jsurl.stringify(cursorKeys.map(k => last[k]), {
+				short: true,
+			})
+		}
+		const out = {items, cursor}
+		if (totalO) out.total = totalO.t
+		return out
 	}
 
 	// Alias - deprecated because it's easy to confuse with array.find()
