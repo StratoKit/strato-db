@@ -1,4 +1,6 @@
 import expect from 'expect'
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 /* eslint-disable import/no-named-as-default-member */
 import BP from 'bluebird'
 import DB, {sql, valToSql} from '../DB'
@@ -330,3 +332,25 @@ test('withTransaction rollback', async () => {
 	).rejects.toThrow('ignoreme')
 	expect(await db.all`SELECT * from foo`).toEqual([])
 })
+
+test('dataVersion', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db1 = new DB({file})
+			const db2 = new DB({file})
+			const v1 = await db1.dataVersion()
+			const v2 = await db2.dataVersion()
+			await db1.exec`SELECT 1;`
+			expect(await db1.dataVersion()).toBe(v1)
+			expect(await db2.dataVersion()).toBe(v2)
+			await db1.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+			expect(await db1.dataVersion()).toBe(v1)
+			const v2b = await db2.dataVersion()
+			expect(v2b).toBeGreaterThan(v2)
+			await db2.exec`INSERT INTO foo VALUES (43, 1);`
+			expect(await db1.dataVersion()).toBeGreaterThan(v1)
+			expect(await db2.dataVersion()).toBe(v2b)
+		},
+		{unsafeCleanup: true}
+	))

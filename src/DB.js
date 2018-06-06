@@ -91,11 +91,7 @@ class DB {
 	sql = sql
 
 	async _openDB() {
-		const {
-			file,
-			readOnly,
-			options: {verbose, waitForP, onWillOpen},
-		} = this
+		const {file, readOnly, options: {verbose, waitForP, onWillOpen}} = this
 		if (onWillOpen) await onWillOpen()
 		if (waitForP) await waitForP
 
@@ -147,6 +143,8 @@ class DB {
 			this._db.withTransaction = this._withTransaction.bind(this)
 			await this.runMigrations()
 		}
+		this._db.dataVersion = () =>
+			realDb.get('PRAGMA data_version').then(o => o.data_version)
 		// Make all accesses direct to the DB object, bypass .hold()
 		for (const method of [
 			'all',
@@ -155,6 +153,7 @@ class DB {
 			'prepare',
 			'run',
 			'each',
+			'dataVersion',
 			'withTransaction',
 		]) {
 			this[method] = this._db[method]
@@ -193,6 +192,7 @@ class DB {
 			'prepare',
 			'run',
 			'each',
+			'dataVersion',
 			'withTransaction',
 			'migrationsRan',
 		]) {
@@ -232,6 +232,10 @@ class DB {
 
 	each(...args) {
 		return this._hold('_realEach', args)
+	}
+
+	dataVersion() {
+		return this.openDB().then(db => db.dataVersion())
 	}
 
 	withTransaction(...args) {
