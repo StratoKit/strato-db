@@ -137,16 +137,19 @@ test('applyEvent invalid', () => {
 test('waitForQueue', async () =>
 	withESDB(async (eSDB, queue) => {
 		await expect(eSDB.waitForQueue()).resolves.toBeFalsy()
-		await queue.add('ONE')
-		await queue.add('TWO')
+		await queue.add('1')
+		await queue.add('2')
 		expect(await eSDB.getVersion()).toBe(0)
 		const p = eSDB.waitForQueue()
-		await queue.add('THREE')
-		queue.add('FOUR')
-		expect((await p).type).toBe('TWO')
-		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
+		let lastP
+		for (let i = 3; i <= 10; i++) lastP = queue.add(String(i))
+		const num = Number((await p).type)
+		// should be at least last awaited
+		expect(num).toBeGreaterThanOrEqual(2)
+		await lastP
+		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', '10')
 		// This should return immediately, if not the test will time out
-		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', 'FOUR')
+		await expect(eSDB.waitForQueue()).resolves.toHaveProperty('type', '10')
 	}))
 
 test('waitForQueue race', async () =>

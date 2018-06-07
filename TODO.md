@@ -115,6 +115,7 @@
 
 * !!! Multi-process handling:
   * [ ] When handling event, check that the DB is on `event.v - 1`, else try again
+    * This means we can never skip a version…
   * [ ] Store listeners should also get events handled by other processes
   * [ ] ESModel getNextId should only work during reducer run and be reset before
 

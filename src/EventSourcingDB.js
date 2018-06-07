@@ -403,6 +403,8 @@ class ESDB extends EventEmitter {
 			delete event.error
 			delete event.result
 			lastV = event.v
+			// It could be that it was processed elsewhere due to racing
+			if (event.v <= (await this.getVersion())) continue
 			if (!this._reduxInited) {
 				await this.redux.didInitialize
 				this._reduxInited = true
