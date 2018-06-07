@@ -14,6 +14,15 @@ const populate = (m, count) => {
 	}
 	return Promise.all(lots.map(data => m.add('t', data)))
 }
+
+test('create w/ extra columns', async () => {
+	const m = getModel({columns: {foo: {value: () => 5, get: true}}})
+	expect(await m.add('hi')).not.toHaveProperty('foo')
+	expect(await m.get(1)).not.toHaveProperty('foo', 5)
+	await m.update({v: 1})
+	expect(await m.get(1)).toHaveProperty('foo', 5)
+})
+
 test('add invalid event', async () => {
 	const m = getModel()
 	await expect(m.add()).rejects.toThrow('type should be a non-empty string')

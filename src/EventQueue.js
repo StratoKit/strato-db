@@ -5,13 +5,13 @@ import JsonModel from './JsonModel'
 const dbg = debug('queue')
 
 class EventQueue extends JsonModel {
-	constructor({db, name = 'history', knownV, ...rest}) {
+	constructor({name = 'history', ...rest}) {
 		super({
 			...rest,
-			db,
 			name,
 			idCol: 'v',
 			columns: {
+				...rest.columns,
 				v: {
 					type: 'INTEGER',
 					autoIncrement: true,
