@@ -42,49 +42,61 @@ class EventQueue extends JsonModel {
 				},
 			},
 		})
-		this.knownV = Number(knownV) || 0
+		this.currentV = -1
+		this.knownV = 0
 	}
 
 	set(obj) {
 		if (!obj.v) {
 			throw new Error('cannot use set without v')
 		}
+		this.currentV = -1
 		return super.set(obj)
 	}
 
 	async _getLatestVersion() {
-		const lastRow = await this.db.get(`SELECT MAX(v) AS v from ${this.quoted}`)
-		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		let v
+		if (this._addP) {
+			v = await this._addP
+		} else {
+			const dataV = await this.db.dataVersion()
+			if (this.currentV >= 0 && this._dataV === dataV) {
+				// If there was no change on other connections, currentV is correct
+				return this.currentV
+			}
+			this._dataV = dataV
+			const lastRow = await this.db.get(
+				`SELECT MAX(v) AS v from ${this.quoted}`
+			)
+			v = lastRow.v
+		}
+		this.currentV = Math.max(this.knownV, v || 0)
 		return this.currentV
 	}
 
 	async add(type, data, ts) {
-		// This can cause out-of-order execution for first event
-		if (this.knownV && !this._enforcedKnownV) {
-			const v = Number(this.knownV)
-			// set the sqlite autoincrement value
-			// Try changing current value, and insert if there was no change
-			// This doesn't need a transaction, either one or the other runs
-			await this.db.exec(
-				`
-						UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
-						INSERT INTO sqlite_sequence (name, seq)
-							SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
-								(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
-					`
-			)
-			this._enforcedKnownV = true
-		}
-		if (!type || typeof type !== 'string') {
+		if (!type || typeof type !== 'string')
 			throw new Error('type should be a non-empty string')
-		}
 		ts = Number(ts) || Date.now()
-		// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID
-		const {lastID: v} = await this.db.run(
-			`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
-			[type, ts, JSON.stringify(data)]
-		)
-		this.currentV = v
+
+		// Store promise so _getLatestVersion can get the most recent v
+		// Note that it replaces the promise for the previous add
+		const addP = this.db
+			.run(`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`, [
+				type,
+				ts,
+				JSON.stringify(data),
+			])
+			.then(({lastID}) => {
+				// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID
+				this.currentV = lastID
+				// Only remove promise if it's us
+				if (this._addP === addP) this._addP = null
+				return this.currentV
+			})
+		this._addP = addP
+		const v = await addP
+
 		const event = {v, type, ts, data}
 		dbg(`queued`, v, type)
 		if (this.nextAddedResolve) {
@@ -99,14 +111,16 @@ class EventQueue extends JsonModel {
 
 	async getNext(v, once) {
 		const beforeV = this.currentV
-		let event = await this.searchOne(null, {
+		let event
+		event = await this.searchOne(null, {
 			where: {'v > ?': [Number(v) || 0]},
 			sort: {v: 1},
 		})
 		if (once) return event
 		while (!event) {
 			// Maybe we got an insert between the request and the answer
-			if (this.currentV !== beforeV) {
+			// eslint-disable-next-line no-await-in-loop
+			if ((await this._getLatestVersion()) !== beforeV) {
 				return this.getNext(v)
 			}
 			// Wait for next one from this process
@@ -137,6 +151,22 @@ class EventQueue extends JsonModel {
 			}
 		}
 		return event
+	}
+
+	async setKnownV(v) {
+		// set the sqlite autoincrement value
+		// Try changing current value, and insert if there was no change
+		// This doesn't need a transaction, either one or the other runs
+		await this.db.exec(
+			`
+				UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
+				INSERT INTO sqlite_sequence (name, seq)
+					SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
+						(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
+			`
+		)
+		this.currentV = Math.max(this.currentV, v)
+		this.knownV = v
 	}
 }
 

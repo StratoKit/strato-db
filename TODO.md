@@ -105,11 +105,7 @@
 
 ### Nice to have
 
-* [ ] Enforce known v on open instead of add
-  * `model.onDbOpened`?
-  * sometimes `queue in same db` fails due to ordering, possibly due to this
 * [ ] cancellable getNext Promise
-* [ ] use pragma data_version to poll DB in getNext
 * [ ] test multi-process changes
 * [ ] probably should write more tests for getNext with nextAddedP
 
