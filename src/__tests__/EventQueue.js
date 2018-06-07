@@ -78,12 +78,9 @@ test('getNext() waits', async () => {
 test('getNext(v, true) polls once', async () => {
 	const m = getModel()
 	await m.setKnownV(10)
-	expect(await m.get({v: 11})).toBeFalsy()
-	const p = m.getNext(null, true)
-	await m.get(1) // wait for sqlite to run all commands
+	expect(await m.get(11)).toBeFalsy()
+	expect(await m.getNext(null, true)).toBe(undefined)
 	await m.add('t')
-	const e = await p
-	expect(e).toBe(undefined)
 	const f = await m.getNext(10, true)
 	expect(f.v).toBe(11)
 	expect(f.type).toBe('t')

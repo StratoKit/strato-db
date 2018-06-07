@@ -110,12 +110,16 @@ class EventQueue extends JsonModel {
 	nextAddedResolve = null
 
 	async getNext(v, once) {
-		const beforeV = this.currentV
+		const beforeV = await this._getLatestVersion()
+		// TODO if v < currentV skip
 		let event
-		event = await this.searchOne(null, {
-			where: {'v > ?': [Number(v) || 0]},
-			sort: {v: 1},
-		})
+		event =
+			!v || v <= beforeV
+				? await this.searchOne(null, {
+						where: {'v > ?': [Number(v) || 0]},
+						sort: {v: 1},
+				  })
+				: null
 		if (once) return event
 		while (!event) {
 			// Maybe we got an insert between the request and the answer
