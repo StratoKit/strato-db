@@ -139,6 +139,18 @@ test('makeSelect in + isArray = isAnyOfArray', () => {
 	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
 })
 
+test('makeSelect inAll', () => {
+	const m = getModel({
+		columns: {foo: {jsonPath: 'foo', inAll: true, isArray: true}},
+	})
+	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	expect(q).toEqual(
+		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?) AND EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?))'
+	)
+	const [q2] = m.makeSelect({attrs: {foo: []}})
+	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
+})
+
 test('col.where', () => {
 	const m = getModel({
 		columns: {foo: {sql: 'foo', where: 'foo = ?'}},

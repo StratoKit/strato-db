@@ -37,25 +37,27 @@ const allowedTypes = {
 	JSON: true,
 }
 const knownColProps = {
-	alias: true,
-	autoIncrement: true,
-	default: true,
-	get: true,
-	ignoreNull: true,
-	in: true,
-	index: true,
-	isAnyOfArray: true,
-	isArray: true,
-	jsonPath: true,
-	parse: true,
-	slugValue: true,
-	sql: true,
-	textSearch: true,
-	type: true,
-	unique: true,
-	value: true,
-	where: true,
-	whereVal: true,
+	alias: true, // column alias
+	autoIncrement: true, // autoincrementing key
+	default: true, // js expression, default value
+	get: true, // include column in query results
+	ignoreNull: true, // ignore null in index
+	in: true, // column matches any of given array
+	inAll: true, // column matches all of given array
+	index: true, // create index for this column
+	isAnyOfArray: true, // in:true + isArray: true
+	isArray: true, // json path is an array value
+	jsonPath: true, // path to column value in `json` column
+	parse: true, // js function, returns JS value given column data
+	slugValue: true, // returns seed for uniqueSlugId
+	sql: true, // sql expression for column
+	textSearch: true, // search for substring of column
+	type: true, // column type
+	unique: true, // create index with unique contstraint
+	value: true, // js function, return value to store
+	where: true, // js function, returns WHERE condition
+	whereVal: true, // js function, returns values for condition
+	//  if value is not an array, skips where()
 }
 
 // ItemClass: Object-like class that can be assigned to like Object
@@ -206,6 +208,17 @@ class JsonModel {
 							`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 								col.jsonPath
 							}") j WHERE j.value IN (${args.map(() => '?').join(',')}))`
+						col.whereVal = args => args && args.length && args
+					} else if (col.inAll) {
+						col.where = args =>
+							args
+								.map(
+									() =>
+										`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+											col.jsonPath
+										}") j WHERE j.value = ?)`
+								)
+								.join(' AND ')
 						col.whereVal = args => args && args.length && args
 					} else {
 						col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
