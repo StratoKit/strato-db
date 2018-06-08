@@ -38,6 +38,27 @@ test('create', () =>
 		{unsafeCleanup: true}
 	))
 
+test('create in single file', async () => {
+	const eSDB = new ESDB({
+		name: 'E',
+		models: testModels,
+	})
+	// eSDB.listen(changes => eSDB.reducers.count.get('count'))
+	expect(eSDB.db).toBeTruthy()
+	expect(eSDB.rwDb).toBeTruthy()
+	expect(eSDB.queue).toBeTruthy()
+	expect(eSDB.models).toBeUndefined()
+	expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
+	expect(eSDB.store.count).toBeTruthy()
+	expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
+	expect(eSDB.rwStore.count).toBeTruthy()
+	// Make sure the read-only database can start (no timeout)
+	// and that migrations work
+	expect(await eSDB.store.count.all()).toEqual([
+		{id: 'count', total: 0, byType: {}},
+	])
+})
+
 test('create with Model', () => {
 	return withESDB(
 		eSDB => {
@@ -390,7 +411,7 @@ test('event replay', async () =>
 		await expect(eSDB.handledVersion(1)).resolves.not.toHaveProperty('error')
 	}))
 
-test('wait for RO db', async () =>
+test('RO db sees transaction as soon as completed', async () =>
 	tmp.withDir(
 		async ({path: dir}) => {
 			const eSDB = new ESDB({
