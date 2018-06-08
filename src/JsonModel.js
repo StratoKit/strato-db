@@ -211,15 +211,10 @@ class JsonModel {
 						col.whereVal = args => args && args.length && args
 					} else if (col.inAll) {
 						col.where = args =>
-							args
-								.map(
-									() =>
-										`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-											col.jsonPath
-										}") j WHERE j.value = ?)`
-								)
-								.join(' AND ')
-						col.whereVal = args => args && args.length && args
+							`? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.${
+								col.jsonPath
+							}") j WHERE j.value IN (${args.map(() => '?').join(',')})))`
+						col.whereVal = args => args && args.length && [args.length, ...args]
 					} else {
 						col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 							col.jsonPath

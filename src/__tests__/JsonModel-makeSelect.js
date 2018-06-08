@@ -145,10 +145,29 @@ test('makeSelect inAll', () => {
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?) AND EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?))'
+		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?,?))))'
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
 	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
+})
+
+test('inAll works', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			foo: {jsonPath: 'foo', inAll: true, isArray: true},
+		},
+	})
+	await m.set({foo: [1, 2, 3]})
+	await m.set({foo: [1, 2, 3, 4]})
+	await m.set({foo: [1, 2, 3, 4, 5]})
+	expect(await m.searchAll({foo: []})).toHaveLength(3)
+	expect(await m.searchAll({foo: [1, 2]})).toHaveLength(3)
+	expect(await m.searchAll({foo: [2, 3, 4]})).toHaveLength(2)
+	expect(await m.searchAll({foo: [2, 3, 4]})).toHaveLength(2)
+	expect(await m.searchAll({foo: [2, 3, 4, 5]})).toEqual([
+		{foo: [1, 2, 3, 4, 5], id: 3},
+	])
 })
 
 test('col.where', () => {
