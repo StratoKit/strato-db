@@ -319,8 +319,6 @@ class ESDB extends EventEmitter {
 				return vObj ? vObj.v : 0
 			})
 		}
-		// eslint-disable-next-line promise/catch-or-return
-		if (dbg.enabled) this.getVersionP.then(v => dbg('at version ', v))
 		return this.getVersionP
 	}
 

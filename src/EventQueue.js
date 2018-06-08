@@ -111,7 +111,6 @@ class EventQueue extends JsonModel {
 
 	async getNext(v, once) {
 		const currentV = await this._getLatestVersion()
-		// TODO if v < currentV skip
 		let event
 		event =
 			v == null || v < currentV
