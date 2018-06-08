@@ -66,6 +66,12 @@ test('search itemsOnly', async () => {
 	expect(await m.search(null, {itemsOnly: true})).toEqual([obj])
 })
 
+test('searchAll', async () => {
+	const m = getModel()
+	const obj = await m.set({fluffy: true})
+	expect(await m.searchAll()).toEqual([obj])
+})
+
 test('exists', async () => {
 	const m = getModel({columns: {hi: {jsonPath: 'hi'}}})
 	expect(await m.exists()).toBe(false)

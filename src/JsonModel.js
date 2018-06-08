@@ -661,13 +661,6 @@ class JsonModel {
 		return this.db.get(q, vals).then(this.toObj)
 	}
 
-	// Alias - deprecated because of deprecated .find()
-	findOne(attrs, options) {
-		if (DEV)
-			deprecated('findOneMethod', 'use .searchOne() instead of .findOne()')
-		return this.searchOne(attrs, options)
-	}
-
 	// returns {items[], cursor}. If no cursor, you got all the results
 	// cursor: pass previous cursor to get the next page
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
@@ -700,10 +693,8 @@ class JsonModel {
 		return out
 	}
 
-	// Alias - deprecated because it's easy to confuse with array.find()
-	find(attrs, options) {
-		if (DEV) deprecated('findMethod', 'use .search() instead of .find()')
-		return this.search(attrs, options)
+	searchAll(attrs, options) {
+		return this.search(attrs, {...options, itemsOnly: true})
 	}
 
 	exists(attrs, options) {
