@@ -110,11 +110,11 @@ class EventQueue extends JsonModel {
 	nextAddedResolve = null
 
 	async getNext(v, once) {
-		const beforeV = await this._getLatestVersion()
+		const currentV = await this._getLatestVersion()
 		// TODO if v < currentV skip
 		let event
 		event =
-			!v || v <= beforeV
+			v == null || v < currentV
 				? await this.searchOne(null, {
 						where: {'v > ?': [Number(v) || 0]},
 						sort: {v: 1},
@@ -122,11 +122,6 @@ class EventQueue extends JsonModel {
 				: null
 		if (once) return event
 		while (!event) {
-			// Maybe we got an insert between the request and the answer
-			// eslint-disable-next-line no-await-in-loop
-			if ((await this._getLatestVersion()) !== beforeV) {
-				return this.getNext(v)
-			}
 			// Wait for next one from this process
 			if (!this.nextAddedP) {
 				// eslint-disable-next-line promise/avoid-new
