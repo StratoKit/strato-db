@@ -115,6 +115,8 @@ test('makeSelect in', () => {
 	expect(q).toEqual(
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("foo" IN (?,?))`
 	)
+	const [q2] = m.makeSelect({attrs: {foo: []}})
+	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
 })
 
 test('makeSelect in w/ jsonPath', () => {
@@ -133,6 +135,8 @@ test('makeSelect in + isArray = isAnyOfArray', () => {
 	expect(q).toEqual(
 		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
 	)
+	const [q2] = m.makeSelect({attrs: {foo: []}})
+	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
 })
 
 test('col.where', () => {

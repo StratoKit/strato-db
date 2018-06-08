@@ -202,11 +202,11 @@ class JsonModel {
 				}
 				if (col.isArray) {
 					if (col.in) {
-						col.where = arg =>
+						col.where = args =>
 							`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 								col.jsonPath
-							}") j WHERE j.value IN (${arg.map(() => '?').join(',')}))`
-						col.whereVal = matchThese => matchThese
+							}") j WHERE j.value IN (${args.map(() => '?').join(',')}))`
+						col.whereVal = args => args && args.length && args
 					} else {
 						col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
 							col.jsonPath
@@ -251,8 +251,8 @@ class JsonModel {
 				if (col.textSearch)
 					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
 				if (!col.isArray) {
-					col.where = arg => `${col.sql} IN (${arg.map(() => '?').join(',')})`
-					col.whereVal = matchThese => matchThese
+					col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
+					col.whereVal = args => args && args.length && args
 				}
 			}
 			if (col.textSearch) {
