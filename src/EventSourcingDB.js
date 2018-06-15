@@ -86,18 +86,13 @@ class ESDB extends EventEmitter {
 		if (!models) throw new TypeError('models are required')
 		if (models.metadata)
 			throw new TypeError('metadata is a reserved model name')
+		if (queueFile && queue)
+			throw new TypeError('Either pass  queue or queueFile')
+
 		models = {...models, metadata}
 
-		if (
-			queue &&
-			queue.db.file === dbOptions.file &&
-			queue.db.file !== ':memory:'
-		) {
-			// We have to have the same connection or we can get deadlocks
-			this.rwDb = queue.db
-		} else {
-			this.rwDb = new DB(dbOptions)
-		}
+		this.rwDb = new DB(dbOptions)
+
 		// The RO DB needs to be the same for :memory: or it won't see anything
 		this.db =
 			this.rwDb.file === ':memory:'
@@ -112,21 +107,27 @@ class ESDB extends EventEmitter {
 							await this.rwDb.openDB()
 						},
 				  })
+
 		if (queue) {
 			this.queue = queue
 		} else {
-			const qDb =
-				this.rwDb.file === queueFile && queueFile !== ':memory:'
-					? this.rwDb
-					: new DB({
-							...dbOptions,
-							name: `${dbOptions.name || ''}Queue`,
-							file: queueFile || dbOptions.file,
-					  })
+			const qDb = new DB({
+				...dbOptions,
+				name: `${dbOptions.name || ''}Queue`,
+				file: queueFile || this.rwDb.file,
+			})
 			this.queue = new EventQueue({db: qDb})
 		}
-		// Move history data to queue DB - makes no sense for :memory:
-		if (this.rwDb.file !== this.queue.file) {
+		const qDbFile = this.queue.db.file
+		// If queue is in same file as rwDb, share the connection
+		// for writing results during transaction - no deadlocks
+		this._resultQueue =
+			this.rwDb.file === qDbFile && qDbFile !== ':memory:'
+				? new EventQueue({db: this.rwDb})
+				: this.queue
+
+		// Move old history data to queue DB
+		if (this.rwDb.file !== qDbFile) {
 			registerHistoryMigration(this.rwDb, this.queue)
 		}
 
@@ -531,7 +532,7 @@ class ESDB extends EventEmitter {
 	}
 
 	async applyEvent(event) {
-		const {rwStore, rwDb, queue, readWriters} = this
+		const {rwStore, rwDb, readWriters} = this
 		for (const model of readWriters) model.setWritable(true)
 		try {
 			// First write our result to the queue (strip metadata, it's only v)
@@ -563,7 +564,7 @@ class ESDB extends EventEmitter {
 			// Even if the apply failed we'll consider this event handled
 			await rwStore.metadata.applyChanges(metadata)
 
-			await queue.set(event)
+			await this._resultQueue.set(event)
 
 			// Apply derivers
 			if (!event.error && this.deriverModels.length) {
@@ -586,7 +587,7 @@ class ESDB extends EventEmitter {
 					event.failedResult = event.result
 					delete event.result
 					event.error = {_derive: err.message || err}
-					await queue.set(event)
+					await this.queue.set(event)
 				}
 			}
 		} catch (err) {
