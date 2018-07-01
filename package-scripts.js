@@ -1,4 +1,4 @@
-const {concurrent, series, rimraf} = require('nps-utils')
+const {concurrent, rimraf} = require('nps-utils')
 
 const runBabel =
 	'NODE_ENV=production babel -s true --ignore __tests__ -D -d dist/'
@@ -13,10 +13,9 @@ const scripts = {
 	test: {
 		default: concurrent.nps('test.lint', 'test.full'),
 		lint: "eslint 'src/**/*.js'",
-		lintFix: series(
-			`eslint --fix 'src/**/*.js'`,
-			`prettier --write 'src/**/*.{js,jsx,json,md}'`
-		),
+		lintFix: `
+			eslint --fix 'src/**/*.js';
+			prettier --write 'src/**/*.{js,jsx,json,md}'`,
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
 		inspect: `NODE_ENV=test node --inspect ${require.resolve(

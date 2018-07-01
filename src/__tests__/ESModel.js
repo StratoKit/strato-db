@@ -196,9 +196,9 @@ test('update w/ undefined values', () =>
 test('update non-existent object', () =>
 	withESDB(
 		async eSDB => {
-			await expect(
-				eSDB.store.test.update(sampleObject)
-			).rejects.toHaveProperty('error.test')
+			await expect(eSDB.store.test.update(sampleObject)).rejects.toHaveProperty(
+				'error.test'
+			)
 		},
 		{test: {Model: ESModel}}
 	))

@@ -7,7 +7,7 @@ test('randomString', () => {
 	let duplicateCount = 0
 	while (i < 100000) {
 		const val = randomString(8)
-		expect(val.length).toBe(8)
+		expect(val).toHaveLength(8)
 		if (values[val]) {
 			duplicateCount++
 		}
