@@ -18,9 +18,10 @@ const scripts = {
 			prettier --write 'src/**/*.{js,jsx,json,md}'`,
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
-		inspect: `NODE_ENV=test node --inspect ${require.resolve(
-			'jest-cli'
-		)} --runInBand --watch`,
+		inspect: `NODE_ENV=test node --inspect ${
+			// ok, a little bit of a hack
+			require.resolve('jest-cli').replace('build', 'bin')
+		} --runInBand --watch`,
 	},
 }
 
