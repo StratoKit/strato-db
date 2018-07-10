@@ -14,7 +14,10 @@ ORIGIN=`git config branch.$CURRENT.remote`
 B=${CURRENT}-build
 echo "=== Building and pushing to $ORIGIN/$B ==="
 
-if ! npm run build; then
+if ! nps test.full; then
+	die Tests failed
+fi
+if ! nps build; then
 	die Could not build
 fi
 if ! git add -f $BUILDDIR; then
