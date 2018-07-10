@@ -718,32 +718,40 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.c)
 	}
 
-	max(colName, attrs, options) {
-		const sql = this._colSql(colName)
-		const [q, vals] = this.makeSelect({
+	numAggOp(op, colName, attrs, options) {
+		const col = this.columns[colName]
+		const sql = (col && col.sql) || colName
+		const o = {
 			attrs,
 			...options,
 			sort: undefined,
 			limit: undefined,
 			offset: undefined,
 			noCursor: true,
-			cols: [`MAX(${sql}) AS max`],
-		})
-		return this.db.get(q, vals).then(row => row.max)
+			cols: [`${op}(CAST(${sql} AS NUMERIC)) AS val`],
+		}
+		if (col && col.ignoreNull) {
+			// Make sure we can use the index
+			o.where = {...o.where, [`${sql} IS NOT NULL`]: []}
+		}
+		const [q, vals] = this.makeSelect(o)
+		return this.db.get(q, vals).then(row => row.val)
+	}
+
+	max(colName, attrs, options) {
+		return this.numAggOp('MAX', colName, attrs, options)
 	}
 
 	min(colName, attrs, options) {
-		const sql = this._colSql(colName)
-		const [q, vals] = this.makeSelect({
-			attrs,
-			...options,
-			sort: undefined,
-			limit: undefined,
-			offset: undefined,
-			noCursor: true,
-			cols: [`MIN(${sql}) AS min`],
-		})
-		return this.db.get(q, vals).then(row => row.min)
+		return this.numAggOp('MIN', colName, attrs, options)
+	}
+
+	sum(colName, attrs, options) {
+		return this.numAggOp('SUM', colName, attrs, options)
+	}
+
+	avg(colName, attrs, options) {
+		return this.numAggOp('AVG', colName, attrs, options)
 	}
 
 	all() {

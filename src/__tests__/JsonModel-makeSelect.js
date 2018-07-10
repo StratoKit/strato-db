@@ -221,3 +221,50 @@ test('col.whereVal fn falsy', () => {
 		[5],
 	])
 })
+
+test('min', async () => {
+	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	expect(await m.min('v')).toBe(null)
+	await m.set({v: 5})
+	expect(await m.min('v')).toBe(5)
+	await m.set({v: '3'})
+	expect(await m.min('v')).toBe(3)
+	await m.set({v: 'blah'})
+	expect(await m.min('v')).toBe(0)
+})
+
+test('max', async () => {
+	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	expect(await m.max('v')).toBe(null)
+	await m.set({v: 'blah'})
+	expect(await m.max('v')).toBe(0)
+	await m.set({v: 5})
+	expect(await m.max('v')).toBe(5)
+	await m.set({v: '7'})
+	expect(await m.max('v')).toBe(7)
+})
+
+test('avg', async () => {
+	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	expect(await m.avg('v')).toBe(null)
+	await m.set({v: 'blah'})
+	expect(await m.avg('v')).toBe(0)
+	await m.set({v: 5})
+	await m.set({v: '10'})
+	expect(await m.avg('v')).toBe(5)
+	expect(
+		await m.avg('v', null, {
+			where: {'CAST(json_extract(json,"$.v") as NUMERIC)>0': []},
+		})
+	).toBe(7.5)
+})
+
+test('sum', async () => {
+	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	expect(await m.sum('v')).toBe(null)
+	await m.set({v: 'blah'})
+	expect(await m.sum('v')).toBe(0)
+	await m.set({v: 5})
+	await m.set({v: '8'})
+	expect(await m.sum('v')).toBe(13)
+})
