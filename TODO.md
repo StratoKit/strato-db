@@ -103,6 +103,12 @@
 
 ## Queue
 
+#### Important
+
+* [ ] allow marking an event as being processed, by setting worker id `where workerId is null` or something similar
+* [ ] workers should register in a table and write timestamps for a watchdog
+* [ ] while an event is being worked, next event can't be worked on.
+
 ### Nice to have
 
 * [ ] cancellable getNext Promise

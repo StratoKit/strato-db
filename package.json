@@ -1,85 +1,82 @@
 {
-	"name": "strato-db",
-	"version": "1.0.0",
-	"description": "NoSQL-hybrid with Event Sourcing based on sqlite",
-	"license": "MIT",
-	"repository": "Yaska/strato-db",
-	"author": {
-		"name": "Wout Mertens",
-		"email": "Wout.Mertens@gmail.com",
-		"url": "https://github.com/StratoKit/strato-db"
-	},
-	"engines": {
-		"node": ">=6"
-	},
-	"scripts": {
-		"build": "NODE_ENV=production babel -s true --ignore __tests__ -D -d dist/ src/",
-		"test": "eslint src/**/*.js && NODE_ENV=test jest --coverage --color",
-		"test-watch": "jest --color --watch",
-		"test-inspect": "NODE_ENV=test node --inspect ./node_modules/.bin/jest --runInBand --watch"
-	},
-	"main": "dist/index.js",
-	"files": [
-		"dist"
-	],
-	"keywords": [
-		"sqlite",
-		"nosql",
-		"event sourcing",
-		"esdb",
-		"jsonmodel",
-		"json",
-		"database",
-		"db"
-	],
-	"dependencies": {
-		"bluebird": "^3.5.1",
-		"dataloader": "^1.4.0",
-		"debug": "^3.1.0",
-		"jsurl": "git+https://github.com/wmertens/jsurl.git#jsurl2",
-		"lodash": "^4.17.5",
-		"sqlite": "^2.9.1",
-		"uuid": "^3.2.1"
-	},
-	"devDependencies": {
-		"babel-cli": "^6.26.0",
-		"babel-eslint": "^8.2.2",
-		"babel-plugin-lodash": "^3.3.2",
-		"babel-plugin-syntax-dynamic-import": "^6.18.0",
-		"babel-plugin-transform-class-properties": "^6.24.1",
-		"babel-plugin-transform-object-rest-spread": "^6.26.0",
-		"babel-preset-env": "^1.6.1",
-		"babel-register": "^6.26.0",
-		"eslint": "^4.18.2",
-		"eslint-config-xo": "^0.20.1",
-		"eslint-plugin-babel": "^4.1.1",
-		"eslint-plugin-import": "^2.9.0",
-		"eslint-plugin-jest": "^21.15.0",
-		"eslint-plugin-promise": "^3.7.0",
-		"eslint-plugin-unicorn": "^4.0.2",
-		"expect": "^23.0.0-alpha.0",
-		"fs-extra": "^5.0.0",
-		"jest-cli": "^23.0.0-charlie.2",
-		"makfy": "^1.2.0",
-		"prettier": "^1.11.1",
-		"tmp-promise": "^1.0.4"
-	},
-	"prettier": {
-		"useTabs": true,
-		"semi": false,
-		"singleQuote": true,
-		"trailingComma": "es5",
-		"bracketSpacing": false
-	},
-	"jest": {
-		"globals": {
-			"__PRODUCTION__": false,
-			"NODE_ENV": "test"
-		},
-		"testPathIgnorePatterns": [
-			"<rootDir>/dist/",
-			"<rootDir>/node_modules/",
-			"_helpers.js"
-		]
-	}
+  "name": "strato-db",
+  "version": "1.0.0",
+  "description": "NoSQL-hybrid with Event Sourcing based on sqlite",
+  "license": "MIT",
+  "repository": "Yaska/strato-db",
+  "author": {
+    "name": "Wout Mertens",
+    "email": "Wout.Mertens@gmail.com",
+    "url": "https://github.com/StratoKit/strato-db"
+  },
+  "engines": {
+    "node": ">=6"
+  },
+  "scripts": {
+    "start": "nps",
+    "test": "nps test"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "sqlite",
+    "nosql",
+    "event sourcing",
+    "esdb",
+    "jsonmodel",
+    "json",
+    "database",
+    "db"
+  ],
+  "dependencies": {
+    "bluebird": "^3.5.1",
+    "dataloader": "^1.4.0",
+    "debug": "^3.1.0",
+    "jsurl": "git+https://github.com/wmertens/jsurl.git#jsurl2",
+    "lodash": "^4.17.5",
+    "sqlite": "^2.9.1",
+    "uuid": "^3.2.1"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-eslint": "^8.2.2",
+    "babel-plugin-lodash": "^3.3.2",
+    "babel-plugin-syntax-dynamic-import": "^6.18.0",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "babel-register": "^6.26.0",
+    "eslint": "^4.18.2",
+    "eslint-config-xo": "^0.20.1",
+    "eslint-plugin-babel": "^4.1.1",
+    "eslint-plugin-import": "^2.9.0",
+    "eslint-plugin-jest": "^21.15.0",
+    "eslint-plugin-promise": "^3.7.0",
+    "eslint-plugin-unicorn": "^4.0.2",
+    "expect": "^23.0.0-alpha.0",
+    "fs-extra": "^5.0.0",
+    "jest-cli": "^23.0.0-charlie.2",
+    "nps-utils": "^1.6.0",
+    "prettier": "^1.11.1",
+    "tmp-promise": "^1.0.4"
+  },
+  "prettier": {
+    "useTabs": true,
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "es5",
+    "bracketSpacing": false
+  },
+  "jest": {
+    "globals": {
+      "__PRODUCTION__": false
+    },
+    "testPathIgnorePatterns": [
+      "<rootDir>/dist/",
+      "<rootDir>/node_modules/",
+      "_helpers.js"
+    ]
+  }
 }
