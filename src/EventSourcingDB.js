@@ -391,6 +391,7 @@ class ESDB extends EventEmitter {
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
 		let lastV = 0
+		dbg(`waiting for events until minVersion: ${this._minVersion}`)
 		// eslint-disable-next-line no-unmodified-loop-condition
 		while (!this._minVersion || this._minVersion > lastV) {
 			const event = await this.queue.getNext(
@@ -403,7 +404,11 @@ class ESDB extends EventEmitter {
 			delete event.result
 			lastV = event.v
 			// It could be that it was processed elsewhere due to racing
-			if (event.v <= (await this.getVersion())) continue
+			const nowV = await this.getVersion()
+			if (event.v <= nowV) {
+				dbg(`skipping ${event.v} because we're at ${nowV}`)
+				continue
+			}
 			if (!this._reduxInited) {
 				await this.redux.didInitialize
 				this._reduxInited = true
