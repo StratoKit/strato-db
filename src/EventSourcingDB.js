@@ -19,9 +19,7 @@ const dbg = debug('stratokit/ESDB')
 
 const metadata = {
 	reducer: async (model, {v = 0}) => {
-		if (!model) {
-			return {}
-		}
+		if (!model.get) return false
 		const currVDoc = await model.get('version')
 		const currV = currVDoc ? currVDoc.v : -1
 		if (v > currV) {

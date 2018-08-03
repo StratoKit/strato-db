@@ -88,7 +88,8 @@ function assertReducerShape(reducers) {
 				.substring(7)
 				.split('')
 				.join('.')
-		if (typeof reducer(undefined, {type}) === 'undefined') {
+		// Same, we always pass a defined model as first arg
+		if (typeof reducer({}, {type}) === 'undefined') {
 			throw new TypeError(
 				`Reducer "${key}" returned undefined when probed with a random type. ` +
 					`Don't try to handle ${

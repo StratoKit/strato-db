@@ -36,10 +36,8 @@ export const testModels = {
 			},
 		},
 		reducer: async (model, {type}) => {
-			if (!model) {
-				return {}
-			}
 			if (type === 'errorme') throw new Error('error for you')
+			if (!model.get) return false
 			const c = (await model.get('count')) || {
 				id: 'count',
 				total: 0,
