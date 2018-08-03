@@ -233,43 +233,43 @@ class ESDB extends EventEmitter {
 			} catch (error) {
 				newEvent = {error}
 			}
-			if (newEvent) {
-				if (newEvent.error) {
-					return {
-						...event,
-						v,
-						type,
-						error: {[name]: newEvent.error},
-					}
+			// mutation allowed
+			if (!newEvent) newEvent = event
+			if (newEvent.error) {
+				return {
+					...event,
+					v,
+					type,
+					error: {[name]: newEvent.error},
 				}
-				if (newEvent.v !== v) {
-					// Just in case event was mutated
-					// Be sure to put the version back or we put the wrong v in history
-					return {
-						...event,
-						v,
-						type,
-						error: {
-							_preprocess: {
-								message: `${name}: preprocessor must retain event version`,
-							},
-						},
-					}
-				}
-				if (!newEvent.type) {
-					return {
-						...event,
-						v,
-						type,
-						error: {
-							_preprocess: {
-								message: `${name}: preprocessor must return event type`,
-							},
-						},
-					}
-				}
-				event = newEvent
 			}
+			if (newEvent.v !== v) {
+				// Just in case event was mutated
+				// Be sure to put the version back or we put the wrong v in history
+				return {
+					...event,
+					v,
+					type,
+					error: {
+						_preprocess: {
+							message: `${name}: preprocessor must retain event version`,
+						},
+					},
+				}
+			}
+			if (!newEvent.type) {
+				return {
+					...event,
+					v,
+					type,
+					error: {
+						_preprocess: {
+							message: `${name}: preprocessor must return event type`,
+						},
+					},
+				}
+			}
+			event = newEvent
 		}
 		return event
 	}
