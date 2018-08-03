@@ -426,3 +426,33 @@ test('RO db sees transaction as soon as completed', async () =>
 		},
 		{unsafeCleanup: true}
 	))
+
+test('preprocessor/reducer for ESModel', async () =>
+	withESDB(
+		async eSDB => {
+			await eSDB.dispatch('set_thing', {foo: 2})
+			expect(await eSDB.store.meep.searchOne()).toEqual({
+				id: 1,
+				foo: 2,
+				ok: true,
+			})
+			await eSDB.rwStore.meep.set({id: 2})
+			const event = await eSDB.queue.get(2)
+			expect(event.data).toEqual([1, 2, {id: 2}])
+			expect(event.result).toEqual({meep: {ins: [{id: 2}]}})
+		},
+		{
+			meep: {
+				columns: {id: {type: 'INTEGER'}},
+				preprocessor: async ({event}) => {
+					if (event.data && event.data.foo) event.data.ok = true
+				},
+				reducer: (model, event) => {
+					if (event.type === 'set_thing') {
+						return {set: [event.data]}
+					}
+					return false
+				},
+			},
+		}
+	))
