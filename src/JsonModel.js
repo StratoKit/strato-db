@@ -49,6 +49,7 @@ const knownColProps = {
 	isArray: true, // json path is an array value
 	jsonPath: true, // path to column value in `json` column
 	parse: true, // js function, returns JS value given column data
+	required: true, // value has to be non-null
 	slugValue: true, // returns seed for uniqueSlugId
 	sql: true, // sql expression for column
 	textSearch: true, // search for substring of column
@@ -278,6 +279,20 @@ class JsonModel {
 			if (col.get) {
 				// Mark root key with same name for removal when stringifying
 				this.jsonMask[name] = undefined
+			}
+
+			if (col.required) {
+				col.ignoreNull = false
+				const prev = col.value
+				if (!prev)
+					throw new TypeError(
+						`${col.name}: required can only be used on value() col`
+					)
+				col.value = async function(o) {
+					const result = await prev.call(this, o)
+					if (result == null) throw new Error(`${col.name}: value is required`)
+					return result
+				}
 			}
 
 			// Stringify/parse JSON type columns

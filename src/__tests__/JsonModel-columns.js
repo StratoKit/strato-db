@@ -119,3 +119,26 @@ test('value w type JSON', async () => {
 		{id: 3, other: true},
 	])
 })
+
+test('required', async () => {
+	const m = getModel({
+		columns: {
+			foo: {value: o => o.foo, get: true, required: true},
+			bar: {
+				async value() {
+					return this.count()
+				},
+				get: true,
+				required: true,
+			},
+		},
+	})
+	expect(m.columns.foo).toHaveProperty('ignoreNull', false)
+	await expect(m.set({})).rejects.toThrow('foo')
+	await expect(m.set({foo: null})).rejects.toThrow('foo')
+	await expect(m.set({foo: 0})).resolves.toHaveProperty('foo', 0)
+	await expect(m.set({foo: ''})).resolves.toHaveProperty('foo', '')
+	const obj = await m.set({foo: 'hi'})
+	expect(obj).toHaveProperty('foo', 'hi')
+	expect(obj).toHaveProperty('bar', 2)
+})
