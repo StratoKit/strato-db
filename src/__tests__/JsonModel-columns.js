@@ -1,6 +1,14 @@
 import expect from 'expect'
 import {getModel, sharedSetup} from './_helpers'
 
+const indexesSql = `
+	SELECT m.tbl_name || '.' || ifNull(ii.name, m.name) AS col, m.sql
+	FROM sqlite_master AS m,
+				pragma_index_info(m.name) AS ii
+	WHERE m.type='index'
+	ORDER BY 1;
+`
+
 const withCols = sharedSetup(async () => {
 	const m = getModel({
 		columns: {
@@ -56,11 +64,9 @@ test(
 	'columns indexes',
 	withCols(async m => {
 		// Indexes are created
-		const indexes = await m.db.all(
-			`SELECT * FROM SQLITE_MASTER WHERE type = 'index'`
-		)
-		expect(indexes.some(i => i.name.includes('foo3'))).toBe(true)
-		expect(indexes.every(i => !i.name.includes('foo2'))).toBe(true)
+		const indexes = await m.db.all(indexesSql)
+		expect(indexes.some(i => i.col.includes('foo3'))).toBe(true)
+		expect(indexes.every(i => !i.col.includes('foo2'))).toBe(true)
 	})
 )
 
