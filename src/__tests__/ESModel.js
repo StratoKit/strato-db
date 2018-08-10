@@ -320,3 +320,31 @@ test('events', () =>
 		},
 		{m: {columns: {id: {type: 'INTEGER'}}}}
 	))
+
+test('metadata in event', () =>
+	withESDB(
+		async (eSDB, queue) => {
+			const {m} = eSDB.store
+			await m.set({meep: 'moop'}, null, {meta: 1})
+			await m.update({id: 1, beep: 'boop'}, null, {meta: 2})
+			await m.set({meep: 'moop'}, true, {meta: 3})
+			await m.update({id: 3, beep: 'boop'}, true, 'hi')
+			await m.set({})
+			await m.remove(3, {meta: 4})
+			await m.remove(2)
+			const events = await queue.all()
+			expect(events[0].data).toHaveLength(4)
+			expect(events[4].data).toHaveLength(3)
+			expect(events[6].data).toHaveLength(2)
+			expect(events.map(e => e.data[3])).toEqual([
+				{meta: 1},
+				{meta: 2},
+				{meta: 3},
+				'hi',
+				undefined,
+				{meta: 4},
+				undefined,
+			])
+		},
+		{m: {columns: {id: {type: 'INTEGER'}}}}
+	))

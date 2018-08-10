@@ -54,29 +54,27 @@ class ESModel extends JsonModel {
 		this.writable = state
 	}
 
-	async set(obj, insertOnly) {
+	async set(obj, insertOnly, meta) {
 		if (this.writable) return super.set(obj, insertOnly)
-		const {data} = await this.dispatch(this.TYPE, [
-			insertOnly ? ESModel.INSERT : ESModel.SET,
-			null,
-			obj,
-		])
+
+		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
+		if (meta) d.push(meta)
+
+		const {data} = await this.dispatch(this.TYPE, d)
 		const id = data[1]
 		// Note, his could return a later version of the object
 		return this.get(id)
 	}
 
-	async update(o, upsert) {
+	async update(o, upsert, meta) {
 		if (this.writable) return super.update(o, upsert)
 		let id = o[this.idCol]
-		if (id == null && !upsert) {
-			throw new TypeError('No ID specified')
-		}
-		const {data} = await this.dispatch(this.TYPE, [
-			upsert ? ESModel.SAVE : ESModel.UPDATE,
-			null,
-			undefToNull(o),
-		])
+		if (id == null && !upsert) throw new TypeError('No ID specified')
+
+		const d = [upsert ? ESModel.SAVE : ESModel.UPDATE, null, undefToNull(o)]
+		if (meta) d.push(meta)
+
+		const {data} = await this.dispatch(this.TYPE, d)
 		id = data[1]
 		// Note, his could return a later version of the object
 		return this.get(id)
@@ -87,11 +85,15 @@ class ESModel extends JsonModel {
 		throw new Error('Non-transactional changes are not possible with ESModel')
 	}
 
-	async remove(idOrObj) {
+	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		if (id == null) throw new TypeError('No ID specified')
-		await this.dispatch(this.TYPE, [ESModel.REMOVE, id])
+
+		const d = [ESModel.REMOVE, id]
+		if (meta) d[3] = meta
+
+		await this.dispatch(this.TYPE, d)
 		return true
 	}
 
