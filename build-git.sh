@@ -11,6 +11,12 @@ fi
 
 CURRENT=`git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/^\* //'`
 ORIGIN=`git config branch.$CURRENT.remote`
+if [ -z "$ORIGIN" ]; then
+	die "Cannot determine origin, are you on a branch?"
+fi
+if [ $1 ]; then
+	CURRENT=$1
+fi
 B=${CURRENT}-build
 echo "=== Building and pushing to $ORIGIN/$B ==="
 
@@ -32,7 +38,7 @@ function clean() {
 	git reset HEAD^
 }
 
-if ! git push -f "$ORIGIN" "$CURRENT:$B"; then
+if ! git push -f "$ORIGIN" "HEAD:$B"; then
 	clean
 	die Could not push to $ORIGIN/$B
 fi
