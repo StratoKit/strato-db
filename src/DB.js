@@ -1,9 +1,8 @@
 /* eslint-disable no-console */
 import path from 'path'
-import sqlite from 'sqlite'
-import BP from 'bluebird'
 import {sortBy} from 'lodash'
 import debug from 'debug'
+import openDB from './sqlite-promised'
 
 const dbg = debug('stratokit/DB')
 const dbgQ = debug('stratokit/DB:query')
@@ -91,16 +90,19 @@ class DB {
 	sql = sql
 
 	async _openDB() {
-		const {file, readOnly, options: {verbose, waitForP, onWillOpen}} = this
+		const {
+			file,
+			readOnly,
+			options: {verbose, waitForP, onWillOpen},
+		} = this
 		if (onWillOpen) await onWillOpen()
 		if (waitForP) await waitForP
 
 		dbg(`${this.name} opening ${this.file}`)
-		const realDb = await sqlite.open(file, {
+		const realDb = await openDB(file, {
 			verbose,
 			// SQLITE3 OPEN_READONLY: 1
 			mode: readOnly ? 1 : undefined,
-			Promise: BP,
 		})
 		// Configure lock management
 		realDb.driver.configure('busyTimeout', 15000)
@@ -309,9 +311,9 @@ class DB {
 			if (err.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
 				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
-				return BP.delay(Math.random() * 1000 + 200).then(() =>
-					this.__withTransaction(fn, count - 1)
-				)
+				return new Promise(resolve =>
+					setTimeout(resolve, Math.random() * 1000 + 200)
+				).then(() => this.__withTransaction(fn, count - 1))
 			}
 			throw err
 		}
@@ -328,7 +330,7 @@ class DB {
 		return result
 	}
 
-	transactionP = BP.resolve()
+	transactionP = Promise.resolve()
 
 	_withTransaction(fn) {
 		// Prevent overlapping transactions in this process
