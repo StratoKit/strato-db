@@ -108,6 +108,9 @@ const normalizeColumn = (col, name) => {
 		col.ignoreNull = true
 	}
 
+	if (col.autoIncrement && col.type !== 'INTEGER')
+		throw new TypeError(`${name}: autoIncrement is only for type INTEGER`)
+
 	if (col.slugValue) {
 		if (col.value)
 			throw new TypeError(`${name}: slugValue and value can't both be defined`)
@@ -264,6 +267,74 @@ const cloneModelWithDb = (m, db) => {
 	return model
 }
 
+const makeMigrations = ({
+	db,
+	name: tableName,
+	idCol,
+	columns,
+	migrations,
+	migrationOptions,
+}) => {
+	const tableQuoted = sql.quoteId(tableName)
+	const allMigrations = {
+		...migrations,
+		// We make id a real column to allow foreign keys
+		0: ({db}) => {
+			const {quoted, type, autoIncrement} = columns[idCol]
+			const keySql = `${type} PRIMARY KEY ${
+				autoIncrement ? 'AUTOINCREMENT' : ''
+			}`
+			return db.exec(
+				`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
+			)
+		},
+	}
+	for (const [name, col] of Object.entries(columns)) {
+		// We already added these, or it's an alias
+		if (name === idCol || name === 'json' || name !== col.name) continue
+		allMigrations[`0_${name}`] = ({db}) =>
+			db.exec(
+				`${
+					col.value
+						? `ALTER TABLE ${tableQuoted} ADD COLUMN ${col.quoted} ${col.type ||
+								'BLOB'};`
+						: ''
+				}${
+					col.index
+						? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
+								`${tableName}_${name}`
+						  )} ON ${tableQuoted}(${col.sql}) ${
+								col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''
+						  };`
+						: ''
+				}`
+			)
+	}
+
+	// Wrap the migration functions to provide their arguments
+	const wrappedMigrations = {}
+	const wrapMigration = migration => {
+		const wrap = fn =>
+			fn &&
+			(writeableDb => {
+				if (!writeableDb.models[tableName]) {
+					// Create a patched version of all models that uses the migration db
+					Object.values(db.models).forEach(m => {
+						writeableDb.models[m.name] = cloneModelWithDb(m, writeableDb)
+					})
+				}
+				const model = writeableDb.models[tableName]
+				return fn({...migrationOptions, db: writeableDb, model})
+			})
+		return wrap(migration.up || migration)
+	}
+	Object.keys(allMigrations).forEach(k => {
+		const m = allMigrations[k]
+		if (m) wrappedMigrations[k] = wrapMigration(m)
+	})
+	return wrappedMigrations
+}
+
 // ItemClass: Object-like class that can be assigned to like Object
 // columns: object with column names each having an object with
 // * value: function getting object and returning the value for the column; this creates a real column
@@ -352,71 +423,17 @@ class JsonModel {
 			}
 		}
 
-		const allMigrations = {
-			...migrations,
-			// We make id a real column to allow foreign keys
-			0: ({db}) => {
-				const {quoted, type, autoIncrement} = this.columns[idCol]
-				const keySql = `${type} PRIMARY KEY ${
-					type === 'INTEGER' && autoIncrement ? 'AUTOINCREMENT' : ''
-				}`
-				return db.exec(`
-						CREATE TABLE ${this.quoted}(${quoted} ${keySql}, json JSON);
-					`)
-			},
-		}
-		for (const col of this.columnArr) {
-			// We already added these
-			if (col.name === idCol || col.name === 'json') {
-				continue
-			}
-
-			allMigrations[`0_${col.name}`] = ({db}) =>
-				db.exec(`
-					${
-						col.value
-							? `ALTER TABLE ${this.quoted} ADD COLUMN ${
-									col.quoted
-							  } ${col.type || 'BLOB'};`
-							: ''
-					}
-					${
-						col.index
-							? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
-									`${name}_${col.name}`
-							  )}
-						ON ${this.quoted}(${col.sql})
-						${col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''};
-					`
-							: ''
-					}
-				`)
-		}
-
-		// Wrap the migration functions to provide their arguments
-		const wrappedMigrations = {}
-		const wrapMigration = m => {
-			const wrap = fn =>
-				fn &&
-				(db => {
-					if (!db.models[name]) {
-						// Create a patched version of all models that uses the migration db
-						Object.values(this.db.models).forEach(m => {
-							db.models[m.name] = cloneModelWithDb(m, db)
-						})
-					}
-					const model = db.models[name]
-					return fn({...migrationOptions, db, model})
-				})
-			const wrapped = typeof m === 'function' ? wrap(m) : {up: wrap(m.up)}
-			return wrapped
-		}
-		Object.keys(allMigrations).forEach(k => {
-			const m = allMigrations[k]
-			if (m) wrappedMigrations[k] = wrapMigration(m)
-		})
-
-		this.db.registerMigrations(name, wrappedMigrations)
+		this.db.registerMigrations(
+			name,
+			makeMigrations({
+				db: this.db,
+				name: this.name,
+				columns: this.columns,
+				idCol,
+				migrations,
+				migrationOptions,
+			})
+		)
 
 		this.parseRow = this._makeParseRow()
 		this._set = this._makeSetFn()
