@@ -307,6 +307,7 @@ class JsonModel {
 					`${col.name}: parse() requires a value function and get:true`
 				)
 
+			if (!col.where) col.where = `${col.sql}=?`
 			this.columnArr.push(col)
 		})
 
@@ -590,31 +591,27 @@ class JsonModel {
 		if (attrs) {
 			for (const a of Object.keys(attrs)) {
 				let val = attrs[a]
-				if (val != null) {
-					const col = this.columns[a]
-					if (!col) {
-						throw new Error(`Unknown column ${a}`)
-					}
-					if (col.where) {
-						const {where, whereVal} = col
-						let valid = true
-						if (whereVal) {
-							val = whereVal(val)
-							if (Array.isArray(val)) {
-								vals.push(...val)
-							} else {
-								valid = false
-							}
-						} else {
-							vals.push(val)
-						}
-						if (valid) {
-							conds.push(typeof where === 'function' ? where(val) : where)
-						}
+				if (val == null) continue
+				const col = this.columns[a]
+				if (!col) {
+					throw new Error(`Unknown column ${a}`)
+				}
+				const {where, whereVal} = col
+				let valid = true
+				if (whereVal) {
+					val = whereVal(val)
+					if (Array.isArray(val)) {
+						vals.push(...val)
 					} else {
-						conds.push(`${col.sql}=?`)
-						vals.push(val)
+						valid = false
 					}
+				} else {
+					vals.push(val)
+				}
+				if (valid) {
+					// Note that we don't attempt to use aliases, because of sharing the whereQ with
+					// the total calculation, and the query optimizer recognizes the common expressions
+					conds.push(typeof where === 'function' ? where(val) : where)
 				}
 			}
 		}
