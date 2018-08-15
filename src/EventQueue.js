@@ -41,6 +41,22 @@ class EventQueue extends JsonModel {
 					get: true,
 				},
 			},
+			migrations: {
+				...rest.migrations,
+				addViews({db}) {
+					return db.exec(`
+						CREATE VIEW _recentHistory AS
+							SELECT datetime(ts/1000, "unixepoch", "localtime") AS t, *
+							FROM history ORDER BY v DESC LIMIT 1000;
+						CREATE VIEW _historyTypes AS
+							SELECT
+								type,
+								COUNT(*) AS count,
+								SUM(ifNull(length(data), 0))/1024/1024 AS MB
+							FROM history GROUP BY type ORDER BY count DESC;
+				`)
+				},
+			},
 		})
 		this.currentV = -1
 		this.knownV = 0
