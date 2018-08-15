@@ -21,15 +21,10 @@ if (DEV) {
 	unknown = warner('UNKNOWN')
 }
 
-const verifyOptions = options => {
-	if (process.env.NODE_ENV !== 'production') {
-		/* eslint-disable no-console */
-		const prevError = console.error
-		console.error = message => {
-			throw new Error(message)
-		}
-		PropTypes.checkPropTypes(
-			{
+const jmPropTypes =
+	process.env.NODE_ENV === 'production'
+		? null
+		: {
 				options: PropTypes.exact({
 					db: PropTypes.object.isRequired,
 					name: PropTypes.string.isRequired,
@@ -87,14 +82,146 @@ const verifyOptions = options => {
 					idCol: PropTypes.string,
 					dispatch: PropTypes.any, // passed by ESDB but not used
 				}),
-			},
-			{options},
-			'options',
-			'JsonModel'
-		)
+		  }
+
+const verifyOptions = options => {
+	if (process.env.NODE_ENV !== 'production') {
+		/* eslint-disable no-console */
+		const prevError = console.error
+		console.error = message => {
+			throw new Error(message)
+		}
+		PropTypes.checkPropTypes(jmPropTypes, {options}, 'options', 'JsonModel')
 		console.error = prevError
 		/* eslint-enable no-console */
 	}
+}
+
+// eslint-disable-next-line complexity
+const normalizeColumn = (col, name) => {
+	col.name = name
+	col.quoted = sql.quoteId(name)
+
+	if (col.unique) {
+		if (!col.index) throw new TypeError(`${name}: unique requires index`)
+	} else if (col.ignoreNull == null) {
+		col.ignoreNull = true
+	}
+
+	if (col.slugValue) {
+		if (col.value)
+			throw new TypeError(`${name}: slugValue and value can't both be defined`)
+		if (!col.index) throw new TypeError(`${name}: slugValue requires index`)
+		col.value = async function(o) {
+			if (o[name]) return o[name]
+			return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
+		}
+	}
+
+	if (col.jsonPath) {
+		if (col.get)
+			throw new TypeError(`${name}: Cannot use get on jsonPath column`)
+		if (col.value || col.sql)
+			throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
+		if (col.isAnyOfArray) {
+			col.isArray = true
+			col.in = true
+		}
+		if (col.isArray) {
+			if (col.in) {
+				col.where = args =>
+					`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+						col.jsonPath
+					}") j WHERE j.value IN (${args.map(() => '?').join(',')}))`
+				col.whereVal = args => args && args.length && args
+			} else if (col.inAll) {
+				col.where = args =>
+					`? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.${
+						col.jsonPath
+					}") j WHERE j.value IN (${args.map(() => '?').join(',')})))`
+				col.whereVal = args => args && args.length && [args.length, ...args]
+			} else {
+				col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
+					col.jsonPath
+				}") j WHERE j.value = ?)`
+			}
+		}
+		col.sql = `json_extract(json, '$.${col.jsonPath}')`
+	} else {
+		if (col.isArray)
+			throw new TypeError(`${name}: jsonPath is required when using isArray`)
+		if (col.sql) {
+			if (col.get) throw new TypeError(`${name}: Cannot use get on sql column`)
+
+			if (col.value)
+				throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
+		} else {
+			if (!col.value)
+				throw new TypeError(`${name}: One of jsonPath/value/sql required`)
+			col.sql = col.quoted
+		}
+	}
+
+	if (col.default != null) {
+		col.ignoreNull = false
+		if (col.value) {
+			const prev = col.value
+			col.value = async function(o) {
+				const r = await prev.call(this, o)
+				return r == null ? col.default : r
+			}
+		} else {
+			col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
+		}
+	}
+
+	if (col.in) {
+		if (col.textSearch)
+			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
+		if (!col.isArray) {
+			col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
+			col.whereVal = args => args && args.length && args
+		}
+	}
+	if (col.textSearch) {
+		if (col.in)
+			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
+		col.where = `${col.sql} LIKE ?`
+		col.whereVal = v => {
+			if (v == null) return
+			const s = String(v)
+			if (s) return [`%${s}%`]
+		}
+	}
+	col.select = `${col.sql} AS ${col.alias}`
+
+	if (col.required) {
+		col.ignoreNull = false
+		const prev = col.value
+		if (!prev)
+			throw new TypeError(
+				`${col.name}: required can only be used on value() col`
+			)
+		col.value = async function(o) {
+			const result = await prev.call(this, o)
+			if (result == null) throw new Error(`${col.name}: value is required`)
+			return result
+		}
+	}
+
+	// Stringify/parse JSON type columns
+	if (col.value && col.type === 'JSON' && !col.parse) {
+		const prevValue = col.value
+		col.value = obj => JSON.stringify(prevValue(obj))
+		col.parse = s => (s == null ? s : JSON.parse(s))
+	}
+
+	if (col.parse && (!col.value || !col.get) && col.name !== 'json')
+		throw new TypeError(
+			`${col.name}: parse() requires a value function and get:true`
+		)
+
+	if (!col.where) col.where = `${col.sql}=?`
 }
 
 const cloneModelWithDb = (m, db) => {
@@ -162,7 +289,7 @@ class JsonModel {
 				idValue = false
 			}
 		}
-		this.columns = {
+		const allColumns = {
 			...columns,
 			[idCol]: {
 				type: 'TEXT',
@@ -188,161 +315,30 @@ class JsonModel {
 			},
 		}
 		// Note the order above, id and json should be calculated last
-		const colKeys = Object.keys(this.columns)
 		this.columnArr = []
 		this.jsonMask = {}
-
-		// eslint-disable-next-line complexity
-		colKeys.forEach((name, i) => {
-			const col = {...this.columns[name]}
-			this.columns[name] = col
-
+		this.columns = {}
+		let i = 0
+		for (const name of Object.keys(allColumns)) {
+			const col = {...allColumns[name]}
 			col.alias = col.alias || `_${i}`
 			if (this.columns[col.alias])
 				throw new TypeError(
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
+
+			normalizeColumn(col, name)
+			this.columns[name] = col
 			this.columns[col.alias] = col
-
-			if (col.unique) {
-				if (!col.index)
-					throw new TypeError(`${name}: unique requires index: true`)
-			} else if (col.ignoreNull == null) {
-				col.ignoreNull = true
-			}
-
-			col.name = name
-			col.quoted = sql.quoteId(name)
-
-			if (col.slugValue) {
-				if (col.value)
-					throw new TypeError(
-						`${name}: slugValue and value can't both be defined`
-					)
-				if (!col.index)
-					throw new TypeError(`${name}: index is required when using slugValue`)
-				col.value = async function(o) {
-					if (o[name]) return o[name]
-					return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
-				}
-			}
-
-			if (col.jsonPath) {
-				if (col.get)
-					throw new TypeError(`${name}: Cannot use get on jsonPath column`)
-				if (col.value || col.sql)
-					throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
-				if (col.isAnyOfArray) {
-					col.isArray = true
-					col.in = true
-				}
-				if (col.isArray) {
-					if (col.in) {
-						col.where = args =>
-							`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-								col.jsonPath
-							}") j WHERE j.value IN (${args.map(() => '?').join(',')}))`
-						col.whereVal = args => args && args.length && args
-					} else if (col.inAll) {
-						col.where = args =>
-							`? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.${
-								col.jsonPath
-							}") j WHERE j.value IN (${args.map(() => '?').join(',')})))`
-						col.whereVal = args => args && args.length && [args.length, ...args]
-					} else {
-						col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-							col.jsonPath
-						}") j WHERE j.value = ?)`
-					}
-				}
-				col.sql = `json_extract(json, '$.${col.jsonPath}')`
-			} else {
-				if (col.isArray)
-					throw new TypeError(
-						`${name}: jsonPath is required when using isArray`
-					)
-				if (col.sql) {
-					if (col.get)
-						throw new TypeError(`${name}: Cannot use get on sql column`)
-
-					if (col.value)
-						throw new TypeError(
-							`${name}: Only one of jsonPath/value/sql allowed`
-						)
-				} else {
-					if (!col.value)
-						throw new TypeError(`${name}: One of jsonPath/value/sql required`)
-					col.sql = col.quoted
-				}
-			}
-
-			if (col.default != null) {
-				col.ignoreNull = false
-				if (col.value) {
-					const prev = col.value
-					col.value = async o => {
-						const r = await prev(o)
-						return r == null ? col.default : r
-					}
-				} else {
-					col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
-				}
-			}
-
-			if (col.in) {
-				if (col.textSearch)
-					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
-				if (!col.isArray) {
-					col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
-					col.whereVal = args => args && args.length && args
-				}
-			}
-			if (col.textSearch) {
-				if (col.in)
-					throw new TypeError(`${name}: Only one of in/textSearch allowed`)
-				col.where = `${col.sql} LIKE ?`
-				col.whereVal = v => {
-					if (v == null) return
-					const s = String(v)
-					if (s) return [`%${s}%`]
-				}
-			}
-			col.select = `${col.sql} AS ${col.alias}`
+			this.columnArr.push(col)
 
 			if (col.get) {
 				// Mark root key with same name for removal when stringifying
 				this.jsonMask[name] = undefined
 			}
 
-			if (col.required) {
-				col.ignoreNull = false
-				const prev = col.value
-				if (!prev)
-					throw new TypeError(
-						`${col.name}: required can only be used on value() col`
-					)
-				col.value = async function(o) {
-					const result = await prev.call(this, o)
-					if (result == null) throw new Error(`${col.name}: value is required`)
-					return result
-				}
-			}
-
-			// Stringify/parse JSON type columns
-			if (col.value && col.type === 'JSON' && !col.parse) {
-				const prevValue = col.value
-				col.value = obj => JSON.stringify(prevValue(obj))
-				col.parse = s => (s == null ? s : JSON.parse(s))
-			}
-
-			if (col.parse && (!col.value || !col.get) && col.name !== 'json')
-				throw new TypeError(
-					`${col.name}: parse() requires a value function and get:true`
-				)
-
-			if (!col.where) col.where = `${col.sql}=?`
-			this.columnArr.push(col)
-		})
+			i++
+		}
 
 		const allMigrations = {
 			...migrations,
