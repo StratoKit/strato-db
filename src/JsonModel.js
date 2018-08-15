@@ -224,6 +224,38 @@ const normalizeColumn = (col, name) => {
 	if (!col.where) col.where = `${col.sql}=?`
 }
 
+const makeDefaultIdValue = idCol => obj => {
+	if (obj[idCol] != null) return obj[idCol]
+	return uuid.v1()
+}
+
+const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
+	if (type === 'INTEGER') {
+		return value
+			? value
+			: o => {
+					const id = o[idCol]
+					return id || id === 0 ? id : null
+			  }
+	}
+	// do not bind the value functions, they must be able to use other db during migrations
+	if (slugValue) {
+		return async function(o) {
+			if (o[idCol] != null) return o[idCol]
+			return uniqueSlugId(this, await slugValue(o), idCol)
+		}
+	}
+	const defaultIdValue = makeDefaultIdValue(idCol)
+	if (value) {
+		return async function(o) {
+			if (o[idCol] != null) return o[idCol]
+			const id = await value.call(this, o)
+			return id == null ? defaultIdValue(o) : id
+		}
+	}
+	return defaultIdValue
+}
+
 const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
 	model.db = db
@@ -268,34 +300,16 @@ class JsonModel {
 		this.idCol = idCol
 		this.idColQ = sql.quoteId(idCol)
 		this.Item = ItemClass || Object
-		// do not bind the value functions, they must be able to use other db during migrations
-		let idValue = this._defaultIdValue
-		if (columns && columns[idCol]) {
-			const {value, slugValue, type} = columns[idCol]
-			if (type === 'INTEGER') {
-				idValue = value
-					? value
-					: o => {
-							const id = o[idCol]
-							return id || id === 0 ? id : null
-					  }
-			} else if (value) {
-				idValue = async function(o) {
-					if (o[idCol] != null) return o[idCol]
-					const id = await value.call(this, o)
-					return id == null ? this._defaultIdValue(o) : id
-				}
-			} else if (slugValue) {
-				idValue = false
-			}
-		}
+
+		const idColDef = columns && columns[idCol]
 		const allColumns = {
 			...columns,
 			[idCol]: {
 				type: 'TEXT',
 				// Allow overriding type but not indexing
-				...(columns && columns[idCol]),
-				value: idValue,
+				...idColDef,
+				slugValue: undefined,
+				value: makeIdValue(idCol, idColDef),
 				index: true,
 				unique: true,
 				ignoreNull: false,
@@ -412,14 +426,6 @@ class JsonModel {
 		this.selectColNames = this.selectCols.map(c => c.name)
 		this.selectColAliases = this.selectCols.map(c => c.alias)
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
-	}
-
-	_defaultIdValue(obj) {
-		// Allow 0 as id
-		if (obj[this.idCol] == null) {
-			return uuid.v1()
-		}
-		return obj[this.idCol]
 	}
 
 	// Creates this.parseRow
