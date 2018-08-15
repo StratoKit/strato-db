@@ -97,9 +97,10 @@
     - type: "JSON" -> default to parse and stringify from JSON
   - value() and slugValue() just calculate values and assign to path (no mutation!)
   - validate(value): must return truthy given the current value (from path or value()) or storing throws
-  - index: if true, index column or json_extract
+  - index: if true: index column or json_extract
+  - ignoreNull: default `true`, set `WHERE` clause on index, '${sql} IS NOT NULL'
   - `required`: set `validate` to `Boolean`
-  - where, whereVal: as now
+  - where, whereVal: defaults: `"alias/sql = ?"` and `v => v != null && [v]`
   - sql: as now (colname or `json_extract`)
     - value, validate, version not allowed
     - get and parse work
