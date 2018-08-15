@@ -321,7 +321,7 @@ class JsonModel {
 		let i = 0
 		for (const name of Object.keys(allColumns)) {
 			const col = {...allColumns[name]}
-			col.alias = col.alias || `_${i}`
+			col.alias = col.alias || `_${i++}`
 			if (this.columns[col.alias])
 				throw new TypeError(
 					`Cannot alias ${col.name} over existing name ${col.alias}`
@@ -336,8 +336,6 @@ class JsonModel {
 				// Mark root key with same name for removal when stringifying
 				this.jsonMask[name] = undefined
 			}
-
-			i++
 		}
 
 		const allMigrations = {
