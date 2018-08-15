@@ -84,7 +84,7 @@
 
 ### Nice to have
 
-- [ ] Real/virtual columns:
+- [ ] Real/virtual columns: API change
 
   - rename `jsonPath` -> `path`
     - if `jsonPath` present in columns, throw error so can migrate
@@ -97,7 +97,10 @@
     - type: "JSON" -> default to parse and stringify from JSON
   - value() and slugValue() just calculate values and assign to path (no mutation!)
   - validate(value): must return truthy given the current value (from path or value()) or storing throws
-  - index: if true: index column or json_extract
+  - index:
+    - true: index column or json_extract, apply ignoreNull
+    - 'ALL': index with ignoreNull `false`
+    - 'SPARSE': index with ignoreNull `true`
   - ignoreNull: default `true`, set `WHERE` clause on index, '${sql} IS NOT NULL'
   - `required`: set `validate` to `Boolean`
   - where, whereVal: defaults: `"alias/sql = ?"` and `v => v != null && [v]`
@@ -108,6 +111,8 @@
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
   - do not change extra columns, that is what migrations are for
 - [ ] recreate index if expression changes
+- [ ] indexes: `[{expression, where}]` extra indexes
+  - [ ] auto-delete other indexes, API change
 - [ ] if column value is function, call with `(fieldName)` => helpers
   - ObjectColumn() helper -> type=JSON, NULL === {}, stringify checks if object (char 0 is `{`)
   - BoolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
