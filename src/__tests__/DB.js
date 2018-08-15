@@ -2,8 +2,9 @@ import expect from 'expect'
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 /* eslint-disable import/no-named-as-default-member */
-import BP from 'bluebird'
 import DB, {sql, valToSql} from '../DB'
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 test('valToSql', () => {
 	expect(valToSql(true)).toBe('1')
@@ -306,6 +307,7 @@ test.skip('model.onDbOpened', async () => {
 	})
 	await db.exec('SELECT 1').then(() => {
 		if (t === 3) t = 4
+		return true
 	})
 	expect(t).toBe(4)
 })
@@ -314,7 +316,7 @@ test('withTransaction', async () => {
 	const db = new DB()
 	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
 	db.withTransaction(async () => {
-		await BP.delay(100)
+		await wait(100)
 		await db.exec`INSERT INTO foo VALUES (43, 1);`
 	})
 	await db.withTransaction(() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`)
