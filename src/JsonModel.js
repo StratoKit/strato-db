@@ -1,4 +1,5 @@
 import debug from 'debug'
+import PropTypes from 'prop-types'
 import uuid from 'uuid'
 import jsurl from 'jsurl'
 import {sql, valToSql} from './DB'
@@ -20,45 +21,88 @@ if (DEV) {
 	unknown = warner('UNKNOWN')
 }
 
+const verifyOptions = options => {
+	if (process.env.NODE_ENV !== 'production') {
+		/* eslint-disable no-console */
+		const prevError = console.error
+		console.error = message => {
+			throw new Error(message)
+		}
+		PropTypes.checkPropTypes(
+			{
+				options: PropTypes.exact({
+					db: PropTypes.object.isRequired,
+					name: PropTypes.string.isRequired,
+					migrations: PropTypes.objectOf(
+						PropTypes.oneOfType([
+							PropTypes.oneOf([false, undefined, null]),
+							PropTypes.func,
+							PropTypes.exact({up: PropTypes.func, down: PropTypes.func}),
+						])
+					),
+					migrationOptions: PropTypes.object,
+					columns: PropTypes.objectOf(
+						PropTypes.exact({
+							// === sql column ===
+							// column type if real column
+							type: PropTypes.oneOf([
+								'TEXT',
+								'NUMERIC',
+								'INTEGER',
+								'REAL',
+								'BLOB',
+								'JSON',
+							]),
+							autoIncrement: PropTypes.bool, // autoincrementing key
+							alias: PropTypes.string, // column alias
+							get: PropTypes.bool, // include column in query results, strip data from json
+							parse: PropTypes.func, // js function, returns JS value given column data
+
+							// === value related ===
+							slugValue: PropTypes.func, // returns seed for uniqueSlugId
+							sql: PropTypes.string, // sql expression for column
+							jsonPath: PropTypes.string, // path to column value in `json` column
+							value: PropTypes.func, // value to store
+							default: PropTypes.any, // js expression, default value
+							required: PropTypes.bool, // throw if no value
+
+							// === index ===
+							index: PropTypes.bool, // create index for this column
+							ignoreNull: PropTypes.bool, // ignore null in index
+							unique: PropTypes.bool, // create index with unique contstraint
+
+							// === queries ===
+							where: PropTypes.oneOfType([PropTypes.string, PropTypes.func]), // returns WHERE condition given value
+							whereVal: PropTypes.func, // returns values array for condition
+
+							// === query helpers ===
+							in: PropTypes.bool, // column matches any of given array
+							inAll: PropTypes.bool, // column matches all of given array
+							isAnyOfArray: PropTypes.bool, // in:true + isArray: true
+							isArray: PropTypes.bool, // json path is an array value
+							textSearch: PropTypes.bool, // search for substring of column
+						})
+					),
+					ItemClass: PropTypes.func,
+					idCol: PropTypes.string,
+					dispatch: PropTypes.any, // passed by ESDB but not used
+				}),
+			},
+			{options},
+			'options',
+			'JsonModel'
+		)
+		console.error = prevError
+		/* eslint-enable no-console */
+	}
+}
+
 const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
 	model.db = db
 	model.parseRow = model._makeParseRow()
 	model._set = model._makeSetFn()
 	return model
-}
-
-const allowedTypes = {
-	TEXT: true,
-	NUMERIC: true,
-	INTEGER: true,
-	REAL: true,
-	BLOB: true,
-	JSON: true,
-}
-const knownColProps = {
-	alias: true, // column alias
-	autoIncrement: true, // autoincrementing key
-	default: true, // js expression, default value
-	get: true, // include column in query results
-	ignoreNull: true, // ignore null in index
-	in: true, // column matches any of given array
-	inAll: true, // column matches all of given array
-	index: true, // create index for this column
-	isAnyOfArray: true, // in:true + isArray: true
-	isArray: true, // json path is an array value
-	jsonPath: true, // path to column value in `json` column
-	parse: true, // js function, returns JS value given column data
-	required: true, // value has to be non-null
-	slugValue: true, // returns seed for uniqueSlugId
-	sql: true, // sql expression for column
-	textSearch: true, // search for substring of column
-	type: true, // column type
-	unique: true, // create index with unique contstraint
-	value: true, // js function, return value to store
-	where: true, // js function, returns WHERE condition
-	whereVal: true, // js function, returns values for condition
-	//  if value is not an array, skips where()
 }
 
 // ItemClass: Object-like class that can be assigned to like Object
@@ -79,18 +123,18 @@ const knownColProps = {
 //   default: false if unique, else true
 // migrationOptions: object with extra data passed to the migrations
 class JsonModel {
-	constructor({
-		db,
-		name,
-		migrations,
-		migrationOptions,
-		columns,
-		ItemClass,
-		idCol = 'id',
-	}) {
-		if (!db || !name) {
-			throw new Error('db and name are required')
-		}
+	constructor(options) {
+		verifyOptions(options)
+		const {
+			db,
+			name,
+			migrations,
+			migrationOptions,
+			columns,
+			ItemClass,
+			idCol = 'id',
+		} = options
+
 		this.db = db
 		this.name = name
 		this.quoted = sql.quoteId(name)
@@ -159,17 +203,6 @@ class JsonModel {
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
 			this.columns[col.alias] = col
-
-			Object.keys(col).forEach(k => {
-				if (!knownColProps[k])
-					throw new TypeError(`${name}: unknown column prop ${k}`)
-			})
-			if (col.type && !allowedTypes[col.type])
-				throw new TypeError(
-					`${col.name}: type ${col.type} is not one of ${Object.keys(
-						allowedTypes
-					).join(' ')}`
-				)
 
 			if (col.unique) {
 				if (!col.index)

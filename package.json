@@ -35,6 +35,7 @@
     "debug": "^3.1.0",
     "jsurl": "git+https://github.com/wmertens/jsurl.git#jsurl2",
     "lodash": "^4.17.10",
+    "prop-types": "^15.6.2",
     "sqlite3": "^4.0.2",
     "uuid": "^3.3.2"
   },

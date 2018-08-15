@@ -22,7 +22,6 @@ const withCols = sharedSetup(async () => {
 			},
 			fooGet: {value: () => 3, get: true},
 		},
-		multiIndexes: {},
 	})
 	await m.set({id: 'meep', foo1: 5})
 	return m
