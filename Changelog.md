@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0
+
+- JsonModel: stricter options with better type checking
+- EventQueue: add \_recentHistory and \_historyTypes views for debugging
+
 ## 1.3.0
 
 - ESModel: add metadata to event data on index 3
