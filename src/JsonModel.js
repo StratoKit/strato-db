@@ -378,6 +378,7 @@ class JsonModel {
 			...columns,
 			[idCol]: {
 				type: 'TEXT',
+				alias: '_i',
 				// Allow overriding type but not indexing
 				...idColDef,
 				slugValue: undefined,
@@ -388,6 +389,7 @@ class JsonModel {
 				get: true,
 			},
 			json: {
+				alias: '_j',
 				// Strip "get" columns from stored JSON (including id)
 				value: obj => {
 					const json = JSON.stringify({...obj, ...this.jsonMask})
