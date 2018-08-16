@@ -186,17 +186,17 @@ const normalizeColumn = (col, name) => {
 }
 
 const assignJsonParents = columnArr => {
-	const jsonByPath = {}
+	const parents = columnArr.filter(c => c.real).sort(byPathLengthDesc)
 	for (const col of columnArr)
-		if (col.type === 'JSON')
-			jsonByPath[col.path ? col.path + '.' : ''] = col.name
-	const paths = Object.keys(jsonByPath).sort((a, b) => a.length - b.length)
-	for (const col of columnArr)
-		if (!col.type) {
+		if (!col.real) {
 			// Will always match, json column has path:''
-			const parent = paths.find(p => col.path.startsWith(p))
-			col.jsonCol = jsonByPath[parent]
-			col.jsonPath = col.path.slice(parent.length)
+			const parent = parents.find(
+				p => !p.path || col.path.startsWith(p.path + '.')
+			)
+			col.jsonCol = parent.name
+			col.jsonPath = parent.path
+				? col.path.slice(parent.path.length + 1)
+				: col.path
 		}
 }
 

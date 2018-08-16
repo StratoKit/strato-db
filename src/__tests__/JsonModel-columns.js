@@ -162,3 +162,21 @@ test('nested JSON', async () => {
 		json: null,
 	})
 })
+
+test('path in json column', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			b: {path: 'a.b'},
+			a: {type: 'JSON'},
+		},
+	})
+	await m.set({a: {b: 4}})
+	await expect(m.searchOne({b: 4})).resolves.toHaveProperty('id', 1)
+	await expect(m.get(1)).resolves.toEqual({id: 1, a: {b: 4}})
+	await expect(m.db.get('select * from testing')).resolves.toEqual({
+		a: '{"b":4}',
+		id: 1,
+		json: null,
+	})
+})
