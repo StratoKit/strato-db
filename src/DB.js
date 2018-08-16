@@ -298,9 +298,7 @@ class DB {
 		const ts = Math.round(Date.now() / 1000)
 		up = up ? 1 : 0
 		await this._db.run(
-			...sql`
-			INSERT INTO _migrations VALUES (${runKey}, ${ts}, ${up})
-		`
+			...sql`INSERT INTO _migrations VALUES (${runKey}, ${ts}, ${up})`
 		)
 	}
 

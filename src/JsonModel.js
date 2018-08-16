@@ -301,7 +301,7 @@ const makeMigrations = ({
 						: ''
 				}${
 					col.index
-						? `CREATE ${col.unique ? 'UNIQUE' : ''} INDEX ${sql.quoteId(
+						? `CREATE ${col.unique ? 'UNIQUE ' : ''}INDEX ${sql.quoteId(
 								`${tableName}_${name}`
 						  )} ON ${tableQuoted}(${col.sql}) ${
 								col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''
