@@ -9,9 +9,6 @@
   - DB and ESDB to have same API surface (.addModel)
   - join JsonModel and ESModel code, switch behavior based on `dispatch` option
   - db.models => db.store or eSDB.store => eSDB.models
-  - column.jsonPath => column.path
-  - columns are shortcuts for attribute searches, `set()` enforced values, where clauses, actual columns, indexes etc. Not very pretty right now.
-  - add column type `VIRTUAL`
 - [ ] optimize
 
 ## node-sqlite3
@@ -84,30 +81,8 @@
 
 ### Nice to have
 
-- [ ] Real/virtual columns: API change
-
-  - rename `jsonPath` -> `path`
-    - if `jsonPath` present in columns, throw error so can migrate
-  - path: defaults to name of column
-  - get: set value of column into object at `path`, default: !type
-  - `type != null`: actual db column
-    - `get === true`: Removes value from object before store to json
-    - parse(colVal): fn applied to column value before adding to object
-    - stringify(value): fn applied to `get(obj, path)` value before adding to object
-    - type: "JSON" -> default to parse and stringify from JSON
-  - value() and slugValue() just calculate values and assign to path (no mutation!)
-  - validate(value): must return truthy given the current value (from path or value()) or storing throws
-  - index:
-    - true: index column or json_extract, apply ignoreNull
-    - 'ALL': index with ignoreNull `false`
-    - 'SPARSE': index with ignoreNull `true`
-  - ignoreNull: default `true`, set `WHERE` clause on index, '${sql} IS NOT NULL'
-  - `required`: set `validate` to `Boolean`
-  - where, whereVal: defaults: `"alias/sql = ?"` and `v => v != null && [v]`
-  - sql: as now (colname or `json_extract`)
-    - value, validate, version not allowed
-    - get and parse work
-
+- [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
+- [ ] also do stringify on paths, e.g. to stringify objects
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
   - do not change extra columns, that is what migrations are for
 - [ ] recreate index if expression changes

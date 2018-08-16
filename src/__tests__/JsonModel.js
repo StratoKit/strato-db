@@ -54,7 +54,7 @@ test('id/col slugValue', async () => {
 	const m = getModel({
 		columns: {
 			id: {slugValue: o => o.hi.slice(0, 3)},
-			hi: {jsonPath: 'hi'},
+			hi: {},
 			other: {slugValue: o => o.hi.toUpperCase(), index: true, get: true},
 		},
 	})
@@ -113,7 +113,7 @@ test(
 
 test('get w/ other colName', async () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},
+		columns: {id: {type: 'INTEGER'}, slug: {}},
 	})
 	await m.set({id: 0, slug: 10})
 	expect(await m.get(10, 'slug')).toEqual({id: 0, slug: 10})
@@ -121,7 +121,7 @@ test('get w/ other colName', async () => {
 
 test('getAll', async () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, slug: {jsonPath: 'slug'}},
+		columns: {id: {type: 'INTEGER'}, slug: {}},
 	})
 	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10})))
 	expect(await m.getAll([4, 'nope', 0])).toEqual([
@@ -169,7 +169,7 @@ test('count', async () => {
 })
 
 test('idCol', async () => {
-	const m = getModel({idCol: 'v', columns: {foo: {jsonPath: 'foo'}}})
+	const m = getModel({idCol: 'v', columns: {foo: {}}})
 	await Promise.all([0, 1, 2, 3, 4].map(v => m.set({v})))
 	expect(await m.get(1)).toEqual({v: '1'})
 	expect(await m.get(1)).toEqual({v: '1'})
@@ -182,10 +182,10 @@ test('idCol', async () => {
 	await m.remove(n.v)
 	expect(await m.get(n.v)).toBeFalsy()
 	expect(m.makeSelect({limit: 2})).toEqual([
-		`SELECT "v" AS _1,"json" AS _2 FROM "testing" tbl ORDER BY _1 LIMIT 2`,
+		'SELECT tbl."v" AS _i,tbl."json" AS _j FROM "testing" tbl ORDER BY _i LIMIT 2',
 		[],
-		['_1', '_2'],
-		'SELECT COUNT(*) as t from "testing" tbl',
+		['_i', '_j'],
+		'SELECT COUNT(*) as t from ( SELECT tbl."v" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
 	])
 })

@@ -82,10 +82,22 @@ test('update(obj)', async () => {
 
 test('update(obj, upsert)', async () => {
 	const m = getModel()
-	await m.set({id: 5, ho: 8})
-	await expect(m.update({id: 5, ho: 1})).resolves.toEqual({id: 5, ho: 1})
+	await m.set({id: 5, ho: 8, meep: true})
+	await expect(m.update({id: 5, ho: 1})).resolves.toEqual({
+		id: 5,
+		ho: 1,
+		meep: true,
+	})
+	await expect(m.get(5)).resolves.toEqual({
+		id: '5',
+		ho: 1,
+		meep: true,
+	})
 	await expect(m.update({id: 7, ho: 2})).rejects.toThrow('No object')
-	await expect(m.update({id: 7, ho: 3}, true)).resolves.toEqual({id: 7, ho: 3})
+	await expect(m.update({id: 7, ho: 3}, true)).resolves.toEqual({
+		id: 7,
+		ho: 3,
+	})
 	await expect(m.update({ho: 4}, true)).resolves.toMatchObject({ho: 4})
 	expect(await m.count()).toBe(3)
 })

@@ -4,9 +4,9 @@ import {getModel} from './_helpers'
 test('makeSelect basic', () => {
 	const m = getModel({
 		columns: {
-			foo: {value: o => o.foo.toString()},
-			bar: {jsonPath: 'bar'},
-			meep: {jsonPath: 'meep'},
+			foo: {real: true},
+			bar: {},
+			meep: {},
 		},
 	})
 	const [q, v, s] = m.makeSelect({
@@ -17,10 +17,10 @@ test('makeSelect basic', () => {
 		sort: {name: 1, date: -2},
 	})
 	expect(q).toEqual(
-		'SELECT json_extract(json, \'$.meep\') AS _2,name,date,"id" AS _3 FROM "testing" tbl WHERE("foo"=?)AND(json_extract(json, \'$.bar\')=?) ORDER BY name,date DESC,_3 LIMIT 20 OFFSET 5'
+		'SELECT json_extract(tbl."json",\'$.meep\') AS _2,name,date,tbl."id" AS _i FROM "testing" tbl WHERE(tbl."foo"=?)AND(json_extract(tbl."json",\'$.bar\')=?) ORDER BY name,date DESC,_i LIMIT 20 OFFSET 5'
 	)
 	expect(v).toEqual([0, 3])
-	expect(s).toEqual(['name', 'date', '_3'])
+	expect(s).toEqual(['name', 'date', '_i'])
 })
 
 test('makeSelect where', () => {
@@ -34,7 +34,7 @@ test('makeSelect where', () => {
 		},
 	})
 	expect(q).toEqual(
-		`SELECT "id" AS _0,"json" AS _1 FROM "testing" tbl WHERE(foo < ?)AND(json_extract(json, '$.bar') = ?)AND(json is not null)`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(foo < ?)AND(json_extract(json, \'$.bar\') = ?)AND(json is not null)'
 	)
 	expect(v).toEqual([5, 8])
 })
@@ -43,119 +43,125 @@ test('makeSelect limit 1 w/ sort', () => {
 	const m = getModel()
 	const [q] = m.makeSelect({limit: 1, sort: {bar: 1}, noCursor: true})
 	expect(q).toEqual(
-		`SELECT "id" AS _0,"json" AS _1 FROM "testing" tbl ORDER BY bar LIMIT 1`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl ORDER BY bar LIMIT 1'
 	)
 })
 
-test('makeSelect sort w/ jsonPath', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo'}}})
+test('makeSelect sort w/ path', () => {
+	const m = getModel({columns: {foo: {}}})
 	const [q] = m.makeSelect({limit: 1, sort: {foo: -1}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2,json_extract(json, '$.foo') AS _0 FROM "testing" tbl ORDER BY _0 DESC,_1 LIMIT 1`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j,json_extract(tbl."json",\'$.foo\') AS _0 FROM "testing" tbl ORDER BY _0 DESC,_i LIMIT 1'
 	)
 })
 
 test('makeSelect isArray', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo', isArray: true}}})
+	const m = getModel({columns: {foo: {isArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: 'meep'}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value = ?))`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value = ?))'
 	)
 })
 
 test('makeSelect textSearch', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	const m = getModel({columns: {foo: {textSearch: true}}})
 	expect(m.makeSelect({attrs: {foo: 'meep'}})).toEqual([
-		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?)',
 		['%meep%'],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?) )',
 		['%meep%'],
 	])
 })
 
 test('makeSelect textSearch falsy', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo', textSearch: true}}})
+	const m = getModel({columns: {foo: {textSearch: true}}})
 	expect(m.makeSelect({attrs: {foo: ''}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl',
 		[],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
 	])
 	expect(m.makeSelect({attrs: {foo: null}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl',
 		[],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
 	])
 	expect(m.makeSelect({attrs: {foo: 0}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') LIKE ?)`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?)',
 		['%0%'],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE(json_extract(json, \'$.foo\') LIKE ?)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?) )',
 		['%0%'],
 	])
 })
 
 test('makeSelect isAnyOfArray', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo', isAnyOfArray: true}}})
+	const m = getModel({columns: {foo: {isAnyOfArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?)))'
 	)
 })
 
 test('makeSelect in', () => {
 	const m = getModel({
-		columns: {foo: {index: true, value: o => o.foo.toString(), in: true}},
+		columns: {foo: {in: true}, bar: {real: true, in: true}},
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("foo" IN (?,?))`
+		'SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') IN (?,?))'
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
-	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
+	expect(q2).toEqual(
+		'SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl'
+	)
 })
 
-test('makeSelect in w/ jsonPath', () => {
-	const m = getModel({columns: {foo: {jsonPath: 'foo', in: true}}})
+test('makeSelect in w/ path', () => {
+	const m = getModel({columns: {foo: {in: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(json_extract(json, '$.foo') IN (?,?))`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') IN (?,?))'
 	)
 })
 
 test('makeSelect in + isArray = isAnyOfArray', () => {
 	const m = getModel({
-		columns: {foo: {jsonPath: 'foo', in: true, isArray: true}},
+		columns: {foo: {in: true, isArray: true}},
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?)))`
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?)))'
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
-	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
+	expect(q2).toEqual(
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl'
+	)
 })
 
 test('makeSelect inAll', () => {
 	const m = getModel({
-		columns: {foo: {jsonPath: 'foo', inAll: true, isArray: true}},
+		columns: {foo: {inAll: true, isArray: true}},
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.foo") j WHERE j.value IN (?,?,?))))'
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?,?))))'
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
-	expect(q2).toEqual(`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl`)
+	expect(q2).toEqual(
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl'
+	)
 })
 
 test('inAll works', async () => {
 	const m = getModel({
 		columns: {
 			id: {type: 'INTEGER'},
-			foo: {jsonPath: 'foo', inAll: true, isArray: true},
+			foo: {inAll: true, isArray: true},
 		},
 	})
 	await m.set({foo: [1, 2, 3]})
@@ -175,10 +181,10 @@ test('col.where', () => {
 		columns: {foo: {sql: 'foo', where: 'foo = ?'}},
 	})
 	expect(m.makeSelect({attrs: {foo: 'moop'}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE(foo = ?)`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(foo = ?)',
 		['moop'],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE(foo = ?)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(foo = ?) )',
 		['moop'],
 	])
 })
@@ -188,10 +194,10 @@ test('col.where fn', () => {
 		columns: {foo: {sql: 'foo', where: v => v.length}},
 	})
 	expect(m.makeSelect({attrs: {id: 4, foo: '123'}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(3)`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(3)',
 		[4, '123'],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)AND(3)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(3) )',
 		[4, '123'],
 	])
 })
@@ -201,10 +207,10 @@ test('col.whereVal fn', () => {
 		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: v => [v.join()]}},
 	})
 	expect(m.makeSelect({attrs: {id: 5, foo: ['meep', 'moop']}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)AND(ohai)`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(ohai)',
 		[5, 'meep,moop'],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)AND(ohai)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(ohai) )',
 		[5, 'meep,moop'],
 	])
 })
@@ -214,16 +220,16 @@ test('col.whereVal fn falsy', () => {
 		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: () => 0}},
 	})
 	expect(m.makeSelect({attrs: {id: 5, foo: ['meep', 'moop']}})).toEqual([
-		`SELECT "id" AS _1,"json" AS _2 FROM "testing" tbl WHERE("id"=?)`,
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)',
 		[5],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE("id"=?)',
+		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?) )',
 		[5],
 	])
 })
 
 test('min', async () => {
-	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	const m = getModel({columns: {v: {}}})
 	expect(await m.min('v')).toBe(null)
 	await m.set({v: 5})
 	expect(await m.min('v')).toBe(5)
@@ -234,7 +240,7 @@ test('min', async () => {
 })
 
 test('max', async () => {
-	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	const m = getModel({columns: {v: {}}})
 	expect(await m.max('v')).toBe(null)
 	await m.set({v: 'blah'})
 	expect(await m.max('v')).toBe(0)
@@ -245,7 +251,7 @@ test('max', async () => {
 })
 
 test('avg', async () => {
-	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	const m = getModel({columns: {v: {}}})
 	expect(await m.avg('v')).toBe(null)
 	await m.set({v: 'blah'})
 	expect(await m.avg('v')).toBe(0)
@@ -260,7 +266,7 @@ test('avg', async () => {
 })
 
 test('sum', async () => {
-	const m = getModel({columns: {v: {jsonPath: 'v'}}})
+	const m = getModel({columns: {v: {}}})
 	expect(await m.sum('v')).toBe(null)
 	await m.set({v: 'blah'})
 	expect(await m.sum('v')).toBe(0)

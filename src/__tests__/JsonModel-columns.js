@@ -12,15 +12,19 @@ const indexesSql = `
 const withCols = sharedSetup(async () => {
 	const m = getModel({
 		columns: {
-			foo1: {jsonPath: 'foo1', index: true},
-			foo2: {value: o => o.foo1 + 1},
+			foo1: {index: 'SPARSE'},
+			foo2: {
+				type: 'INTEGER',
+				value: o => o.foo1 + 1,
+				get: false,
+				alias: 'foo2',
+			},
 			foo3: {
 				value: o => o.notExists,
-				index: true,
+				index: 'ALL',
 				unique: true,
-				ignoreNull: true,
 			},
-			fooGet: {value: () => 3, get: true},
+			fooGet: {real: true, value: () => 3},
 		},
 	})
 	await m.set({id: 'meep', foo1: 5})
@@ -29,8 +33,9 @@ const withCols = sharedSetup(async () => {
 test(
 	'columns create',
 	withCols(async m => {
-		const row = await m.db.get(`SELECT json, foo2, foo3 FROM ${m.name}`)
-		expect(row).toEqual({json: `{"foo1":5}`, foo2: 6, foo3: null})
+		expect(m.columnArr).toMatchSnapshot()
+		const row = await m.db.get(`SELECT json, foo2 FROM ${m.name}`)
+		expect(row).toEqual({json: `{"foo1":5}`, foo2: 6})
 	})
 )
 test(
@@ -69,15 +74,8 @@ test(
 	})
 )
 
-test('jsonPath/sql and get', () => {
-	expect(() =>
-		getModel({columns: {foo: {jsonPath: 'foo', get: true}}})
-	).toThrow()
-	expect(() => getModel({columns: {foo: {sql: '1 + 1', get: true}}})).toThrow()
-})
-
 test('default w/ value()', async () => {
-	const m = getModel({columns: {v: {value: o => o.v, default: 5}}})
+	const m = getModel({columns: {v: {real: true, default: 5}}})
 	await m.set({id: 1})
 	expect(await m.db.all(`select * from ${m.name}`)).toEqual([
 		{id: '1', json: null, v: 5},
@@ -91,7 +89,7 @@ test('default w/ sql', async () => {
 		'SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) ORDER BY _0 DESC',
 		[5],
 		undefined,
-		'SELECT COUNT(*) as t from "testing" tbl WHERE(ifNull(hex(id),0)=?)',
+		'SELECT COUNT(*) as t from ( SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) )',
 		[5],
 	])
 	expect(m.columns.v.ignoreNull).toBe(false)
@@ -101,7 +99,7 @@ test('value w type JSON', async () => {
 	const m = getModel({
 		columns: {
 			id: {type: 'INTEGER'},
-			v: {value: o => o.v, type: 'JSON', get: true},
+			v: {type: 'JSON'},
 		},
 	})
 	await m.set({v: {whee: true}})
@@ -140,4 +138,27 @@ test('required', async () => {
 	const obj = await m.set({foo: 'hi'})
 	expect(obj).toHaveProperty('foo', 'hi')
 	expect(obj).toHaveProperty('bar', 2)
+})
+
+test('nested JSON', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			c: {type: 'JSON', path: 'a.b.c'},
+			a: {type: 'JSON'},
+			b: {type: 'JSON', path: 'a.b'},
+		},
+	})
+	await expect(m.set({a: {b: {c: 3}}})).resolves.toEqual({
+		id: 1,
+		a: {b: {c: 3}},
+	})
+	await expect(m.get(1)).resolves.toEqual({id: 1, a: {b: {c: 3}}})
+	await expect(m.db.get('select * from testing')).resolves.toEqual({
+		a: '{}',
+		b: '{}',
+		c: 3,
+		id: 1,
+		json: null,
+	})
 })
