@@ -24,7 +24,7 @@ export const testModels = {
 	count: {
 		// shortName: 'c',
 		columns: {
-			total: {type: 'INTEGER', value: o => o.total, get: true},
+			total: {type: 'INTEGER'},
 		},
 		migrations: {
 			init: {

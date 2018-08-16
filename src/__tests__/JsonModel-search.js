@@ -22,7 +22,7 @@ test('search[One] attrs=null', async () => {
 
 test('search cursor', async () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, c: {jsonPath: 'c'}, d: {jsonPath: 'd'}},
+		columns: {id: {type: 'INTEGER'}, c: {}, d: {}},
 	})
 	const str = 'aabbccddeeff'
 	await Promise.all(
@@ -73,7 +73,7 @@ test('searchAll', async () => {
 })
 
 test('exists', async () => {
-	const m = getModel({columns: {hi: {jsonPath: 'hi'}}})
+	const m = getModel({columns: {hi: {}}})
 	expect(await m.exists()).toBe(false)
 	await m.set({hi: true})
 	expect(await m.exists()).toBe(true)

@@ -25,7 +25,11 @@ $ npm install Yaska/strato-db#master-build
 import config from 'stratokit/config'
 import {DB, EventQueue, EventSourcingDB, JsonModel} from 'strato-db'
 
-const {main: {file}, queue: {file: qFile}, debug: verbose} = config.db
+const {
+	main: {file},
+	queue: {file: qFile},
+	debug: verbose,
+} = config.db
 
 const db = new DB({file, verbose})
 const qDb = qFile && qFile !== file ? new DB({file: qFile, verbose}) : db
@@ -33,21 +37,25 @@ const qDb = qFile && qFile !== file ? new DB({file: qFile, verbose}) : db
 export const queue = new EventQueue({db: qDb})
 
 class Things extends JsonModel {
-  constructor(options) {
-    super({
-      ...options,
-      name: 'things',
-      columns: {
-        ...options.columns,
-        info: {jsonPath: 'info', index: true},
-      },
-    })
-  }
+	constructor(options) {
+		super({
+			...options,
+			name: 'things',
+			columns: {
+				...options.columns,
+				info: {index: 'SPARSE'},
+			},
+		})
+	}
 }
 
 db.addModel(Things)
 
-const eSDB = new EventSourcingDB({db, queue, models: {dateRanges, derivedStuff}})
+const eSDB = new EventSourcingDB({
+	db,
+	queue,
+	models: {dateRanges, derivedStuff},
+})
 
 // only opens the db once this runs
 await db.models.things.set({id: 'foo', info: 'is a foo'})
@@ -74,7 +82,6 @@ Type: `boolean`<br>
 Default: `false`
 
 Lorem ipsum.
-
 
 ## License
 

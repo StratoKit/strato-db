@@ -16,30 +16,14 @@ class EventQueue extends JsonModel {
 					type: 'INTEGER',
 					autoIncrement: true,
 				},
-				type: {
-					type: 'TEXT',
-					value: o => o.type,
-					get: true,
-					index: true,
-					ignoreNull: false,
-				},
+				type: {type: 'TEXT', index: 'ALL'},
 				ts: {
 					type: 'INTEGER',
 					value: o => Number(o.ts) || Date.now(),
-					get: true,
-					index: true,
-					ignoreNull: false,
+					index: 'ALL',
 				},
-				data: {
-					type: 'JSON',
-					value: o => o.data,
-					get: true,
-				},
-				result: {
-					type: 'JSON',
-					value: o => o.result,
-					get: true,
-				},
+				data: {type: 'JSON'},
+				result: {type: 'JSON'},
 			},
 			migrations: {
 				...rest.migrations,
@@ -84,7 +68,7 @@ class EventQueue extends JsonModel {
 			const lastRow = await this.db.get(
 				`SELECT MAX(v) AS v from ${this.quoted}`
 			)
-			v = lastRow.v
+			v = lastRow.v // eslint-disable-line prefer-destructuring
 		}
 		this.currentV = Math.max(this.knownV, v || 0)
 		return this.currentV

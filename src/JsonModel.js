@@ -5,6 +5,7 @@ import jsurl from 'jsurl'
 import {sql, valToSql} from './DB'
 import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
+import {get, set} from 'lodash'
 
 const dbg = debug('stratokit/JSON')
 const DEV = process.env.NODE_ENV !== 'production'
@@ -39,6 +40,7 @@ const jmPropTypes =
 					columns: PropTypes.objectOf(
 						PropTypes.exact({
 							// === sql column ===
+							real: PropTypes.bool, // true -> a real table column is made
 							// column type if real column
 							type: PropTypes.oneOf([
 								'TEXT',
@@ -48,21 +50,23 @@ const jmPropTypes =
 								'BLOB',
 								'JSON',
 							]),
+							path: PropTypes.string, // path to value in object
 							autoIncrement: PropTypes.bool, // autoincrementing key
 							alias: PropTypes.string, // column alias
 							get: PropTypes.bool, // include column in query results, strip data from json
-							parse: PropTypes.func, // js function, returns JS value given column data
+							parse: PropTypes.func, // returns JS value given column data
+							stringify: PropTypes.func, // returns column value given object data
 
 							// === value related ===
 							slugValue: PropTypes.func, // returns seed for uniqueSlugId
 							sql: PropTypes.string, // sql expression for column
-							jsonPath: PropTypes.string, // path to column value in `json` column
 							value: PropTypes.func, // value to store
 							default: PropTypes.any, // js expression, default value
 							required: PropTypes.bool, // throw if no value
 
 							// === index ===
-							index: PropTypes.bool, // create index for this column
+							// create index for this column
+							index: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
 							ignoreNull: PropTypes.bool, // ignore null in index
 							unique: PropTypes.bool, // create index with unique contstraint
 
@@ -98,11 +102,23 @@ const verifyOptions = options => {
 	}
 }
 
+const byPathLength = (a, b) => a.parts.length - b.parts.length
+const byPathLengthDesc = (a, b) => b.parts.length - a.parts.length
+
 // eslint-disable-next-line complexity
 const normalizeColumn = (col, name) => {
 	col.name = name
 	col.quoted = sql.quoteId(name)
+	if (col.type) col.real = true
+	else if (col.real) col.type = 'BLOB'
+	if (col.get == null) col.get = !!col.real
 
+	if (!col.path && name !== 'json') col.path = name
+
+	col.parts = col.path === '' ? [] : col.path.split('.')
+
+	if (col.index === 'ALL') col.ignoreNull = false
+	if (col.index === 'SPARSE') col.ignoreNull = true
 	if (col.unique) {
 		if (!col.index) throw new TypeError(`${name}: unique requires index`)
 	} else if (col.ignoreNull == null) {
@@ -117,77 +133,116 @@ const normalizeColumn = (col, name) => {
 			throw new TypeError(`${name}: slugValue and value can't both be defined`)
 		if (!col.index) throw new TypeError(`${name}: slugValue requires index`)
 		col.value = async function(o) {
-			if (o[name]) return o[name]
+			if (o[name] != null) return o[name]
 			return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
-		}
-	}
-
-	if (col.jsonPath) {
-		if (col.get)
-			throw new TypeError(`${name}: Cannot use get on jsonPath column`)
-		if (col.value || col.sql)
-			throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
-		if (col.isAnyOfArray) {
-			col.isArray = true
-			col.in = true
-		}
-		if (col.isArray) {
-			if (col.in) {
-				col.where = args =>
-					`EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-						col.jsonPath
-					}") j WHERE j.value IN (${args.map(() => '?').join(',')}))`
-				col.whereVal = args => args && args.length && args
-			} else if (col.inAll) {
-				col.where = args =>
-					`? IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl.json, "$.${
-						col.jsonPath
-					}") j WHERE j.value IN (${args.map(() => '?').join(',')})))`
-				col.whereVal = args => args && args.length && [args.length, ...args]
-			} else {
-				col.where = `EXISTS(SELECT 1 FROM json_each(tbl.json, "$.${
-					col.jsonPath
-				}") j WHERE j.value = ?)`
-			}
-		}
-		col.sql = `json_extract(json, '$.${col.jsonPath}')`
-	} else {
-		if (col.isArray)
-			throw new TypeError(`${name}: jsonPath is required when using isArray`)
-		if (col.sql) {
-			if (col.get) throw new TypeError(`${name}: Cannot use get on sql column`)
-
-			if (col.value)
-				throw new TypeError(`${name}: Only one of jsonPath/value/sql allowed`)
-		} else {
-			if (!col.value)
-				throw new TypeError(`${name}: One of jsonPath/value/sql required`)
-			col.sql = col.quoted
 		}
 	}
 
 	if (col.default != null) {
 		col.ignoreNull = false
-		if (col.value) {
-			const prev = col.value
+		const prev = col.value
+		if (prev) {
 			col.value = async function(o) {
 				const r = await prev.call(this, o)
 				return r == null ? col.default : r
 			}
-		} else {
+		} else if (col.sql) {
 			col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
+		} else {
+			col.value = o => {
+				const v = get(o, col.path)
+				return v == null ? col.default : v
+			}
 		}
 	}
 
-	if (col.in) {
-		if (col.textSearch)
-			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
-		if (!col.isArray) {
-			col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
-			col.whereVal = args => args && args.length && args
+	if (col.required) {
+		col.ignoreNull = false
+		const prev = col.value
+		if (prev) {
+			col.value = async function(o) {
+				const r = await prev.call(this, o)
+				if (r == null) throw new Error(`${name}: value is required`)
+				return r
+			}
+		} else {
+			col.value = o => {
+				const v = get(o, col.path)
+				if (v == null) throw new Error(`${name}: value is required`)
+				return v
+			}
 		}
 	}
-	if (col.textSearch) {
+
+	if (col.type === 'JSON') {
+		if (!col.stringify) col.stringify = JSON.stringify
+		if (!col.parse) col.parse = v => (v == null ? v : JSON.parse(v))
+	}
+
+	if (!col.real && col.stringify)
+		throw new Error(`${name}: stringify only applies to real columns`)
+	if (!col.get && col.parse)
+		throw new Error(`${name}: parse only applies to get:true columns`)
+}
+
+const assignJsonParents = columnArr => {
+	const jsonByPath = {}
+	for (const col of columnArr)
+		if (col.type === 'JSON')
+			jsonByPath[col.path ? col.path + '.' : ''] = col.name
+	const paths = Object.keys(jsonByPath).sort((a, b) => a.length - b.length)
+	for (const col of columnArr)
+		if (!col.type) {
+			// Will always match, json column has path:''
+			const parent = paths.find(p => col.path.startsWith(p))
+			col.jsonCol = jsonByPath[parent]
+			col.jsonPath = col.path.slice(parent.length)
+		}
+}
+
+const prepareSqlCol = col => {
+	if (!col.sql) {
+		col.sql = col.type
+			? `tbl.${col.quoted}`
+			: `json_extract(tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}')`
+	}
+	if (col.isAnyOfArray) {
+		col.isArray = true
+		col.in = true
+	}
+	if (col.isArray) {
+		if (col.where || col.whereVal)
+			throw new TypeError(`${name}: cannot mix isArray and where/whereVal`)
+		if (col.textSearch)
+			throw new TypeError(`${name}: Only one of isArray/textSearch allowed`)
+		const jsonExpr = `SELECT 1 FROM json_each(${
+			col.type
+				? `tbl.${col.quoted}`
+				: `tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}'`
+		}) j WHERE j.value`
+		if (col.in) {
+			col.where = args =>
+				`EXISTS(${jsonExpr} IN (${args.map(() => '?').join(',')}))`
+			col.whereVal = args => args && args.length && args
+		} else if (col.inAll) {
+			col.where = args =>
+				`? IN (SELECT COUNT(*) FROM (${jsonExpr} IN (${args
+					.map(() => '?')
+					.join(',')})))`
+			col.whereVal = args => args && args.length && [args.length, ...args]
+		} else {
+			col.where = `EXISTS(${jsonExpr} = ?)`
+		}
+	} else if (col.in) {
+		if (col.where || col.whereVal)
+			throw new TypeError(`${name}: cannot mix .in and where/whereVal`)
+		if (col.textSearch)
+			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
+		col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
+		col.whereVal = args => (args && args.length ? args : false)
+	} else if (col.textSearch) {
+		if (col.where || col.whereVal)
+			throw new TypeError(`${name}: cannot mix textSearch and where/whereVal`)
 		if (col.in)
 			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
 		col.where = `${col.sql} LIKE ?`
@@ -198,32 +253,6 @@ const normalizeColumn = (col, name) => {
 		}
 	}
 	col.select = `${col.sql} AS ${col.alias}`
-
-	if (col.required) {
-		col.ignoreNull = false
-		const prev = col.value
-		if (!prev)
-			throw new TypeError(
-				`${col.name}: required can only be used on value() col`
-			)
-		col.value = async function(o) {
-			const result = await prev.call(this, o)
-			if (result == null) throw new Error(`${col.name}: value is required`)
-			return result
-		}
-	}
-
-	// Stringify/parse JSON type columns
-	if (col.value && col.type === 'JSON' && !col.parse) {
-		const prevValue = col.value
-		col.value = obj => JSON.stringify(prevValue(obj))
-		col.parse = s => (s == null ? s : JSON.parse(s))
-	}
-
-	if (col.parse && (!col.value || !col.get) && col.name !== 'json')
-		throw new TypeError(
-			`${col.name}: parse() requires a value function and get:true`
-		)
 
 	if (!col.where) col.where = `${col.sql}=?`
 }
@@ -263,7 +292,6 @@ const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
 const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
 	model.db = db
-	model.parseRow = model._makeParseRow()
 	model._set = model._makeSetFn()
 	return model
 }
@@ -293,19 +321,19 @@ const makeMigrations = ({
 	for (const [name, col] of Object.entries(columns)) {
 		// We already added these, or it's an alias
 		if (name === idCol || name === 'json' || name !== col.name) continue
+		const expr = col.sql.replace('tbl.', '')
 		allMigrations[`0_${name}`] = ({db}) =>
 			db.exec(
 				`${
-					col.value
-						? `ALTER TABLE ${tableQuoted} ADD COLUMN ${col.quoted} ${col.type ||
-								'BLOB'};`
+					col.type
+						? `ALTER TABLE ${tableQuoted} ADD COLUMN ${col.quoted} ${col.type};`
 						: ''
 				}${
 					col.index
 						? `CREATE ${col.unique ? 'UNIQUE ' : ''}INDEX ${sql.quoteId(
 								`${tableName}_${name}`
-						  )} ON ${tableQuoted}(${col.sql}) ${
-								col.ignoreNull ? `WHERE ${col.sql} IS NOT NULL` : ''
+						  )} ON ${tableQuoted}(${expr}) ${
+								col.ignoreNull ? `WHERE ${expr} IS NOT NULL` : ''
 						  };`
 						: ''
 				}`
@@ -378,31 +406,33 @@ class JsonModel {
 			...columns,
 			[idCol]: {
 				type: 'TEXT',
+				alias: '_i',
 				// Allow overriding type but not indexing
 				...idColDef,
 				slugValue: undefined,
 				value: makeIdValue(idCol, idColDef),
-				index: true,
+				index: 'ALL',
 				unique: true,
-				ignoreNull: false,
 				get: true,
 			},
 			json: {
-				// Strip "get" columns from stored JSON (including id)
-				value: obj => {
-					const json = JSON.stringify({...obj, ...this.jsonMask})
+				alias: '_j',
+				stringify: obj => {
+					const json = JSON.stringify(obj)
 					return json === '{}' ? null : json
 				},
-				parse: JSON.parse,
+				parse: v => (v == null ? v : JSON.parse(v)),
 				// Allow overriding parse/stringify but not type
 				...(columns && columns.json),
+				slugValue: undefined,
+				value: undefined,
 				type: 'JSON',
-				get: false,
+				path: '',
+				get: true,
 			},
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
-		this.jsonMask = {}
 		this.columns = {}
 		let i = 0
 		for (const name of Object.keys(allColumns)) {
@@ -417,12 +447,10 @@ class JsonModel {
 			this.columns[name] = col
 			this.columns[col.alias] = col
 			this.columnArr.push(col)
-
-			if (col.get) {
-				// Mark root key with same name for removal when stringifying
-				this.jsonMask[name] = undefined
-			}
 		}
+		assignJsonParents(this.columnArr)
+		for (const col of this.columnArr) prepareSqlCol(col)
+		this.getCols = this.columnArr.filter(c => c.get).sort(byPathLength)
 
 		this.db.registerMigrations(
 			name,
@@ -436,7 +464,6 @@ class JsonModel {
 			})
 		)
 
-		this.parseRow = this._makeParseRow()
 		this._set = this._makeSetFn()
 		// The columns we should normally fetch - json + get columns
 
@@ -446,65 +473,106 @@ class JsonModel {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
-	// Creates this.parseRow
-	_makeParseRow() {
-		const getCols = this.columnArr.filter(c => c.get)
-		const jsonAlias = this.columns.json.alias
-		const jsonParse = this.columns.json.parse
-		return (row, options) => {
-			const mapCols =
-				options && options.cols
-					? options.cols.map(n => this.columns[n])
-					: getCols
-			const out = new this.Item()
-			for (const k of mapCols) {
-				const val = row[k.alias]
-				if (val != null) {
-					out[k.name] = k.parse ? k.parse(val) : val
-				}
+	parseRow = (row, options) => {
+		const mapCols =
+			options && options.cols
+				? options.cols.map(n => this.columns[n])
+				: this.getCols
+		const out = new this.Item()
+		for (const k of mapCols) {
+			const val = row[k.alias]
+			if (val != null) {
+				if (k.path) set(out, k.path, k.parse ? k.parse(val) : val)
+				else Object.assign(out, k.parse(val)) // json col
 			}
-			if (row[jsonAlias]) {
-				Object.assign(out, jsonParse(row[jsonAlias]))
-			}
-			return out
 		}
+		return out
 	}
 
 	_makeSetFn() {
-		const {columnArr, Item} = this
-		const valueCols = columnArr.filter(col => col.value)
-		const colSqls = valueCols.map(col => col.sql)
-		const setSql = `
-			INTO
-				${this.quoted}(${colSqls.join(',')})
-			VALUES(${colSqls.map(() => '?').join(',')})
-		`
+		const {Item} = this
+		const valueCols = this.columnArr.filter(c => c.value).sort(byPathLength)
+		const realCols = this.columnArr
+			.filter(c => c.real)
+			.sort(byPathLengthDesc)
+			.map((c, i) => ({
+				...c,
+				i,
+				valueI: c.value && valueCols.indexOf(c),
+			}))
+		// This doesn't include sql expressions, you need to .get() for those
+		const setCols = [...realCols].filter(c => c.get).reverse()
+		const mutators = new Set()
+		for (const col of valueCols) {
+			for (let i = 1; i < col.parts.length; i++)
+				mutators.add(col.parts.slice(0, i).join('.'))
+		}
+		for (const col of realCols) {
+			for (let i = 1; i < col.parts.length; i++)
+				if (col.get) mutators.add(col.parts.slice(0, i).join('.'))
+		}
+		const mutatePaths = [...mutators].sort(
+			(a, b) => (a ? a.split('.').length : 0) - (b ? b.split('.').length : 0)
+		)
+		const cloneObj = mutatePaths.length
+			? obj => {
+					obj = {...obj}
+					for (const path of mutatePaths) {
+						set(obj, path, {...get(obj, path)})
+					}
+					return obj
+			  }
+			: obj => ({...obj})
+		const colSqls = realCols.map(col => col.quoted)
+		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
+			.map(() => '?')
+			.join()})`
 		const insertSql = `INSERT ${setSql}`
 		const updateSql = `INSERT OR REPLACE ${setSql}`
-		const selectIdxs = valueCols
-			.map(({get, name, parse}, i) => ({get, name, parse, i}))
-			.filter(c => c.get)
-		return (obj, insertOnly) =>
-			// value functions must be able to use other db during migrations, so call with our this
-			Promise.all(valueCols.map(d => d.value.call(this, obj))).then(colVals =>
-				// The json field is part of the colVals
-				// eslint-disable-next-line promise/no-nesting
-				this.db
-					.run(insertOnly ? insertSql : updateSql, colVals)
-					.then(result => {
-						// Return what get(id) would return
-						const newObj = new Item()
-						Object.assign(newObj, obj)
-						selectIdxs.forEach(({name, parse, i}) => {
-							newObj[name] = parse ? parse(colVals[i]) : colVals[i]
-						})
-						if (newObj[this.idCol] == null) {
-							// This can only happen for integer ids, so we use the last inserted rowid
-							newObj[this.idCol] = result.lastID
-						}
-						return newObj
-					})
+		return async (o, insertOnly) => {
+			const obj = cloneObj(o)
+			const results = await Promise.all(
+				valueCols.map(col =>
+					// value functions must be able to use other db during migrations, so call with our this
+					col.value.call(this, obj)
+				)
 			)
+			results.forEach((r, i) => {
+				const col = valueCols[i]
+				if (col.get && col.path) set(obj, col.path, r)
+			})
+			const colVals = realCols.map(col => {
+				let v
+				if (col.path) {
+					if (col.value) v = results[col.valueI]
+					else v = get(obj, col.path)
+					if (col.get) set(obj, col.path, undefined)
+				} else {
+					v = obj
+				}
+				return col.stringify ? col.stringify(v) : v
+			})
+
+			// The json field is part of the colVals
+			// eslint-disable-next-line promise/no-nesting
+			return this.db
+				.run(insertOnly ? insertSql : updateSql, colVals)
+				.then(result => {
+					// Return what get(id) would return
+					const newObj = new Item()
+					setCols.forEach(col => {
+						const val = colVals[col.i]
+						const v = col.parse ? col.parse(val) : val
+						if (col.path === '') Object.assign(newObj, v)
+						else set(newObj, col.path, v)
+					})
+					if (newObj[this.idCol] == null) {
+						// This can only happen for integer ids, so we use the last inserted rowid
+						newObj[this.idCol] = result.lastID
+					}
+					return newObj
+				})
+		}
 	}
 
 	_colSql(colName) {
@@ -703,7 +771,7 @@ class JsonModel {
 			.join(' ')
 		const totalQ =
 			calcTotal &&
-			[`SELECT COUNT(*) as t from ${this.quoted} tbl`, join, whereQ]
+			[`SELECT COUNT(*) as t from (`, selectQ, join, whereQ, ')']
 				.filter(Boolean)
 				.join(' ')
 		return [q, allVals, cursorColNames, totalQ, vals]
@@ -819,7 +887,7 @@ class JsonModel {
 
 	all() {
 		return this.db
-			.all(`SELECT ${this.selectColsSql} FROM ${this.quoted}`)
+			.all(`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`)
 			.then(this.toObj)
 	}
 
@@ -832,9 +900,9 @@ class JsonModel {
 		const where = this.columns[colName].sql
 		return this.db
 			.get(
-				`
-			SELECT ${this.selectColsSql} FROM ${this.quoted} WHERE ${where} = ?
-		`,
+				`SELECT ${this.selectColsSql} FROM ${
+					this.quoted
+				} tbl WHERE ${where} = ?`,
 				[id]
 			)
 			.then(this.toObj)
@@ -845,9 +913,9 @@ class JsonModel {
 		const where = this.columns[colName].sql
 		return this.db
 			.all(
-				`
-			SELECT ${this.selectColsSql} FROM ${this.quoted} WHERE ${where} IN (${qs})
-		`,
+				`SELECT ${this.selectColsSql} FROM ${
+					this.quoted
+				} tbl WHERE ${where} IN (${qs})`,
 				ids
 			)
 			.then(rows => {
@@ -909,9 +977,9 @@ class JsonModel {
 
 	changeId(oldId, newId) {
 		if (newId == null) throw new TypeError('newId must be a valid id')
-		const idSql = this.columns[this.idCol].sql
+		const {quoted} = this.columns[this.idCol]
 		return this.db
-			.run(`UPDATE ${this.quoted} SET ${idSql} = ? WHERE ${idSql} = ?`, [
+			.run(`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`, [
 				newId,
 				oldId,
 			])
