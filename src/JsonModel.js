@@ -89,6 +89,7 @@ const verifyOptions = options => {
 		/* eslint-disable no-console */
 		const prevError = console.error
 		console.error = message => {
+			console.error = prevError
 			throw new Error(message)
 		}
 		PropTypes.checkPropTypes(jmPropTypes, {options}, 'options', 'JsonModel')
