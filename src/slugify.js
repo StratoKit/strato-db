@@ -2,7 +2,7 @@ import {deburr} from 'lodash'
 
 const abc = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const randomString = n =>
-	Array.apply(null, new Array(n))
+	Array.apply(null, new Array(n)) // eslint-disable-line prefer-spread
 		.map(() => {
 			return abc.charAt(Math.floor(Math.random() * abc.length))
 		})

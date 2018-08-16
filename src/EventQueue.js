@@ -68,7 +68,7 @@ class EventQueue extends JsonModel {
 			const lastRow = await this.db.get(
 				`SELECT MAX(v) AS v from ${this.quoted}`
 			)
-			v = lastRow.v
+			v = lastRow.v // eslint-disable-line prefer-destructuring
 		}
 		this.currentV = Math.max(this.knownV, v || 0)
 		return this.currentV
