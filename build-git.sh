@@ -20,7 +20,7 @@ fi
 B=${CURRENT}-build
 echo "=== Building and pushing to $ORIGIN/$B ==="
 
-if ! nps test.full; then
+if ! nps test; then
 	die Tests failed
 fi
 if ! nps build; then
