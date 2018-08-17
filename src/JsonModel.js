@@ -203,6 +203,7 @@ const assignJsonParents = columnArr => {
 		}
 }
 
+// eslint-disable-next-line complexity
 const prepareSqlCol = col => {
 	if (!col.sql) {
 		col.sql = col.type
@@ -257,6 +258,16 @@ const prepareSqlCol = col => {
 	}
 	col.select = `${col.sql} AS ${col.alias}`
 
+	if (
+		typeof col.where === 'string' &&
+		!col.whereVal &&
+		!col.where.includes('?')
+	)
+		throw new Error(
+			`${col.name}: .where "${
+				col.where
+			}" should include a ? when not passing .whereVal`
+		)
 	if (!col.where) col.where = `${col.sql}=?`
 }
 
@@ -718,6 +729,7 @@ class JsonModel {
 				if (!col) {
 					throw new Error(`Unknown column ${a}`)
 				}
+				const origVal = val
 				const {where, whereVal} = col
 				let valid = true
 				if (whereVal) {
@@ -725,6 +737,8 @@ class JsonModel {
 					if (Array.isArray(val)) {
 						vals.push(...val)
 					} else {
+						if (val)
+							throw new Error(`whereVal for ${a} should return array or falsy`)
 						valid = false
 					}
 				} else {
@@ -733,7 +747,7 @@ class JsonModel {
 				if (valid) {
 					// Note that we don't attempt to use aliases, because of sharing the whereQ with
 					// the total calculation, and the query optimizer recognizes the common expressions
-					conds.push(typeof where === 'function' ? where(val) : where)
+					conds.push(typeof where === 'function' ? where(val, origVal) : where)
 				}
 			}
 		}

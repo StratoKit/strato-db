@@ -189,4 +189,52 @@ test('path in json column', async () => {
 		json: null,
 	})
 })
+
+test('where/whereVal', () => {
+	const m = getModel({
+		columns: {
+			s: {where: 's<?'},
+			f: {where: v => `${v}=?`},
+			v: {whereVal: v => [v * 2]},
+			w: {where: 'hi', whereVal: () => []},
+			o: {whereVal: () => false},
+		},
+	})
+	expect(
+		m.makeSelect({attrs: {s: 1, f: 2, v: 3, w: 4, o: 5}}).slice(0, 2)
+	).toEqual([
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(s<?)AND(2=?)AND(json_extract(tbl."json",\'$.v\')=?)AND(hi)',
+		[1, 2, 6],
+	])
+})
+
+test('where(val, origVal)', () => {
+	const m = getModel({
+		columns: {
+			a: {where: (v, o) => `${v}|${o}`, whereVal: v => [v * 2]},
+		},
+	})
+	expect(m.makeSelect({attrs: {a: 1}}).slice(0, 2)).toEqual([
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(2|1)',
+		[2],
+	])
+})
+
+test('where string', () => {
+	expect(() =>
+		getModel({
+			columns: {
+				s: {where: 'noplaceholder'},
+			},
+		})
+	).toThrow('where')
+})
+
+test('whereVal truthy not array', () => {
+	const m = getModel({
+		columns: {
+			s: {whereVal: () => true},
+		},
+	})
+	expect(() => m.makeSelect({attrs: {s: 1}})).toThrow('whereVal')
 })
