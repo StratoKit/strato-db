@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0
+
+JsonModel:
+
+- `column.where(val, origVal)`: Now the original value is also available to the `where` function
+- fix json column detection for non-JSON columns
+
 ## 2.0.0
 
 JsonModel: breaking API change
