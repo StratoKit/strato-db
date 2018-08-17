@@ -169,14 +169,24 @@ test('path in json column', async () => {
 			id: {type: 'INTEGER'},
 			b: {path: 'a.b'},
 			a: {type: 'JSON'},
+			c: {real: true},
+			d: {path: 'c.d'},
+			e: {type: 'JSON', get: false, parse: null},
+			f: {path: 'e.f'},
 		},
 	})
+	expect(m.columns.b.jsonCol).toBe('a')
+	expect(m.columns.d.jsonCol).toBe('json')
+	expect(m.columns.f.jsonCol).toBe('json')
 	await m.set({a: {b: 4}})
 	await expect(m.searchOne({b: 4})).resolves.toHaveProperty('id', 1)
 	await expect(m.get(1)).resolves.toEqual({id: 1, a: {b: 4}})
 	await expect(m.db.get('select * from testing')).resolves.toEqual({
-		a: '{"b":4}',
 		id: 1,
+		a: '{"b":4}',
+		c: null,
+		e: null,
 		json: null,
 	})
+})
 })
