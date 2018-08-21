@@ -287,3 +287,35 @@ test('whereVal truthy not array', () => {
 	})
 	expect(() => m.makeSelect({attrs: {s: 1}})).toThrow('whereVal')
 })
+
+test('JSON falsyBool', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			b: {real: true, falsyBool: true},
+			c: {real: true, falsyBool: true},
+			d: {falsyBool: true},
+			e: {falsyBool: true},
+			f: {type: 'JSON', falsyBool: true},
+			g: {type: 'JSON', falsyBool: true},
+		},
+	})
+	expect(await m.set({b: true, c: false, e: true, f: false, g: true})).toEqual({
+		id: 1,
+		b: true,
+		c: undefined,
+		d: undefined,
+		e: true,
+		f: undefined,
+		g: true,
+	})
+	await expect(m.get(1)).resolves.toEqual({id: 1, b: true, e: true, g: true})
+	await expect(m.db.get('select * from testing')).resolves.toEqual({
+		id: 1,
+		b: 1,
+		c: null,
+		json: '{"e":true}',
+		f: null,
+		g: 'true',
+	})
+})

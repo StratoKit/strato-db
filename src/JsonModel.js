@@ -64,6 +64,7 @@ const jmPropTypes =
 							value: PropTypes.func, // value to store
 							default: PropTypes.any, // js expression, default value
 							required: PropTypes.bool, // throw if no value
+							falsyBool: PropTypes.bool, // bool: 1/NULL true/undefined
 
 							// === index ===
 							// create index for this column
@@ -111,7 +112,7 @@ const normalizeColumn = (col, name) => {
 	col.name = name
 	col.quoted = sql.quoteId(name)
 	if (col.type) col.real = true
-	else if (col.real) col.type = 'BLOB'
+	else if (col.real) col.type = col.falsyBool ? 'INTEGER' : 'BLOB'
 	if (col.get == null) col.get = !!col.real
 
 	if (!col.path && name !== 'json') col.path = name
@@ -172,6 +173,25 @@ const normalizeColumn = (col, name) => {
 				if (v == null) throw new Error(`${name}: value is required`)
 				return v
 			}
+		}
+	}
+
+	if (col.falsyBool) {
+		const prev = col.value
+		if (prev) {
+			col.value = async function(o) {
+				const r = await prev.call(this, o)
+				return r ? true : undefined
+			}
+		} else {
+			col.value = o => {
+				const v = get(o, col.path)
+				return v ? true : undefined
+			}
+		}
+		if (col.real) {
+			if (col.parse) throw new TypeError(`${name}: falsyBool can't have parse`)
+			col.parse = v => (v ? true : undefined)
 		}
 	}
 
