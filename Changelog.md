@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.1
+
+- JsonModel: value() on non-real columns is now stored
+
 ## 2.2.0
 
 JsonModel:
