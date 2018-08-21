@@ -74,6 +74,7 @@ Array [
   },
   Object {
     "alias": "_i",
+    "autoIncrement": undefined,
     "get": true,
     "ignoreNull": false,
     "index": "ALL",
@@ -85,7 +86,6 @@ Array [
     "quoted": "\\"id\\"",
     "real": true,
     "select": "tbl.\\"id\\" AS _i",
-    "slugValue": undefined,
     "sql": "tbl.\\"id\\"",
     "type": "TEXT",
     "unique": true,
@@ -94,6 +94,7 @@ Array [
   },
   Object {
     "alias": "_j",
+    "alwaysObject": true,
     "get": true,
     "ignoreNull": true,
     "name": "json",
@@ -103,11 +104,9 @@ Array [
     "quoted": "\\"json\\"",
     "real": true,
     "select": "tbl.\\"json\\" AS _j",
-    "slugValue": undefined,
     "sql": "tbl.\\"json\\"",
     "stringify": [Function],
     "type": "JSON",
-    "value": undefined,
     "where": "tbl.\\"json\\"=?",
   },
 ]

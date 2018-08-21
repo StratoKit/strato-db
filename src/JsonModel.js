@@ -56,6 +56,7 @@ const jmPropTypes =
 							get: PropTypes.bool, // include column in query results, strip data from json
 							parse: PropTypes.func, // returns JS value given column data
 							stringify: PropTypes.func, // returns column value given object data
+							alwaysObject: PropTypes.bool, // JSON is always object
 
 							// === value related ===
 							slugValue: PropTypes.func, // returns seed for uniqueSlugId
@@ -174,12 +175,6 @@ const normalizeColumn = (col, name) => {
 		}
 	}
 
-	if (col.type === 'JSON') {
-		if (col.stringify === undefined) col.stringify = JSON.stringify
-		if (col.parse === undefined)
-			col.parse = v => (v == null ? v : JSON.parse(v))
-	}
-
 	if (!col.real && col.stringify)
 		throw new Error(`${name}: stringify only applies to real columns`)
 	if (!col.get && col.parse)
@@ -190,24 +185,39 @@ const assignJsonParents = columnArr => {
 	const parents = columnArr
 		.filter(c => c.type === 'JSON' && c.get)
 		.sort(byPathLengthDesc)
-	for (const col of columnArr)
+	for (const col of columnArr) {
+		// Will always match, json column has path:''
+		const parent = parents.find(
+			p => !p.path || col.path.startsWith(p.path + '.')
+		)
+		if (parent.alwaysObject == null) parent.alwaysObject = true
 		if (!col.real) {
-			// Will always match, json column has path:''
-			const parent = parents.find(
-				p => !p.path || col.path.startsWith(p.path + '.')
-			)
 			col.jsonCol = parent.name
 			col.jsonPath = parent.path
 				? col.path.slice(parent.path.length + 1)
 				: col.path
 		}
+	}
 }
 
 const stringifyJson = JSON.stringify
+const stringifyJsonObject = obj => {
+	const json = JSON.stringify(obj)
+	return json === '{}' ? null : json
+}
+const parseJson = v => (v == null ? v : JSON.parse(v))
 const parseJsonObject = v => (v == null ? {} : JSON.parse(v))
 
 // eslint-disable-next-line complexity
 const prepareSqlCol = col => {
+	if (col.type === 'JSON') {
+		if (col.stringify === undefined)
+			col.stringify = col.alwaysObject ? stringifyJsonObject : stringifyJson
+		if (col.parse === undefined)
+			col.parse = col.alwaysObject ? parseJsonObject : parseJson
+	} else if (col.alwaysObject)
+		throw new TypeError(`${name}: .alwaysObject only applies to JSON type`)
+
 	if (!col.sql) {
 		col.sql = col.type
 			? `tbl.${col.quoted}`
@@ -437,6 +447,7 @@ class JsonModel {
 				parse: jsonColDef.parse || parseJson,
 				stringify: jsonColDef.stringify || stringifyJsonObject,
 				type: 'JSON',
+				alwaysObject: true,
 				path: '',
 				get: true,
 			},

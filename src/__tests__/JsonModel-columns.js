@@ -155,12 +155,61 @@ test('nested JSON', async () => {
 	})
 	await expect(m.get(1)).resolves.toEqual({id: 1, a: {b: {c: 3}}})
 	await expect(m.db.get('select * from testing')).resolves.toEqual({
-		a: '{}',
-		b: '{}',
+		a: null,
+		b: null,
 		c: 3,
 		id: 1,
 		json: null,
 	})
+})
+
+test('nested JSON null object', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			c: {type: 'JSON', path: 'a.b.c'},
+			a: {type: 'JSON'},
+			b: {type: 'JSON', path: 'a.b'},
+		},
+	})
+	await expect(m.set({a: {t: 1}})).resolves.toEqual({
+		id: 1,
+		a: {t: 1, b: {}},
+	})
+	await expect(m.get(1)).resolves.toEqual({id: 1, a: {t: 1, b: {}}})
+	await expect(m.db.get('select * from testing')).resolves.toEqual({
+		a: '{"t":1}',
+		b: null,
+		c: null,
+		id: 1,
+		json: null,
+	})
+})
+
+test('JSON alwaysObject', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			a: {type: 'JSON'},
+			b: {type: 'JSON', path: 'a.b', alwaysObject: true},
+			c: {type: 'JSON', alwaysObject: false},
+			d: {path: 'c.d'},
+		},
+	})
+	expect(m.columns.a).toHaveProperty('alwaysObject', true)
+	expect(m.columns.c).toHaveProperty('alwaysObject', false)
+	await expect(m.set({a: {t: 1}})).resolves.toEqual({
+		id: 1,
+		a: {t: 1, b: {}},
+		c: undefined,
+	})
+	await expect(m.get(1)).resolves.toEqual({id: 1, a: {t: 1, b: {}}})
+	await expect(m.set({c: 1})).resolves.toEqual({
+		id: 2,
+		a: {b: {}},
+		c: 1,
+	})
+	await expect(m.get(2)).resolves.toEqual({id: 2, a: {b: {}}, c: 1})
 })
 
 test('path in json column', async () => {
