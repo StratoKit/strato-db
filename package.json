@@ -1,6 +1,6 @@
 {
   "name": "strato-db",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "NoSQL-hybrid with Event Sourcing based on sqlite",
   "license": "MIT",
   "repository": "Yaska/strato-db",

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.0
+
+JsonModel:
+
+- `column.alwaysObject`: for JSON columns: always have an object at that path, and store empty objects as NULL
+- `column.falsyBool`: store booleanish value as true/undefined. `real:true` makes the column be integer type
+  querying also works with truthy and falsy values
+
 ## 2.1.0
 
 JsonModel:
