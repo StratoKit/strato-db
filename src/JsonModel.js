@@ -584,7 +584,8 @@ class JsonModel {
 			)
 			results.forEach((r, i) => {
 				const col = valueCols[i]
-				if (col.get && col.path) set(obj, col.path, r)
+				// realCol values can be different from obj values
+				if (col.path && (!col.real || col.get)) set(obj, col.path, r)
 			})
 			const colVals = realCols.map(col => {
 				let v

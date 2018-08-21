@@ -117,6 +117,18 @@ test('value w type JSON', async () => {
 	])
 })
 
+test('value not real', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			v: {value: o => o.v * 2},
+		},
+	})
+	const result = {id: 1, v: 10}
+	expect(await m.set({v: 5})).toEqual(result)
+	expect(await m.get(1)).toEqual(result)
+})
+
 test('required', async () => {
 	const m = getModel({
 		columns: {
