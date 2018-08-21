@@ -490,10 +490,10 @@ class JsonModel {
 				: this.getCols
 		const out = new this.Item()
 		for (const k of mapCols) {
-			const val = row[k.alias]
+			const val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
 			if (val != null) {
-				if (k.path) set(out, k.path, k.parse ? k.parse(val) : val)
-				else Object.assign(out, k.parse(val)) // json col
+				if (k.path) set(out, k.path, val)
+				else Object.assign(out, val) // json col
 			}
 		}
 		return out
