@@ -203,6 +203,9 @@ const assignJsonParents = columnArr => {
 		}
 }
 
+const stringifyJson = JSON.stringify
+const parseJsonObject = v => (v == null ? {} : JSON.parse(v))
+
 // eslint-disable-next-line complexity
 const prepareSqlCol = col => {
 	if (!col.sql) {
@@ -415,31 +418,24 @@ class JsonModel {
 		this.idColQ = sql.quoteId(idCol)
 		this.Item = ItemClass || Object
 
-		const idColDef = columns && columns[idCol]
+		const idColDef = (columns && columns[idCol]) || {}
+		const jsonColDef = (columns && columns.json) || {}
 		const allColumns = {
 			...columns,
 			[idCol]: {
-				type: 'TEXT',
-				alias: '_i',
-				// Allow overriding type but not indexing
-				...idColDef,
-				slugValue: undefined,
+				type: idColDef.type || 'TEXT',
+				alias: idColDef.alias || '_i',
 				value: makeIdValue(idCol, idColDef),
 				index: 'ALL',
+				autoIncrement: idColDef.autoIncrement,
 				unique: true,
 				get: true,
 			},
 			json: {
-				alias: '_j',
-				stringify: obj => {
-					const json = JSON.stringify(obj)
-					return json === '{}' ? null : json
-				},
-				parse: v => (v == null ? v : JSON.parse(v)),
-				// Allow overriding parse/stringify but not type
-				...(columns && columns.json),
-				slugValue: undefined,
-				value: undefined,
+				alias: jsonColDef.alias || '_j',
+				// return null if empty, makes parseRow faster
+				parse: jsonColDef.parse || parseJson,
+				stringify: jsonColDef.stringify || stringifyJsonObject,
 				type: 'JSON',
 				path: '',
 				get: true,
