@@ -238,6 +238,10 @@ const prepareSqlCol = col => {
 	} else if (col.alwaysObject)
 		throw new TypeError(`${name}: .alwaysObject only applies to JSON type`)
 
+	if (col.falsyBool && !col.where) {
+		col.where = (_, v) => (v ? `${col.sql} IS NOT NULL` : `${col.sql} IS NULL`)
+		col.whereVal = () => []
+	}
 	if (!col.sql) {
 		col.sql = col.type
 			? `tbl.${col.quoted}`

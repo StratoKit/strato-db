@@ -288,7 +288,7 @@ test('whereVal truthy not array', () => {
 	expect(() => m.makeSelect({attrs: {s: 1}})).toThrow('whereVal')
 })
 
-test('JSON falsyBool', async () => {
+test('falsyBool', async () => {
 	const m = getModel({
 		columns: {
 			id: {type: 'INTEGER'},
@@ -318,4 +318,26 @@ test('JSON falsyBool', async () => {
 		f: null,
 		g: 'true',
 	})
+})
+
+test('falsyBool query', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			b: {real: true, falsyBool: true},
+			c: {real: true, falsyBool: true},
+			d: {falsyBool: true},
+			e: {falsyBool: true},
+			f: {type: 'JSON', falsyBool: true},
+			g: {type: 'JSON', falsyBool: true},
+		},
+	})
+	await m.set({c: true, d: true, f: true})
+	await m.set({b: true, c: false, e: true, f: false, g: true})
+	expect(await m.searchOne({c: false})).toHaveProperty('id', 2)
+	expect(await m.searchOne({d: ''})).toHaveProperty('id', 2)
+	expect(await m.searchOne({f: 0})).toHaveProperty('id', 2)
+	expect(await m.searchOne({b: 1})).toHaveProperty('id', 2)
+	expect(await m.searchOne({e: 'yes'})).toHaveProperty('id', 2)
+	expect(await m.searchOne({g: {}})).toHaveProperty('id', 2)
 })
