@@ -1,11 +1,12 @@
 // Note that this queue doesn't use any transactions by itself, to prevent deadlocks
+// Pass `forever: true` to keep Node running while waiting for events
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
 const dbg = debug('queue')
 
 class EventQueue extends JsonModel {
-	constructor({name = 'history', ...rest}) {
+	constructor({name = 'history', forever, ...rest}) {
 		super({
 			...rest,
 			name,
@@ -44,6 +45,7 @@ class EventQueue extends JsonModel {
 		})
 		this.currentV = -1
 		this.knownV = 0
+		this.forever = !!forever
 	}
 
 	set(obj) {
@@ -137,6 +139,7 @@ class EventQueue extends JsonModel {
 					() => this.nextAddedResolve && this.nextAddedResolve(),
 					10000
 				)
+				if (!this.forever) this.addTimer.unref()
 			}
 			// eslint-disable-next-line no-await-in-loop
 			event = await this.nextAddedP
