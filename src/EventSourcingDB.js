@@ -9,6 +9,7 @@
 // * To make changes to a table, change the reducer and rebuild the DB, or migrate the table
 
 import debug from 'debug'
+import {isEmpty} from 'lodash'
 import DB from './DB'
 import ESModel from './ESModel'
 import {createStore, combineReducers} from './async-redux'
@@ -16,22 +17,6 @@ import EventQueue from './EventQueue'
 import EventEmitter from 'events'
 
 const dbg = debug('stratokit/ESDB')
-
-const metadata = {
-	reducer: async (model, {v = 0}) => {
-		if (!model.get) return false
-		const currVDoc = await model.get('version')
-		const currV = currVDoc ? currVDoc.v : -1
-		if (v > currV) {
-			return {set: [{id: 'version', v}]}
-		}
-		return {
-			error: {
-				message: `Current version ${currV} is >= event version ${v}`,
-			},
-		}
-	},
-}
 
 const registerHistoryMigration = (rwDb, queue) => {
 	rwDb.registerMigrations('historyExport', {
@@ -82,12 +67,10 @@ class ESDB extends EventEmitter {
 				'db is no longer an option, pass the db options instead, e.g. file, verbose, readOnly'
 			)
 		if (!models) throw new TypeError('models are required')
-		if (models.metadata)
-			throw new TypeError('metadata is a reserved model name')
 		if (queueFile && queue)
 			throw new TypeError('Either pass  queue or queueFile')
 
-		models = {...models, metadata}
+		models = {metadata: {}, ...models}
 
 		this.rwDb = new DB(dbOptions)
 
@@ -294,18 +277,11 @@ class ESDB extends EventEmitter {
 	}
 
 	async reducer(state, event) {
+		if (!event.v) return false
 		event = await this.preprocessor(event)
-		if (event.error) {
-			// preprocess failed, we need to apply metadata and store
-			const metadata = await this.store.metadata.reducer(
-				this.store.metadata,
-				event
-			)
-			return {...event, result: {metadata}}
-		}
+		if (event.error) return event
 		const result = await this.modelReducer(this.reducerModels, event)
-		const hasError = this.reducerNames.some(n => result[n].error)
-		if (hasError) {
+		if (this.reducerNames.some(n => result[n].error)) {
 			const error = {}
 			for (const name of this.reducerNames) {
 				const r = result[name]
@@ -313,7 +289,7 @@ class ESDB extends EventEmitter {
 					error[name] = r.error
 				}
 			}
-			return {...event, result: {metadata: result.metadata}, error}
+			return {...event, error}
 		}
 		for (const name of this.reducerNames) {
 			const r = result[name]
@@ -436,19 +412,14 @@ class ESDB extends EventEmitter {
 					// and call apply directly, not via redux
 					await this.redux.dispatch(event)
 				} catch (err) {
-					// Redux failed so we'll apply manually
-					const metadata = await this.store.metadata.reducer(
-						this.store.metadata,
-						event
-					)
-					// Will never error
+					// Do not await this, deadlock
+					// This will never error, safe to call here
 					this.handleResult({
 						...event,
 						error: {
 							...event.error,
 							_redux: {message: err.message, stack: err.stack},
 						},
-						result: {metadata},
 					})
 				}
 				// This promise should always be there because the listeners are called
@@ -557,45 +528,55 @@ class ESDB extends EventEmitter {
 		const {rwStore, rwDb, readWriters} = this
 		for (const model of readWriters) model.setWritable(true)
 		try {
-			// First write our result to the queue (strip metadata, it's only v)
-			const {result} = event
-			const {metadata} = result
-			delete result.metadata
-
-			if (Object.keys(result).length) {
-				// Apply reducer results
-				try {
-					await rwDb.run('SAVEPOINT apply')
-					await Promise.all(
-						Object.entries(result).map(
-							([name, r]) => r && rwStore[name].applyChanges(r)
-						)
-					)
-					await rwDb.run('RELEASE SAVEPOINT apply')
-				} catch (err) {
-					showHugeDbError(err, 'apply')
-					await rwDb.run('ROLLBACK TO SAVEPOINT apply')
-					event.failedResult = event.result
-					delete event.result
-					event.error = {_apply: err.message || err}
+			const {v, result} = event
+			const currVDoc = await rwDb.get(
+				`SELECT json_extract(json,'$.v') AS v FROM metadata WHERE id='version'`
+			)
+			const currV = currVDoc && currVDoc.v
+			if (currV && v <= currV) {
+				event.error = {
+					...event.error,
+					_apply: `Current version ${currV} is >= event version ${v}`,
 				}
-			} else {
+				event.failedResult = event.result
 				delete event.result
+			} else {
+				if (result && !isEmpty(result)) {
+					// Apply reducer results
+					try {
+						await rwDb.run('SAVEPOINT apply')
+						await Promise.all(
+							Object.entries(result).map(
+								([name, r]) => r && rwStore[name].applyChanges(r)
+							)
+						)
+						await rwDb.run('RELEASE SAVEPOINT apply')
+					} catch (err) {
+						showHugeDbError(err, 'apply')
+						await rwDb.run('ROLLBACK TO SAVEPOINT apply')
+						event.failedResult = event.result
+						delete event.result
+						event.error = {_apply: err.message || err}
+					}
+				}
+				// Even if the apply failed we'll consider this event handled
+				await rwDb.run(
+					`INSERT OR REPLACE INTO metadata(id,json) VALUES ('version','{"v":${v}}')`
+				)
 			}
-
-			// Even if the apply failed we'll consider this event handled
-			await rwStore.metadata.applyChanges(metadata)
 
 			await this._resultQueue.set(event)
 
 			// Apply derivers
 			if (!event.error && this.deriverModels.length) {
 				try {
+					// TODO probably don't use this but roll back to apply
 					await rwDb.run('SAVEPOINT derive')
 					await Promise.all(
 						this.deriverModels.map(model =>
 							model.deriver({
 								model,
+								// TODO would this not better be the RO store?
 								store: this.rwStore,
 								event,
 								result,
@@ -609,6 +590,7 @@ class ESDB extends EventEmitter {
 					event.failedResult = event.result
 					delete event.result
 					event.error = {_derive: err.message || err}
+					// TODO _resultQueue?
 					await this.queue.set(event)
 				}
 			}

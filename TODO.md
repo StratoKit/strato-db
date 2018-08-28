@@ -145,6 +145,5 @@
 - [ ] promises for each deriver so they can depend on each other
   - to be specified at startup, and checked for cycles
 - [ ] jsonmodel for ESDB that includes auto-caching between events, use pragma data_version to know when data changed, applyChanges
-- [ ] reduce metadata in apply, so storing event errors on preprocess/reduce is simpler
 - [ ] IDEA eventually allow multiple ESDBs by storing version per queue name
 - [ ] optimization: if multiple events in queue, do per 10 in the same transaction

@@ -28,7 +28,6 @@ test('create', () =>
 			expect(eSDB.store.count).toBeTruthy()
 			expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
 			expect(eSDB.rwStore.count).toBeTruthy()
-			expect(() => withESDB(() => {}, {metadata: {}})).toThrow()
 			// Make sure the read-only database can start (no timeout)
 			// and that migrations work
 			expect(await eSDB.store.count.all()).toEqual([
@@ -100,7 +99,6 @@ test('reducer', () => {
 			type: 'foo',
 			result: {
 				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
-				metadata: {set: [{id: 'version', v: 1}]},
 			},
 		})
 		const result2 = await eSDB.reducer(null, events[1])
@@ -110,7 +108,6 @@ test('reducer', () => {
 			data: {gotBar: true},
 			result: {
 				count: {set: [{id: 'count', total: 1, byType: {bar: 1}}]},
-				metadata: {set: [{id: 'version', v: 2}]},
 			},
 		})
 	})
@@ -151,7 +148,7 @@ test('applyEvent invalid', () => {
 					metadata: {set: {map: 5}},
 				},
 			})
-		).rejects.toThrow('not a function')
+		).resolves.toHaveProperty('error._apply', 'set.map is not a function')
 	})
 })
 
@@ -456,3 +453,12 @@ test('preprocessor/reducer for ESModel', async () =>
 			},
 		}
 	))
+
+test('metadata can also be used', async () =>
+	withESDB(async eSDB => {
+		await eSDB.store.metadata.set({id: 'test', yey: true})
+		await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
+			id: 'test',
+			yey: true,
+		})
+	}))
