@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.2
+
+- EventSourcingDB: the metadata table can be used as well
+- EventQueue: don't keep Node alive while waiting unless `forever: true`
+
 ## 2.2.1
 
 - JsonModel: value() on non-real columns is now stored
