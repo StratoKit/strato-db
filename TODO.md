@@ -81,6 +81,14 @@
 
 ### Nice to have
 
+- [ ] create non-integer primary keys with NOT NULL (sqlite bug)
+- [ ] Better types:
+  - current `type` => `colType` + `real`
+  - when `type` is fn, run `type({col, name, columns})`, col/columns are mutable
+  - first assign `parent` and `isParent`
+  - `types` registry for defaults, like `string`, `bool`, `truthy`, `number` etc
+  - these types also validate
+- [ ] use buffer stringify/parse to implement efficient UUID by default. See https://stackoverflow.com/questions/20342058/which-uuid-version-to-use
 - [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
 - [ ] also do stringify on paths, e.g. to stringify objects
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
