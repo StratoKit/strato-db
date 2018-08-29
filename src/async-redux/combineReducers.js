@@ -174,20 +174,15 @@ export default function combineReducers(reducers, isAsync) {
 			return Promise.all(
 				finalReducerKeys.map(async key => {
 					const reducer = finalReducers[key]
-					const previousStateForKey = state[key]
-					const nextStateForKey = await reducer(previousStateForKey, action)
-					if (typeof nextStateForKey === 'undefined') {
+					const model = state[key]
+					const result = await reducer(model, action)
+					if (typeof result === 'undefined') {
 						const errorMessage = getUndefinedStateErrorMessage(key, action)
 						throw new Error(errorMessage)
 					}
-					nextState[key] = nextStateForKey
-					// Allow returning `false` for "no change"
-					hasChanged =
-						hasChanged ||
-						(nextStateForKey !== false &&
-							nextStateForKey !== previousStateForKey)
+					nextState[key] = result
 				})
-			).then(() => (hasChanged ? nextState : state))
+			).then(() => nextState)
 		}
 
 		for (let i = 0; i < finalReducerKeys.length; i++) {

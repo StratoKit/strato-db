@@ -455,10 +455,22 @@ test('preprocessor/reducer for ESModel', async () =>
 	))
 
 test('metadata can also be used', async () =>
-	withESDB(async eSDB => {
-		await eSDB.store.metadata.set({id: 'test', yey: true})
-		await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
-			id: 'test',
-			yey: true,
-		})
-	}))
+	withESDB(
+		async eSDB => {
+			await eSDB.store.metadata.set({id: 'test', yey: true})
+			await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
+				id: 'test',
+				yey: true,
+			})
+			await eSDB.dispatch('IGNOREME')
+			await eSDB.store.metadata.update({id: 'test', bar: true})
+			await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
+				id: 'test',
+				yey: true,
+				bar: true,
+			})
+		},
+		{
+			// no models
+		}
+	))
