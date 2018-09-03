@@ -348,3 +348,14 @@ test('metadata in event', () =>
 		},
 		{m: {columns: {id: {type: 'INTEGER'}}}}
 	))
+
+test('getNextId', () =>
+	withESDB(
+		async eSDB => {
+			const {m} = eSDB.store
+			await expect(m.getNextId()).resolves.toBe(1)
+			await m.set({id: 1})
+			await expect(m.getNextId()).resolves.toBe(2)
+		},
+		{m: {columns: {id: {type: 'INTEGER'}}}}
+	))
