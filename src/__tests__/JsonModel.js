@@ -184,7 +184,7 @@ test('idCol', async () => {
 	expect(m.makeSelect({limit: 2})).toEqual([
 		'SELECT tbl."v" AS _i,tbl."json" AS _j FROM "testing" tbl ORDER BY _i LIMIT 2',
 		[],
-		['_i', '_j'],
+		['_i'],
 		'SELECT COUNT(*) as t from ( SELECT tbl."v" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
 	])

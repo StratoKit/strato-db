@@ -706,10 +706,9 @@ class JsonModel {
 					cols.push(colName)
 				}
 			})
-			cursorColNames =
-				cols === this.selectColNames
-					? this.selectColAliases
-					: sortNames.map(c => (this.columns[c] ? this.columns[c].alias : c))
+			cursorColNames = sortNames.map(
+				c => (this.columns[c] ? this.columns[c].alias : c)
+			)
 		}
 
 		if (cursor) {
