@@ -128,6 +128,7 @@
 
 ### Important
 
+- Somehow unhandledRejection can happen in preprocessor `{ v: 119531, type: 'CONTRACT_CONFIRMED', ts: 1538636160023, data: { id: 'contracts-34706' }, capId: 29682, error: { contracts: 'Error: No "id" given for "clients"\n    at Clients_Clients.get (/Users/wmertens/Documents/AeroFS/Projects/meatier/node_modules/strato-db/src/JsonModel.js:834:5)\n    at Object.get [as preprocessor] (/Users/wmertens/Documents/AeroFS/Projects/meatier/build/server/webpack:/src/_server/database/contracts/contractConfirmed.js:82:37)\n    at <anonymous>' } }`
 - !!! Multi-process handling:
   - [ ] When handling event, check that the DB is on `event.v - 1`, else try again
     - This means we can never skip a version…
