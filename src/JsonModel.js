@@ -267,10 +267,10 @@ const prepareSqlCol = col => {
 			col.whereVal = args => args && args.length && args
 		} else if (col.inAll) {
 			col.where = args =>
-				`? IN (SELECT COUNT(*) FROM (${jsonExpr} IN (${args
+				`${args.length} IN (SELECT COUNT(*) FROM (${jsonExpr} IN (${args
 					.map(() => '?')
 					.join(',')})))`
-			col.whereVal = args => args && args.length && [args.length, ...args]
+			col.whereVal = args => args && args.length ? args : false
 		} else {
 			col.where = `EXISTS(${jsonExpr} = ?)`
 		}
