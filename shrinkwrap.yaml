@@ -1,7 +1,7 @@
 dependencies:
+  '@yaska-eu/jsurl2': 2.1.0
   dataloader: 1.4.0
   debug: 3.1.0
-  jsurl: github.com/wmertens/jsurl/7e66fe0d35664fd45f178c2aa320c77da6678e3e
   lodash: 4.17.10
   prop-types: 15.6.2
   sqlite3: 4.0.2
@@ -136,6 +136,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-MBwO1JQKin9BwKTGydrYe4VDJbStCUy35IhJzeZt3FByOdx/q3CYaqMRrH70qVD2RA7+Xk8e3RN0mzKZkYBYuQ==
+  /@yaska-eu/jsurl2/2.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-+KTF0OYLPt8E1lJD9yz2ErpjJuxfFZRrCyhR1xUNyNISg96iK9EbHP0Iz3D515SI9WZ85YuljjjRyhmOae+/XQ==
   /abab/1.0.4:
     dev: true
     resolution:
@@ -5466,17 +5470,11 @@ packages:
     optional: true
     resolution:
       integrity: sha1-9+572FfdfB0tOMDnTvvWgdFDH9E=
-  github.com/wmertens/jsurl/7e66fe0d35664fd45f178c2aa320c77da6678e3e:
-    dev: false
-    name: jsurl
-    resolution:
-      registry: 'https://registry.npmjs.org/'
-      tarball: 'https://codeload.github.com/wmertens/jsurl/tar.gz/7e66fe0d35664fd45f178c2aa320c77da6678e3e'
-    version: 2.0.0-rc1
 registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
+  '@yaska-eu/jsurl2': ^2.1.0
   babel-cli: ^6.26.0
   babel-eslint: ^8.2.6
   babel-plugin-lodash: ^3.3.4
@@ -5499,7 +5497,6 @@ specifiers:
   expect: ^23.4.0
   fs-extra: ^7.0.0
   jest-cli: ^23.4.2
-  jsurl: 'git+https://github.com/wmertens/jsurl.git#jsurl2'
   lodash: ^4.17.10
   nps-utils: ^1.6.0
   prettier: ^1.14.2

@@ -33,7 +33,7 @@
   "dependencies": {
     "dataloader": "^1.4.0",
     "debug": "^3.1.0",
-    "jsurl": "git+https://github.com/wmertens/jsurl.git#jsurl2",
+    "@yaska-eu/jsurl2": "^2.1.0",
     "lodash": "^4.17.10",
     "prop-types": "^15.6.2",
     "sqlite3": "^4.0.2",

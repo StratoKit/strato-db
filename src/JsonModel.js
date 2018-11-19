@@ -1,7 +1,7 @@
 import debug from 'debug'
 import PropTypes from 'prop-types'
 import uuid from 'uuid'
-import jsurl from 'jsurl'
+import jsurl from '@yaska-eu/jsurl2'
 import {sql, valToSql} from './DB'
 import {uniqueSlugId} from './slugify'
 import DataLoader from 'dataloader'
