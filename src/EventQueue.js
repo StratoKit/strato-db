@@ -6,7 +6,7 @@ import JsonModel from './JsonModel'
 const dbg = debug('queue')
 
 class EventQueue extends JsonModel {
-	constructor({name = 'history', forever, ...rest}) {
+	constructor({name = 'history', forever, withViews, ...rest}) {
 		super({
 			...rest,
 			name,
@@ -28,19 +28,51 @@ class EventQueue extends JsonModel {
 			},
 			migrations: {
 				...rest.migrations,
-				addViews({db}) {
-					return db.exec(`
-						CREATE VIEW _recentHistory AS
-							SELECT datetime(ts/1000, "unixepoch", "localtime") AS t, *
-							FROM history ORDER BY v DESC LIMIT 1000;
-						CREATE VIEW _historyTypes AS
-							SELECT
-								type,
-								COUNT(*) AS count,
-								SUM(ifNull(length(data), 0))/1024/1024 AS MB
-							FROM history GROUP BY type ORDER BY count DESC;
-				`)
-				},
+				'20181214_addViews': withViews
+					? async ({db}) => {
+							// This adds a field with data size, kept up-to-date with triggers
+							// Maybe this should go into the metadata table instead, not via sqlite
+							await db
+								.exec(`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`)
+								.catch(() => {})
+							await db
+								.exec(`DROP TRIGGER "history size insert"`)
+								.catch(() => {})
+							await db
+								.exec(`DROP TRIGGER "history size update"`)
+								.catch(() => {})
+							await db.exec(`
+								CREATE TRIGGER "history size insert" AFTER INSERT ON history BEGIN
+									UPDATE history SET
+										size=ifNull(length(new.json),0)+ifNull(length(new.data),0)+ifNull(length(new.result),0)
+									WHERE v=new.v;
+								END;
+								CREATE TRIGGER "history size update" AFTER UPDATE ON history BEGIN
+									UPDATE history SET
+										size=ifNull(length(new.json),0)+ifNull(length(new.data),0)+ifNull(length(new.result),0)
+									WHERE v=new.v;
+								END;
+							`)
+							await db
+								.exec(`CREATE INDEX "history type,size" on history(type, size)`)
+								.catch(() => {})
+							await db.exec(`DROP VIEW _recentHistory`).catch(() => {})
+							await db.exec(`DROP VIEW _historyTypes`).catch(() => {})
+							await db.exec(`
+								CREATE VIEW _recentHistory AS
+									SELECT datetime(ts/1000, "unixepoch", "localtime") AS t, *
+									FROM history ORDER BY v DESC LIMIT 1000;
+								CREATE VIEW _historyTypes AS
+									SELECT
+										type,
+										COUNT(*) AS count,
+										SUM(size)/1024/1024 AS MB
+									FROM history GROUP BY type ORDER BY count DESC;
+							`)
+							// Recalculate size
+							await db.exec(`UPDATE history SET size=0`)
+					  }
+					: null,
 			},
 		})
 		this.currentV = -1
