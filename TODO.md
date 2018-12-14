@@ -57,6 +57,7 @@
   - => prepare, allow .get/all/etc; while those are active calls are queued up
     https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
   - [ ] what happens with them on schema change?
+  - When using prepared statements, replace `IN (?,?,?)` tests with `IN (select value from json_each(?))` and pass the array as a JSON string. That way the prepared statement can handle any array length
 - [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
 
 ### Someday
