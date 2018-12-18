@@ -1,6 +1,6 @@
-# strato-db [![Build Status](https://travis-ci.org/Yaska/strato-db.svg?branch=master)](https://travis-ci.org/Yaska/strato-db)
+# Strato-DB
 
-> NoSQL-hybrid with Event Sourcing based on sqlite
+> NoSQL-hybrid with Event Sourcing based on SQLite
 
 The overall concept is to be a minimal wrapper that keeps SQL close by, but allows schemaless storage for where you want it.
 
@@ -11,6 +11,8 @@ The overall concept is to be a minimal wrapper that keeps SQL close by, but allo
 `EventQueue`: Stores events in an auto-incrementing `DB` table. Minimal message queue.
 
 `EventSourcingDB`: Implements the Event Sourcing concept in a DB via an asynchronous fork of `redux`. See [Server Side Redux](./Server Side Redux.md).
+
+`ESModel`: A drop-in replacement for JsonModel to use ESDB
 
 ## Install
 
@@ -62,26 +64,19 @@ await db.models.things.set({id: 'foo', info: 'is a foo'})
 await db.models.things.search({info: 'is a foo'})
 ```
 
-## API: TO DO
+## Status
 
-See the tests for hints in the mean time.
+This project is used in production environments, but it doesn't have documentation other than the code for now.
 
-### stratoDb(input, [options])
+Since it is based on SQLite, the actual storage of data is rock-solid.
 
-#### input
+It works fine with multi-GB databases, and if you choose your queries and indexes well, you still have single-digit-ms query times.
 
-Type: `string`
+Most things are tested, there are one or two tests that rely on racing behavior to test, and therefore sometimes fail.
 
-Lorem ipsum.
+Multi-process behavior is not very worked out for the `EventSourcingDB`. Since it's layering a single-locking queue on top of SQLite, it works without problems, but no effort is made to avoid double work.
 
-#### options
-
-##### foo
-
-Type: `boolean`<br>
-Default: `false`
-
-Lorem ipsum.
+Take a look at the TODO.md, there are plenty of improvements planned.
 
 ## License
 

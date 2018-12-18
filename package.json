@@ -1,5 +1,5 @@
 {
-  "name": "strato-db",
+  "name": "@yaska-eu/strato-db",
   "version": "2.2.2",
   "description": "NoSQL-hybrid with Event Sourcing based on sqlite",
   "license": "MIT",
@@ -14,7 +14,8 @@
   },
   "scripts": {
     "start": "nps",
-    "test": "nps test"
+    "test": "nps test",
+    "prepublishOnly": "nps build"
   },
   "main": "dist/index.js",
   "files": [

@@ -2,6 +2,7 @@
 
 ## 2.2.2
 
+- First public release!
 - EventSourcingDB: the metadata table can be used as well
 - EventQueue: don't keep Node alive while waiting unless `forever: true`
 
