@@ -73,10 +73,11 @@ class ESDB extends EventEmitter {
 		models = {metadata: {}, ...models}
 
 		this.rwDb = new DB(dbOptions)
+		const {readOnly} = this.rwDb
 
 		// The RO DB needs to be the same for :memory: or it won't see anything
 		this.db =
-			this.rwDb.file === ':memory:'
+			this.rwDb.file === ':memory:' || readOnly
 				? this.rwDb
 				: new DB({
 						...dbOptions,
@@ -196,15 +197,17 @@ class ESDB extends EventEmitter {
 				)
 		}
 
-		this.modelReducer = combineReducers(reducers, true)
-		this.redux = createStore(
-			this.reducer.bind(this),
-			undefined,
-			undefined,
-			true
-		)
-		this.redux.subscribe(this.handleResult)
-		this.checkForEvents()
+		if (!readOnly) {
+			this.modelReducer = combineReducers(reducers, true)
+			this.redux = createStore(
+				this.reducer.bind(this),
+				undefined,
+				undefined,
+				true
+			)
+			this.redux.subscribe(this.handleResult)
+			this.checkForEvents()
+		}
 	}
 
 	close() {

@@ -106,7 +106,7 @@ class DB {
 		})
 		// Configure lock management
 		realDb.driver.configure('busyTimeout', 15000)
-		if (this.file !== ':memory:') {
+		if (this.file !== ':memory:' && !this.readOnly) {
 			const [{journal_mode: journalMode}] = await realDb.all(
 				'PRAGMA journal_mode = wal'
 			)
