@@ -90,53 +90,47 @@ class EventQueue extends JsonModel {
 
 	async _getLatestVersion() {
 		let v
-		if (this._addP) {
-			v = await this._addP
-		} else {
-			const dataV = await this.db.dataVersion()
-			if (this.currentV >= 0 && this._dataV === dataV) {
-				// If there was no change on other connections, currentV is correct
-				return this.currentV
-			}
-			this._dataV = dataV
-			const lastRow = await this.db.get(
-				`SELECT MAX(v) AS v from ${this.quoted}`
-			)
-			v = lastRow.v // eslint-disable-line prefer-destructuring
+		if (this._addP) await this._addP
+
+		const dataV = await this.db.dataVersion()
+		if (this.currentV >= 0 && this._dataV === dataV) {
+			// If there was no change on other connections, currentV is correct
+			return this.currentV
 		}
+		this._dataV = dataV
+		const lastRow = await this.db.get(`SELECT MAX(v) AS v from ${this.quoted}`)
+		v = lastRow.v // eslint-disable-line prefer-destructuring
 		this.currentV = Math.max(this.knownV, v || 0)
 		return this.currentV
 	}
 
-	async add(type, data, ts) {
+	_addP = null
+
+	add(type, data, ts) {
 		if (!type || typeof type !== 'string')
-			throw new Error('type should be a non-empty string')
+			return Promise.reject(new Error('type should be a non-empty string'))
 		ts = Number(ts) || Date.now()
 
-		// Store promise so _getLatestVersion can get the most recent v
-		// Note that it replaces the promise for the previous add
-		const addP = this.db
-			.run(`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`, [
-				type,
-				ts,
-				JSON.stringify(data),
-			])
-			.then(({lastID}) => {
-				// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID
-				this.currentV = lastID
-				// Only remove promise if it's us
-				if (this._addP === addP) this._addP = null
-				return this.currentV
-			})
-		this._addP = addP
-		const v = await addP
+		// We need to guarantee same-process in-order insertion, the sqlite3 lib doesn't do it :(
+		this._addP = (this._addP || Promise.resolve()).then(async () => {
+			// Store promise so _getLatestVersion can get the most recent v
+			// Note that it replaces the promise for the previous add
+			// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID and v
+			const {lastID: v} = await this.db.run(
+				`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
+				[type, ts, JSON.stringify(data)]
+			)
 
-		const event = {v, type, ts, data}
-		dbg(`queued`, v, type)
-		if (this.nextAddedResolve) {
-			this.nextAddedResolve(event)
-		}
-		return event
+			this.currentV = v
+
+			const event = {v, type, ts, data}
+			dbg(`queued`, v, type)
+			if (this.nextAddedResolve) {
+				this.nextAddedResolve(event)
+			}
+			return event
+		})
+		return this._addP
 	}
 
 	nextAddedP = null

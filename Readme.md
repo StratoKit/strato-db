@@ -72,7 +72,7 @@ Since it is based on SQLite, the actual storage of data is rock-solid.
 
 It works fine with multi-GB databases, and if you choose your queries and indexes well, you still have single-digit-ms query times.
 
-Most things are tested, there are one or two tests that rely on racing behavior to test, and therefore sometimes fail.
+The important things are tested, our goal is 100% coverage.
 
 Multi-process behavior is not very worked out for the `EventSourcingDB`. Since it's layering a single-locking queue on top of SQLite, it works without problems, but no effort is made to avoid double work.
 
