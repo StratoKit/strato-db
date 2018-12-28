@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.3
+
+- EventQueue: Ensure that queue insertions maintain their order
+- DB/EventSourcingDB: Fix `readOnly` mode and add test
+
 ## 2.2.2
 
 - First public release!
