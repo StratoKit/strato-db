@@ -15,7 +15,6 @@
 ### Someday
 
 - [ ] sync interface for e.g. pragma data_version and BEGIN IMMEDIATE. Already did some work on it but it segfaults
-- [ ] make repro for segfault on close when running tests
 
 ## DB
 

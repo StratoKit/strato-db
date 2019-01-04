@@ -55,6 +55,7 @@ test('sql`` on DB/db/fns', async () => {
 	}).not.toThrow()
 	const row = await p
 	expect(row.id).toBe(5)
+	await db.close()
 })
 
 test('creates DB', async () => {
@@ -84,6 +85,7 @@ test('can register model', () => {
 	expect(m.name).toBe('hi')
 	expect(db.models.hi).toBe(m)
 	expect(() => db.addModel(Hi)).toThrow()
+	return db.close()
 })
 
 test('has migration', async () => {
@@ -210,6 +212,7 @@ test('each()', async () => {
 	const arr = []
 	await db.each(`SELECT * FROM foo`, ({hi}) => arr.push(hi))
 	expect(arr).toEqual([42, 43])
+	await db.close()
 })
 
 test('close()', async () => {
@@ -228,6 +231,7 @@ test('close()', async () => {
 	`)
 	const {hi: hi2} = await db.get(`SELECT * FROM foo`)
 	expect(hi2).toBe(43)
+	await db.close()
 })
 
 test('waitForP', async () => {
@@ -252,6 +256,7 @@ test('waitForP', async () => {
 	r()
 	await p
 	expect(canary).toBe(1)
+	await db.close()
 })
 
 test('onWillOpen', async () => {
@@ -277,6 +282,7 @@ test('onWillOpen', async () => {
 	})
 	await db.openDB()
 	expect(t).toBe(2)
+	await db.close()
 })
 
 test.skip('model.onDbOpened', async () => {
@@ -310,6 +316,7 @@ test.skip('model.onDbOpened', async () => {
 		return true
 	})
 	expect(t).toBe(4)
+	await db.close()
 })
 
 test('withTransaction', async () => {
@@ -321,6 +328,7 @@ test('withTransaction', async () => {
 	})
 	await db.withTransaction(() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`)
 	expect(await db.all`SELECT * from foo`).toEqual([{hi: 43, ho: 2}])
+	await db.close()
 })
 
 test('withTransaction rollback', async () => {
@@ -333,6 +341,7 @@ test('withTransaction rollback', async () => {
 		})
 	).rejects.toThrow('ignoreme')
 	expect(await db.all`SELECT * from foo`).toEqual([])
+	await db.close()
 })
 
 test('dataVersion', () =>
@@ -353,6 +362,8 @@ test('dataVersion', () =>
 			await db2.exec`INSERT INTO foo VALUES (43, 1);`
 			expect(await db1.dataVersion()).toBeGreaterThan(v1)
 			expect(await db2.dataVersion()).toBe(v2b)
+			await db1.close()
+			await db2.close()
 		},
 		{unsafeCleanup: true}
 	))
@@ -370,4 +381,5 @@ test('DB methods: errors with filename', async () => {
 	await expect(db.exec('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.each('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.prepare('bad sql haha')).rejects.toThrow(':memory:')
+	await db.close()
 })

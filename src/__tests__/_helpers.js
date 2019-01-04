@@ -71,10 +71,13 @@ export const testModels = {
 		},
 	},
 }
-const withDBs = fn => {
+const withDBs = async fn => {
 	const db = new DB({name: 'D'})
 	const queue = new EQ({db: new DB({name: 'Q'})})
-	return fn(db, queue)
+	const ret = await fn(db, queue)
+	await db.close()
+	await queue.db.close()
+	return ret
 }
 export const withESDB = (fn, models = testModels) =>
 	withDBs((db, queue) => {
