@@ -65,7 +65,6 @@ class DB {
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
 		this.options = {waitForP, onWillOpen, verbose, migrations: []}
-		// eslint-disable-next-line promise/avoid-new
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
@@ -200,7 +199,6 @@ class DB {
 		]) {
 			delete this[m]
 		}
-		// eslint-disable-next-line promise/avoid-new
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
