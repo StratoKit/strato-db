@@ -356,3 +356,18 @@ test('dataVersion', () =>
 		},
 		{unsafeCleanup: true}
 	))
+
+test('open: errors with filename', async () => {
+	const db = new DB({file: '/oienu/ieoienien'})
+	await expect(db._openDB()).rejects.toThrow('/oienu/ieoienien')
+})
+
+test('DB methods: errors with filename', async () => {
+	const db = new DB()
+	await expect(db.run('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.get('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.all('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.exec('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.each('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.prepare('bad sql haha')).rejects.toThrow(':memory:')
+})
