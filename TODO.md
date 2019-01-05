@@ -95,9 +95,10 @@
 - [ ] recreate index if expression changes
 - [ ] indexes: `[{expression, where}]` extra indexes
   - [ ] auto-delete other indexes, API change
-- [ ] if column value is function, call with `(fieldName)` => helpers
-  - ObjectColumn() helper -> type=JSON, NULL === {}, stringify checks if object (char 0 is `{`)
-  - BoolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
+- [x] if column value is function, call with `({columnName})` => helpers
+  - [ ] objectColumn() helper -> type=JSON, NULL === {}, stringify checks if object (char 0 is `{`)
+  - [ ] boolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
+  - [ ] falsyColumn() -> implement falsyBool
 - [ ] move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
 - [ ] foreign key support
 - [ ] prepared statements

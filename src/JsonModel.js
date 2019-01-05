@@ -22,6 +22,55 @@ if (DEV) {
 	unknown = warner('UNKNOWN')
 }
 
+const columnPropType =
+	process.env.NODE_ENV === 'production'
+		? null
+		: PropTypes.exact({
+				// === sql column ===
+				real: PropTypes.bool, // true -> a real table column is made
+				// column type if real column
+				type: PropTypes.oneOf([
+					'TEXT',
+					'NUMERIC',
+					'INTEGER',
+					'REAL',
+					'BLOB',
+					'JSON',
+				]),
+				path: PropTypes.string, // path to value in object
+				autoIncrement: PropTypes.bool, // autoincrementing key
+				alias: PropTypes.string, // column alias
+				get: PropTypes.bool, // include column in query results, strip data from json
+				parse: PropTypes.func, // returns JS value given column data
+				stringify: PropTypes.func, // returns column value given object data
+				alwaysObject: PropTypes.bool, // JSON is always object
+
+				// === value related ===
+				slugValue: PropTypes.func, // returns seed for uniqueSlugId
+				sql: PropTypes.string, // sql expression for column
+				value: PropTypes.func, // value to store
+				default: PropTypes.any, // js expression, default value
+				required: PropTypes.bool, // throw if no value
+				falsyBool: PropTypes.bool, // bool: 1/NULL true/undefined
+
+				// === index ===
+				// create index for this column
+				index: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
+				ignoreNull: PropTypes.bool, // ignore null in index
+				unique: PropTypes.bool, // create index with unique contstraint
+
+				// === queries ===
+				where: PropTypes.oneOfType([PropTypes.string, PropTypes.func]), // returns WHERE condition given value
+				whereVal: PropTypes.func, // returns values array for condition
+
+				// === query helpers ===
+				in: PropTypes.bool, // column matches any of given array
+				inAll: PropTypes.bool, // column matches all of given array
+				isAnyOfArray: PropTypes.bool, // in:true + isArray: true
+				isArray: PropTypes.bool, // json path is an array value
+				textSearch: PropTypes.bool, // search for substring of column
+		  })
+
 const jmPropTypes =
 	process.env.NODE_ENV === 'production'
 		? null
@@ -38,51 +87,7 @@ const jmPropTypes =
 					),
 					migrationOptions: PropTypes.object,
 					columns: PropTypes.objectOf(
-						PropTypes.exact({
-							// === sql column ===
-							real: PropTypes.bool, // true -> a real table column is made
-							// column type if real column
-							type: PropTypes.oneOf([
-								'TEXT',
-								'NUMERIC',
-								'INTEGER',
-								'REAL',
-								'BLOB',
-								'JSON',
-							]),
-							path: PropTypes.string, // path to value in object
-							autoIncrement: PropTypes.bool, // autoincrementing key
-							alias: PropTypes.string, // column alias
-							get: PropTypes.bool, // include column in query results, strip data from json
-							parse: PropTypes.func, // returns JS value given column data
-							stringify: PropTypes.func, // returns column value given object data
-							alwaysObject: PropTypes.bool, // JSON is always object
-
-							// === value related ===
-							slugValue: PropTypes.func, // returns seed for uniqueSlugId
-							sql: PropTypes.string, // sql expression for column
-							value: PropTypes.func, // value to store
-							default: PropTypes.any, // js expression, default value
-							required: PropTypes.bool, // throw if no value
-							falsyBool: PropTypes.bool, // bool: 1/NULL true/undefined
-
-							// === index ===
-							// create index for this column
-							index: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
-							ignoreNull: PropTypes.bool, // ignore null in index
-							unique: PropTypes.bool, // create index with unique contstraint
-
-							// === queries ===
-							where: PropTypes.oneOfType([PropTypes.string, PropTypes.func]), // returns WHERE condition given value
-							whereVal: PropTypes.func, // returns values array for condition
-
-							// === query helpers ===
-							in: PropTypes.bool, // column matches any of given array
-							inAll: PropTypes.bool, // column matches all of given array
-							isAnyOfArray: PropTypes.bool, // in:true + isArray: true
-							isArray: PropTypes.bool, // json path is an array value
-							textSearch: PropTypes.bool, // search for substring of column
-						})
+						PropTypes.oneOfType([PropTypes.func, columnPropType])
 					),
 					ItemClass: PropTypes.func,
 					idCol: PropTypes.string,
@@ -99,6 +104,25 @@ const verifyOptions = options => {
 			throw new Error(message)
 		}
 		PropTypes.checkPropTypes(jmPropTypes, {options}, 'options', 'JsonModel')
+		console.error = prevError
+		/* eslint-enable no-console */
+	}
+}
+
+const verifyColumn = (name, column) => {
+	if (process.env.NODE_ENV !== 'production') {
+		/* eslint-disable no-console */
+		const prevError = console.error
+		console.error = message => {
+			console.error = prevError
+			throw new Error(message)
+		}
+		PropTypes.checkPropTypes(
+			{column: columnPropType},
+			{column},
+			`column`,
+			'JsonModel'
+		)
 		console.error = prevError
 		/* eslint-enable no-console */
 	}
@@ -270,7 +294,7 @@ const prepareSqlCol = col => {
 				`${args.length} IN (SELECT COUNT(*) FROM (${jsonExpr} IN (${args
 					.map(() => '?')
 					.join(',')})))`
-			col.whereVal = args => args && args.length ? args : false
+			col.whereVal = args => (args && args.length ? args : false)
 		} else {
 			col.where = `EXISTS(${jsonExpr} = ?)`
 		}
@@ -481,7 +505,14 @@ class JsonModel {
 		this.columns = {}
 		let i = 0
 		for (const name of Object.keys(allColumns)) {
-			const col = {...allColumns[name]}
+			const colDef = allColumns[name]
+			let col
+			if (typeof colDef === 'function') {
+				col = colDef({columnName: name})
+				verifyColumn(name, col)
+			} else {
+				col = {...colDef}
+			}
 			col.alias = col.alias || `_${i++}`
 			if (this.columns[col.alias])
 				throw new TypeError(

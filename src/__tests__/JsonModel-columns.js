@@ -353,3 +353,28 @@ test('falsyBool query', async () => {
 	expect(await m.searchOne({e: 'yes'})).toHaveProperty('id', 2)
 	expect(await m.searchOne({g: {}})).toHaveProperty('id', 2)
 })
+
+test('columnName: ({columnName}) => columnDefinition', async () => {
+	let m
+	expect(() => {
+		m = getModel({
+			columns: {
+				foo1: ({columnName}) => ({
+					type: 'TEXT',
+					value: o => o[columnName] + '!',
+				}),
+			},
+		})
+	}).not.toThrow()
+	expect(await m.set({foo1: 'hi'})).toHaveProperty('foo1', 'hi!')
+	expect(() => {
+		getModel({
+			columns: {
+				foo1: () => ({
+					type: 'TEXT',
+					badProp: 5,
+				}),
+			},
+		})
+	}).toThrow()
+})
