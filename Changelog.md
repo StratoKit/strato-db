@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.0
+
+Minor version change due to index changes on queue for ESDB
+
+- DB: add filename and stack to SQLite errors
+- JsonModel: allow thunking definitions, that way you can create helpers to define columns
+- JsonModel: add `.each([attrs, [options]], fn)` to iterate over search results
+  `fn(row, i)` will be called with row data and row number
+- EventSourcingDB: `withViews = true` option to add the helper views to the queue
+- EventQueue: drop the `type` index and use `type, size`; always add `size` column
+
 ## 2.2.3
 
 - EventQueue: Ensure that queue insertions maintain their order
