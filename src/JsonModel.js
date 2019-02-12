@@ -631,7 +631,6 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			// eslint-disable-next-line promise/no-nesting
 			return this.db
 				.run(insertOnly ? insertSql : updateSql, colVals)
 				.then(result => {
@@ -1013,6 +1012,39 @@ class JsonModel {
 			})
 		}
 		return cache[key].load(id)
+	}
+
+	async each(attrs, options, fn) {
+		if (!fn) {
+			if (options) {
+				if (typeof options === 'function') {
+					fn = options
+					options = undefined
+				} else {
+					// eslint-disable-next-line prefer-destructuring
+					fn = options.fn
+					delete options.fn
+				}
+			} else if (typeof attrs === 'function') {
+				fn = attrs
+				attrs = undefined
+			}
+			if (!fn) throw new Error('each requires function')
+		}
+		if (!options) options = {}
+		if (!options.limit) options.limit = 10
+		options.noCursor = false
+		options.noTotal = true
+		let cursor
+		let i = 0
+		do {
+			// eslint-disable-next-line no-await-in-loop
+			const result = await this.search(attrs, {...options, cursor})
+			// eslint-disable-next-line prefer-destructuring
+			cursor = result.cursor
+			// eslint-disable-next-line no-await-in-loop
+			await Promise.all(result.items.map(v => fn(v, i++)))
+		} while (cursor)
 	}
 
 	// --- Mutator methods below ---

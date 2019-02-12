@@ -189,3 +189,36 @@ test('idCol', async () => {
 		[],
 	])
 })
+
+test('each', async () => {
+	const m = getModel({columns: {id: {type: 'INTEGER'}}})
+	await expect(m.each()).rejects.toThrow('requires function')
+	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
+	let count, total, maxI
+	const fn = (row, i) => {
+		count++
+		total += row.id
+		if (maxI < i) maxI = i
+	}
+	count = 0
+	total = 0
+	maxI = 0
+	await m.each(fn)
+	expect(count).toBe(5)
+	expect(total).toBe(10)
+	expect(maxI).toBe(4)
+	count = 0
+	total = 0
+	maxI = 0
+	await m.each({id: 3}, fn)
+	expect(count).toBe(1)
+	expect(total).toBe(3)
+	expect(maxI).toBe(0)
+	count = 0
+	total = 0
+	maxI = 0
+	await m.each({}, {where: {'id<3': []}, fn})
+	expect(count).toBe(3)
+	expect(total).toBe(3)
+	expect(maxI).toBe(2)
+})
