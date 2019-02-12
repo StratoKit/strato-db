@@ -60,7 +60,7 @@ const showHugeDbError = (err, where) => {
 
 class ESDB extends EventEmitter {
 	// eslint-disable-next-line complexity
-	constructor({queue, models, queueFile, ...dbOptions}) {
+	constructor({queue, models, queueFile, withViews = true, ...dbOptions}) {
 		super()
 		if (dbOptions.db)
 			throw new TypeError(
@@ -98,7 +98,7 @@ class ESDB extends EventEmitter {
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
 			})
-			this.queue = new EventQueue({db: qDb})
+			this.queue = new EventQueue({db: qDb, withViews})
 		}
 		const qDbFile = this.queue.db.file
 		// If queue is in same file as rwDb, share the connection
