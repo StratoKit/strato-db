@@ -97,3 +97,12 @@ test('allow JsonModel migrations', async () => {
 	const e = await m.getNext()
 	expect(e.data.hi).toBe(true)
 })
+
+test('type query uses index', async () => {
+	const m = getModel()
+	expect(
+		await m.db.get(
+			`EXPLAIN QUERY PLAN SELECT type FROM history where type='foo'`
+		)
+	).toHaveProperty('detail', expect.stringContaining('USING COVERING INDEX'))
+})

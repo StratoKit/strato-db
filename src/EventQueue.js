@@ -17,7 +17,7 @@ class EventQueue extends JsonModel {
 					type: 'INTEGER',
 					autoIncrement: true,
 				},
-				type: {type: 'TEXT', index: 'ALL'},
+				type: {type: 'TEXT'},
 				ts: {
 					type: 'INTEGER',
 					value: o => Number(o.ts) || Date.now(),
@@ -25,9 +25,14 @@ class EventQueue extends JsonModel {
 				},
 				data: {type: 'JSON'},
 				result: {type: 'JSON'},
+				size: {type: 'INTEGER', default: 0, get: false},
 			},
 			migrations: {
 				...rest.migrations,
+				addTypeSizeIndex: ({db}) =>
+					db.exec(
+						`CREATE INDEX IF NOT EXISTS "history type,size" on history(type, size)`
+					),
 				'20181214_addViews': withViews
 					? async ({db}) => {
 							// This adds a field with data size, kept up-to-date with triggers
@@ -53,9 +58,6 @@ class EventQueue extends JsonModel {
 									WHERE v=new.v;
 								END;
 							`)
-							await db
-								.exec(`CREATE INDEX "history type,size" on history(type, size)`)
-								.catch(() => {})
 							await db.exec(`DROP VIEW _recentHistory`).catch(() => {})
 							await db.exec(`DROP VIEW _historyTypes`).catch(() => {})
 							await db.exec(`
