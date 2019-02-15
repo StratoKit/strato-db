@@ -59,7 +59,7 @@ test('makeSelect isArray', () => {
 	const m = getModel({columns: {foo: {isArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: 'meep'}})
 	expect(q).toEqual(
-		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value = ?))'
+		`SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(? IN (SELECT value FROM json_each(tbl."json",'$.foo')))`
 	)
 })
 
@@ -103,7 +103,7 @@ test('makeSelect isAnyOfArray', () => {
 	const m = getModel({columns: {foo: {isAnyOfArray: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?)))'
+		`SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",'$.foo') j WHERE j.value IN (SELECT value FROM json_each(?))))`
 	)
 })
 
@@ -113,7 +113,7 @@ test('makeSelect in', () => {
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') IN (?,?))'
+		`SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",'$.foo') IN (SELECT value FROM json_each(?)))`
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
 	expect(q2).toEqual(
@@ -125,7 +125,7 @@ test('makeSelect in w/ path', () => {
 	const m = getModel({columns: {foo: {in: true}}})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') IN (?,?))'
+		`SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",'$.foo') IN (SELECT value FROM json_each(?)))`
 	)
 })
 
@@ -135,7 +135,7 @@ test('makeSelect in + isArray = isAnyOfArray', () => {
 	})
 	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?)))'
+		`SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(EXISTS(SELECT 1 FROM json_each(tbl."json",'$.foo') j WHERE j.value IN (SELECT value FROM json_each(?))))`
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
 	expect(q2).toEqual(
@@ -149,9 +149,9 @@ test('makeSelect inAll', () => {
 	})
 	const [q, v] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
 	expect(q).toEqual(
-		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(2 IN (SELECT COUNT(*) FROM (SELECT 1 FROM json_each(tbl."json",\'$.foo\') j WHERE j.value IN (?,?))))'
+		`SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(NOT EXISTS(SELECT 1 FROM json_each(?) j WHERE j.value NOT IN (SELECT value FROM json_each(tbl."json",'$.foo'))))`
 	)
-	expect(v).toEqual(['meep', 'moop'])
+	expect(v).toEqual([`["meep","moop"]`])
 	const [q2] = m.makeSelect({attrs: {foo: []}})
 	expect(q2).toEqual(
 		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl'
