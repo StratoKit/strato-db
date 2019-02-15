@@ -303,24 +303,24 @@ class DB {
 	async __withTransaction(fn, count = RETRY_COUNT) {
 		try {
 			await this._db.run(`BEGIN IMMEDIATE`)
-		} catch (err) {
-			if (err.code === 'SQLITE_BUSY' && count) {
+		} catch (error) {
+			if (error.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
 				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
 				return new Promise(resolve =>
 					setTimeout(resolve, Math.random() * 1000 + 200)
 				).then(() => this.__withTransaction(fn, count - 1))
 			}
-			throw err
+			throw error
 		}
 		let result
 		try {
 			result = await fn()
-		} catch (err) {
+		} catch (error) {
 			if (process.env.NODE_ENV !== 'test')
-				console.error('transaction failure, rolling back', err)
+				console.error('transaction failure, rolling back', error)
 			await this._db.run(`ROLLBACK`)
-			throw err
+			throw error
 		}
 		await this._db.run(`END`)
 		return result

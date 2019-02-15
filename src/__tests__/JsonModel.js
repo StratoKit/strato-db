@@ -1,4 +1,4 @@
-import expect from 'expect'
+
 import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
 
 test('create', () => {

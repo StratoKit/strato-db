@@ -12,10 +12,12 @@ const scripts = {
 	},
 	test: {
 		default: concurrent.nps('test.lint', 'test.full'),
-		lint: "eslint 'src/**/*.js'",
-		lintFix: `
+		lint: {
+			default: "eslint 'src/**/*.js'",
+			fix: `
 			eslint --fix 'src/**/*.js';
 			prettier --write 'src/**/*.{js,jsx,json,md}'`,
+		},
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
 		inspect: `NODE_ENV=test node --inspect ${

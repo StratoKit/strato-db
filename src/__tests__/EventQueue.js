@@ -1,4 +1,3 @@
-import expect from 'expect'
 import DB from '../DB'
 import EventQueue from '../EventQueue'
 

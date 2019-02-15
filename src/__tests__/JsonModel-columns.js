@@ -1,4 +1,3 @@
-import expect from 'expect'
 import {getModel, sharedSetup} from './_helpers'
 
 const indexesSql = `

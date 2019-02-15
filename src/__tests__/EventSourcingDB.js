@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop */
-import expect from 'expect'
+
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import JsonModel from '../JsonModel'

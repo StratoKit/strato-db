@@ -1,4 +1,3 @@
-import expect from 'expect'
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 /* eslint-disable import/no-named-as-default-member */
