@@ -1,4 +1,3 @@
-import expect from 'expect'
 import {randomString, slugifyString} from './slugify'
 
 test('randomString', () => {

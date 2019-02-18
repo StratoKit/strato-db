@@ -1,4 +1,4 @@
-import expect from 'expect'
+
 import {DB, JsonModel, getModel} from './_helpers'
 
 test('falsy migration', async () => {

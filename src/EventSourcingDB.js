@@ -342,7 +342,6 @@ class ESDB extends EventEmitter {
 			if (v > this._maxWaitingFor) this._maxWaitingFor = v
 			const o = {}
 			this._waitingFor[v] = o
-			// eslint-disable-next-line promise/avoid-new
 			o.promise = new Promise((resolve, reject) => {
 				o.resolve = resolve
 				o.reject = reject
@@ -388,7 +387,6 @@ class ESDB extends EventEmitter {
 		/* eslint-disable no-await-in-loop */
 		let lastV = 0
 		dbg(`waiting for events until minVersion: ${this._minVersion}`)
-		// eslint-disable-next-line no-unmodified-loop-condition
 		while (!this._minVersion || this._minVersion > lastV) {
 			const event = await this.queue.getNext(
 				await this.getVersion(),
@@ -414,14 +412,14 @@ class ESDB extends EventEmitter {
 					// TODO just wait for the dispatch
 					// and call apply directly, not via redux
 					await this.redux.dispatch(event)
-				} catch (err) {
+				} catch (error) {
 					// Do not await this, deadlock
 					// This will never error, safe to call here
 					this.handleResult({
 						...event,
 						error: {
 							...event.error,
-							_redux: {message: err.message, stack: err.stack},
+							_redux: {message: error.message, stack: error.stack},
 						},
 					})
 				}
@@ -462,16 +460,16 @@ class ESDB extends EventEmitter {
 		}
 		if (!this._waitingP) {
 			this._waitingP = this._waitForEvent()
-				.catch(err => {
+				.catch(error => {
 					console.error(
 						'!!! Error waiting for event! This should not happen! Please investigate!',
-						err
+						error
 					)
 					// Crash program but leave some time to notify
 					// eslint-disable-next-line unicorn/no-process-exit
 					setTimeout(() => process.exit(100), 50)
 
-					throw new Error(err)
+					throw new Error(error)
 				})
 				.then(lastV => {
 					this._waitingP = null
@@ -499,8 +497,11 @@ class ESDB extends EventEmitter {
 		if (!event.v) {
 			return
 		}
-		this._applyingP = this.applyEvent(event).catch(err => {
-			console.error('!!! Error while applying event; changes not applied', err)
+		this._applyingP = this.applyEvent(event).catch(error => {
+			console.error(
+				'!!! Error while applying event; changes not applied',
+				error
+			)
 		})
 		await this._applyingP
 		this._applyingP = null
@@ -509,21 +510,21 @@ class ESDB extends EventEmitter {
 			if (this.listenerCount('error')) {
 				try {
 					this.emit('error', event)
-				} catch (err) {
-					console.error('!!! "error" event handler threw, ignoring', err)
+				} catch (error) {
+					console.error('!!! "error" event handler threw, ignoring', error)
 				}
 			}
 		} else {
 			try {
 				this.emit('result', event)
-			} catch (err) {
-				console.error('!!! "result" event handler threw, ignoring', err)
+			} catch (error) {
+				console.error('!!! "result" event handler threw, ignoring', error)
 			}
 		}
 		try {
 			this.emit('handled', event)
-		} catch (err) {
-			console.error('!!! "handled" event handler threw, ignoring', err)
+		} catch (error) {
+			console.error('!!! "handled" event handler threw, ignoring', error)
 		}
 	}
 
@@ -554,12 +555,12 @@ class ESDB extends EventEmitter {
 							)
 						)
 						await rwDb.run('RELEASE SAVEPOINT apply')
-					} catch (err) {
-						showHugeDbError(err, 'apply')
+					} catch (error) {
+						showHugeDbError(error, 'apply')
 						await rwDb.run('ROLLBACK TO SAVEPOINT apply')
 						event.failedResult = event.result
 						delete event.result
-						event.error = {_apply: err.message || err}
+						event.error = {_apply: error.message || error}
 					}
 				}
 				// Even if the apply failed we'll consider this event handled
@@ -587,22 +588,22 @@ class ESDB extends EventEmitter {
 						)
 					)
 					await rwDb.run('RELEASE SAVEPOINT derive')
-				} catch (err) {
-					showHugeDbError(err, 'derive')
+				} catch (error) {
+					showHugeDbError(error, 'derive')
 					await rwDb.run('ROLLBACK TO SAVEPOINT derive')
 					event.failedResult = event.result
 					delete event.result
-					event.error = {_derive: err.message || err}
+					event.error = {_derive: error.message || error}
 					// TODO _resultQueue?
 					await this.queue.set(event)
 				}
 			}
-		} catch (err) {
+		} catch (error) {
 			// argh, now what? Probably retry applying, or crash the app…
 			// This can happen when DB has issue
-			showHugeDbError(err, 'handleResult')
+			showHugeDbError(error, 'handleResult')
 
-			throw err
+			throw error
 		} finally {
 			for (const model of readWriters) model.setWritable(false)
 		}

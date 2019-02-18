@@ -1,11 +1,20 @@
 import debug from 'debug'
-import PropTypes from 'prop-types'
-import uuid from 'uuid'
 import jsurl from '@yaska-eu/jsurl2'
-import {sql, valToSql} from './DB'
-import {uniqueSlugId} from './slugify'
+import {sql} from '../DB'
 import DataLoader from 'dataloader'
 import {get, set} from 'lodash'
+import {normalizeColumn} from './normalizeColumn'
+import {assignJsonParents} from './assignJsonParents'
+import {
+	parseJson,
+	stringifyJsonObject,
+	prepareSqlCol,
+	byPathLength,
+	byPathLengthDesc,
+} from './prepareSqlCol'
+import {verifyOptions, verifyColumn} from './verifyOptions'
+import {makeMigrations} from './makeMigrations'
+import {makeIdValue} from './makeDefaultIdValue'
 
 const dbg = debug('stratokit/JSON')
 const DEV = process.env.NODE_ENV !== 'production'
@@ -20,423 +29,6 @@ if (DEV) {
 	}
 	deprecated = warner('DEPRECATED')
 	unknown = warner('UNKNOWN')
-}
-
-const columnPropType =
-	process.env.NODE_ENV === 'production'
-		? null
-		: PropTypes.exact({
-				// === sql column ===
-				real: PropTypes.bool, // true -> a real table column is made
-				// column type if real column
-				type: PropTypes.oneOf([
-					'TEXT',
-					'NUMERIC',
-					'INTEGER',
-					'REAL',
-					'BLOB',
-					'JSON',
-				]),
-				path: PropTypes.string, // path to value in object
-				autoIncrement: PropTypes.bool, // autoincrementing key
-				alias: PropTypes.string, // column alias
-				get: PropTypes.bool, // include column in query results, strip data from json
-				parse: PropTypes.func, // returns JS value given column data
-				stringify: PropTypes.func, // returns column value given object data
-				alwaysObject: PropTypes.bool, // JSON is always object
-
-				// === value related ===
-				slugValue: PropTypes.func, // returns seed for uniqueSlugId
-				sql: PropTypes.string, // sql expression for column
-				value: PropTypes.func, // value to store
-				default: PropTypes.any, // js expression, default value
-				required: PropTypes.bool, // throw if no value
-				falsyBool: PropTypes.bool, // bool: 1/NULL true/undefined
-
-				// === index ===
-				// create index for this column
-				index: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
-				ignoreNull: PropTypes.bool, // ignore null in index
-				unique: PropTypes.bool, // create index with unique contstraint
-
-				// === queries ===
-				where: PropTypes.oneOfType([PropTypes.string, PropTypes.func]), // returns WHERE condition given value
-				whereVal: PropTypes.func, // returns values array for condition
-
-				// === query helpers ===
-				in: PropTypes.bool, // column matches any of given array
-				inAll: PropTypes.bool, // column matches all of given array
-				isAnyOfArray: PropTypes.bool, // in:true + isArray: true
-				isArray: PropTypes.bool, // json path is an array value
-				textSearch: PropTypes.bool, // search for substring of column
-		  })
-
-const jmPropTypes =
-	process.env.NODE_ENV === 'production'
-		? null
-		: {
-				options: PropTypes.exact({
-					db: PropTypes.object.isRequired,
-					name: PropTypes.string.isRequired,
-					migrations: PropTypes.objectOf(
-						PropTypes.oneOfType([
-							PropTypes.oneOf([false, undefined, null]),
-							PropTypes.func,
-							PropTypes.exact({up: PropTypes.func, down: PropTypes.func}),
-						])
-					),
-					migrationOptions: PropTypes.object,
-					columns: PropTypes.objectOf(
-						PropTypes.oneOfType([PropTypes.func, columnPropType])
-					),
-					ItemClass: PropTypes.func,
-					idCol: PropTypes.string,
-					dispatch: PropTypes.any, // passed by ESDB but not used
-				}),
-		  }
-
-const verifyOptions = options => {
-	if (process.env.NODE_ENV !== 'production') {
-		/* eslint-disable no-console */
-		const prevError = console.error
-		console.error = message => {
-			console.error = prevError
-			throw new Error(message)
-		}
-		PropTypes.checkPropTypes(jmPropTypes, {options}, 'options', 'JsonModel')
-		console.error = prevError
-		/* eslint-enable no-console */
-	}
-}
-
-const verifyColumn = (name, column) => {
-	if (process.env.NODE_ENV !== 'production') {
-		/* eslint-disable no-console */
-		const prevError = console.error
-		console.error = message => {
-			console.error = prevError
-			throw new Error(message)
-		}
-		PropTypes.checkPropTypes(
-			{column: columnPropType},
-			{column},
-			`column`,
-			'JsonModel'
-		)
-		console.error = prevError
-		/* eslint-enable no-console */
-	}
-}
-
-const byPathLength = (a, b) => a.parts.length - b.parts.length
-const byPathLengthDesc = (a, b) => b.parts.length - a.parts.length
-
-// eslint-disable-next-line complexity
-const normalizeColumn = (col, name) => {
-	col.name = name
-	col.quoted = sql.quoteId(name)
-	if (col.type) col.real = true
-	else if (col.real) col.type = col.falsyBool ? 'INTEGER' : 'BLOB'
-	if (col.get == null) col.get = !!col.real
-
-	if (!col.path && name !== 'json') col.path = name
-
-	col.parts = col.path === '' ? [] : col.path.split('.')
-
-	if (col.index === 'ALL') col.ignoreNull = false
-	if (col.index === 'SPARSE') col.ignoreNull = true
-	if (col.unique) {
-		if (!col.index) throw new TypeError(`${name}: unique requires index`)
-	} else if (col.ignoreNull == null) {
-		col.ignoreNull = true
-	}
-
-	if (col.autoIncrement && col.type !== 'INTEGER')
-		throw new TypeError(`${name}: autoIncrement is only for type INTEGER`)
-
-	if (col.slugValue) {
-		if (col.value)
-			throw new TypeError(`${name}: slugValue and value can't both be defined`)
-		if (!col.index) throw new TypeError(`${name}: slugValue requires index`)
-		col.value = async function(o) {
-			if (o[name] != null) return o[name]
-			return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
-		}
-	}
-
-	if (col.default != null) {
-		col.ignoreNull = false
-		const prev = col.value
-		if (prev) {
-			col.value = async function(o) {
-				const r = await prev.call(this, o)
-				return r == null ? col.default : r
-			}
-		} else if (col.sql) {
-			col.sql = `ifNull(${col.sql},${valToSql(col.default)})`
-		} else {
-			col.value = o => {
-				const v = get(o, col.path)
-				return v == null ? col.default : v
-			}
-		}
-	}
-
-	if (col.required) {
-		col.ignoreNull = false
-		const prev = col.value
-		if (prev) {
-			col.value = async function(o) {
-				const r = await prev.call(this, o)
-				if (r == null) throw new Error(`${name}: value is required`)
-				return r
-			}
-		} else {
-			col.value = o => {
-				const v = get(o, col.path)
-				if (v == null) throw new Error(`${name}: value is required`)
-				return v
-			}
-		}
-	}
-
-	if (col.falsyBool) {
-		const prev = col.value
-		if (prev) {
-			col.value = async function(o) {
-				const r = await prev.call(this, o)
-				return r ? true : undefined
-			}
-		} else {
-			col.value = o => {
-				const v = get(o, col.path)
-				return v ? true : undefined
-			}
-		}
-		if (col.real) {
-			if (col.parse) throw new TypeError(`${name}: falsyBool can't have parse`)
-			col.parse = v => (v ? true : undefined)
-		}
-	}
-
-	if (!col.real && col.stringify)
-		throw new Error(`${name}: stringify only applies to real columns`)
-	if (!col.get && col.parse)
-		throw new Error(`${name}: parse only applies to get:true columns`)
-}
-
-const assignJsonParents = columnArr => {
-	const parents = columnArr
-		.filter(c => c.type === 'JSON' && c.get)
-		.sort(byPathLengthDesc)
-	for (const col of columnArr) {
-		// Will always match, json column has path:''
-		const parent = parents.find(
-			p => !p.path || col.path.startsWith(p.path + '.')
-		)
-		if (parent.alwaysObject == null) parent.alwaysObject = true
-		if (!col.real) {
-			col.jsonCol = parent.name
-			col.jsonPath = parent.path
-				? col.path.slice(parent.path.length + 1)
-				: col.path
-		}
-	}
-}
-
-const stringifyJson = JSON.stringify
-const stringifyJsonObject = obj => {
-	const json = JSON.stringify(obj)
-	return json === '{}' ? null : json
-}
-const parseJson = v => (v == null ? v : JSON.parse(v))
-const parseJsonObject = v => (v == null ? {} : JSON.parse(v))
-
-// eslint-disable-next-line complexity
-const prepareSqlCol = col => {
-	if (col.type === 'JSON') {
-		if (col.stringify === undefined)
-			col.stringify = col.alwaysObject ? stringifyJsonObject : stringifyJson
-		if (col.parse === undefined)
-			col.parse = col.alwaysObject ? parseJsonObject : parseJson
-	} else if (col.alwaysObject)
-		throw new TypeError(`${name}: .alwaysObject only applies to JSON type`)
-
-	if (col.falsyBool && !col.where) {
-		col.where = (_, v) => (v ? `${col.sql} IS NOT NULL` : `${col.sql} IS NULL`)
-		col.whereVal = () => []
-	}
-	if (!col.sql) {
-		col.sql = col.type
-			? `tbl.${col.quoted}`
-			: `json_extract(tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}')`
-	}
-	if (col.isAnyOfArray) {
-		col.isArray = true
-		col.in = true
-	}
-	if (col.isArray) {
-		if (col.where || col.whereVal)
-			throw new TypeError(`${name}: cannot mix isArray and where/whereVal`)
-		if (col.textSearch)
-			throw new TypeError(`${name}: Only one of isArray/textSearch allowed`)
-		const jsonExpr = `SELECT 1 FROM json_each(${
-			col.type
-				? `tbl.${col.quoted}`
-				: `tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}'`
-		}) j WHERE j.value`
-		if (col.in) {
-			col.where = args =>
-				`EXISTS(${jsonExpr} IN (${args.map(() => '?').join(',')}))`
-			col.whereVal = args => args && args.length && args
-		} else if (col.inAll) {
-			col.where = args =>
-				`${args.length} IN (SELECT COUNT(*) FROM (${jsonExpr} IN (${args
-					.map(() => '?')
-					.join(',')})))`
-			col.whereVal = args => (args && args.length ? args : false)
-		} else {
-			col.where = `EXISTS(${jsonExpr} = ?)`
-		}
-	} else if (col.in) {
-		if (col.where || col.whereVal)
-			throw new TypeError(`${name}: cannot mix .in and where/whereVal`)
-		if (col.textSearch)
-			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
-		col.where = args => `${col.sql} IN (${args.map(() => '?').join(',')})`
-		col.whereVal = args => (args && args.length ? args : false)
-	} else if (col.textSearch) {
-		if (col.where || col.whereVal)
-			throw new TypeError(`${name}: cannot mix textSearch and where/whereVal`)
-		if (col.in)
-			throw new TypeError(`${name}: Only one of in/textSearch allowed`)
-		col.where = `${col.sql} LIKE ?`
-		col.whereVal = v => {
-			if (v == null) return
-			const s = String(v)
-			if (s) return [`%${s}%`]
-		}
-	}
-	col.select = `${col.sql} AS ${col.alias}`
-
-	if (
-		typeof col.where === 'string' &&
-		!col.whereVal &&
-		!col.where.includes('?')
-	)
-		throw new Error(
-			`${col.name}: .where "${
-				col.where
-			}" should include a ? when not passing .whereVal`
-		)
-	if (!col.where) col.where = `${col.sql}=?`
-}
-
-const makeDefaultIdValue = idCol => obj => {
-	if (obj[idCol] != null) return obj[idCol]
-	return uuid.v1()
-}
-
-const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
-	if (type === 'INTEGER') {
-		return value
-			? value
-			: o => {
-					const id = o[idCol]
-					return id || id === 0 ? id : null
-			  }
-	}
-	// do not bind the value functions, they must be able to use other db during migrations
-	if (slugValue) {
-		return async function(o) {
-			if (o[idCol] != null) return o[idCol]
-			return uniqueSlugId(this, await slugValue(o), idCol)
-		}
-	}
-	const defaultIdValue = makeDefaultIdValue(idCol)
-	if (value) {
-		return async function(o) {
-			if (o[idCol] != null) return o[idCol]
-			const id = await value.call(this, o)
-			return id == null ? defaultIdValue(o) : id
-		}
-	}
-	return defaultIdValue
-}
-
-const cloneModelWithDb = (m, db) => {
-	const model = Object.create(m)
-	model.db = db
-	model._set = model._makeSetFn()
-	return model
-}
-
-const makeMigrations = ({
-	db,
-	name: tableName,
-	idCol,
-	columns,
-	migrations,
-	migrationOptions,
-}) => {
-	const tableQuoted = sql.quoteId(tableName)
-	const allMigrations = {
-		...migrations,
-		// We make id a real column to allow foreign keys
-		0: ({db}) => {
-			const {quoted, type, autoIncrement} = columns[idCol]
-			const keySql = `${type} PRIMARY KEY ${
-				autoIncrement ? 'AUTOINCREMENT' : ''
-			}`
-			return db.exec(
-				`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
-			)
-		},
-	}
-	for (const [name, col] of Object.entries(columns)) {
-		// We already added these, or it's an alias
-		if (name === idCol || name === 'json' || name !== col.name) continue
-		const expr = col.sql.replace('tbl.', '')
-		allMigrations[`0_${name}`] = ({db}) =>
-			db.exec(
-				`${
-					col.type
-						? `ALTER TABLE ${tableQuoted} ADD COLUMN ${col.quoted} ${col.type};`
-						: ''
-				}${
-					col.index
-						? `CREATE ${col.unique ? 'UNIQUE ' : ''}INDEX ${sql.quoteId(
-								`${tableName}_${name}`
-						  )} ON ${tableQuoted}(${expr}) ${
-								col.ignoreNull ? `WHERE ${expr} IS NOT NULL` : ''
-						  };`
-						: ''
-				}`
-			)
-	}
-
-	// Wrap the migration functions to provide their arguments
-	const wrappedMigrations = {}
-	const wrapMigration = migration => {
-		const wrap = fn =>
-			fn &&
-			(writeableDb => {
-				if (!writeableDb.models[tableName]) {
-					// Create a patched version of all models that uses the migration db
-					Object.values(db.models).forEach(m => {
-						writeableDb.models[m.name] = cloneModelWithDb(m, writeableDb)
-					})
-				}
-				const model = writeableDb.models[tableName]
-				return fn({...migrationOptions, db: writeableDb, model})
-			})
-		return wrap(migration.up || migration)
-	}
-	Object.keys(allMigrations).forEach(k => {
-		const m = allMigrations[k]
-		if (m) wrappedMigrations[k] = wrapMigration(m)
-	})
-	return wrappedMigrations
 }
 
 // ItemClass: Object-like class that can be assigned to like Object
@@ -736,8 +328,8 @@ class JsonModel {
 					cols.push(colName)
 				}
 			})
-			cursorColNames = sortNames.map(
-				c => (this.columns[c] ? this.columns[c].alias : c)
+			cursorColNames = sortNames.map(c =>
+				this.columns[c] ? this.columns[c].alias : c
 			)
 		}
 
@@ -1021,7 +613,6 @@ class JsonModel {
 					fn = options
 					options = undefined
 				} else {
-					// eslint-disable-next-line prefer-destructuring
 					fn = options.fn
 					delete options.fn
 				}
@@ -1040,7 +631,6 @@ class JsonModel {
 		do {
 			// eslint-disable-next-line no-await-in-loop
 			const result = await this.search(attrs, {...options, cursor})
-			// eslint-disable-next-line prefer-destructuring
 			cursor = result.cursor
 			// eslint-disable-next-line no-await-in-loop
 			await Promise.all(result.items.map(v => fn(v, i++)))

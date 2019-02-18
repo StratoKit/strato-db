@@ -14,8 +14,8 @@ export const slugifyString = (name, alwaysResult) => {
 		typeof name === 'string'
 			? name
 			: typeof name === 'number'
-				? name.toString()
-				: name && name[Object.keys(name)[0]]
+			? name.toString()
+			: name && name[Object.keys(name)[0]]
 	if (!t) {
 		if (alwaysResult) return randomString(12)
 		throw new Error(`Cannot slugify ${name}`)

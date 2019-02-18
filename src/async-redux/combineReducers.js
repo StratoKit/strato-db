@@ -146,8 +146,8 @@ export default function combineReducers(reducers, isAsync) {
 	let shapeAssertionError
 	try {
 		assertReducerShape(finalReducers)
-	} catch (err) {
-		shapeAssertionError = err
+	} catch (error) {
+		shapeAssertionError = error
 	}
 
 	return function(state = {}, action) {

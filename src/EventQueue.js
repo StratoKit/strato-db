@@ -91,7 +91,6 @@ class EventQueue extends JsonModel {
 	}
 
 	async _getLatestVersion() {
-		let v
 		if (this._addP) await this._addP
 
 		const dataV = await this.db.dataVersion()
@@ -101,8 +100,7 @@ class EventQueue extends JsonModel {
 		}
 		this._dataV = dataV
 		const lastRow = await this.db.get(`SELECT MAX(v) AS v from ${this.quoted}`)
-		v = lastRow.v // eslint-disable-line prefer-destructuring
-		this.currentV = Math.max(this.knownV, v || 0)
+		this.currentV = Math.max(this.knownV, lastRow.v || 0)
 		return this.currentV
 	}
 
@@ -153,7 +151,6 @@ class EventQueue extends JsonModel {
 		while (!event) {
 			// Wait for next one from this process
 			if (!this.nextAddedP) {
-				// eslint-disable-next-line promise/avoid-new
 				this.nextAddedP = new Promise(resolve => {
 					this.nextAddedResolve = event => {
 						clearTimeout(this.addTimer)
@@ -167,7 +164,10 @@ class EventQueue extends JsonModel {
 					() => this.nextAddedResolve && this.nextAddedResolve(),
 					10000
 				)
-				if (!this.forever) this.addTimer.unref()
+				// if possible, mark the timer as non-blocking for process exit
+				// some mocking libraries might forget to add unref()
+				if (!this.forever && this.addTimer && this.addTimer.unref)
+					this.addTimer.unref()
 			}
 			// eslint-disable-next-line no-await-in-loop
 			event = await this.nextAddedP

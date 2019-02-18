@@ -48,6 +48,7 @@ module.exports = {
 		'object-curly-spacing': 0,
 		'one-var': 0,
 		'operator-linebreak': 0,
+		'padding-line-between-statements': 0,
 		'padded-blocks': 0,
 		'prefer-template': 0,
 		'promise/param-names': 0,

@@ -97,7 +97,8 @@
 - [ ] foreign key support
 - [ ] prepared statements
   - `q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort`
-  - However, `where` parameter values should be allowed to change
+  - However, `whereVal` values should be allowed to change
+  - But `where` should stay the same and should not be recalculated, best if it is not a function
   - Probably `.makeSelect()` would need to return an intermediate query object
 - Benchmark test that warns if runtime increases on current system
   - getting/setting can be optimized by creating Functions instead of lodash get/set, but first create benchmark

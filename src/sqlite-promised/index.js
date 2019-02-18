@@ -19,9 +19,8 @@ const openDB = async (filename, {mode = null, verbose = false} = {}) => {
 		driver = mode
 			? new sqlite3.Database(filename, mode, cb)
 			: new sqlite3.Database(filename, cb)
-	}).catch(err => {
-		const error = new Error(`${filename}: ${err.message}`)
-		throw error
+	}).catch(error => {
+		throw new Error(`${filename}: ${error.message}`)
 	})
 
 	return new Database(driver, filename)

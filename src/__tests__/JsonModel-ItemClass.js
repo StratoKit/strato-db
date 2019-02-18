@@ -1,4 +1,3 @@
-import expect from 'expect'
 import {getModel} from './_helpers'
 
 class Foo {
