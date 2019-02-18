@@ -25,6 +25,7 @@ const scripts = {
 			require.resolve('jest-cli').replace('build', 'bin')
 		} --runInBand --watch`,
 	},
+	publish: `npm publish --access public`,
 }
 
 module.exports = {scripts}

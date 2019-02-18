@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.1
+
+- JsonModel
+  - refactor: split in multiple files
+  - change array queries so they can be prepared
+  - fix expression index creation before column
+- EventQueue: test before calling timer.unref()
+- build: Upgrade to Babel 7 and latest ESLint
+
 ## 2.3.0
 
 Minor version change due to index changes on queue for ESDB
