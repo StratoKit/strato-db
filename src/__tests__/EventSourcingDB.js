@@ -474,3 +474,7 @@ test('metadata can also be used', async () =>
 			// no models
 		}
 	))
+
+test('model fail shows name', () => {
+	expect(() => new ESDB({models: {foutje: false}})).toThrow('foutje')
+})

@@ -126,75 +126,87 @@ class ESDB extends EventEmitter {
 
 		const dispatch = this.dispatch.bind(this)
 		for (const [name, modelDef] of Object.entries(models)) {
-			let {
-				reducer,
-				preprocessor,
-				deriver,
-				Model = ESModel,
-				RWModel = Model,
-				...rest
-			} = modelDef
+			try {
+				if (!modelDef) throw new Error('model missing')
+				let {
+					reducer,
+					preprocessor,
+					deriver,
+					Model = ESModel,
+					RWModel = Model,
+					...rest
+				} = modelDef
 
-			if (RWModel === ESModel) {
-				if (reducer) {
-					const prev = reducer
-					reducer = async (model, event) => {
-						const result = await prev(model, event)
-						if (!result && event.type === model.TYPE)
-							return ESModel.reducer(model, event)
-						return result
+				if (RWModel === ESModel) {
+					if (reducer) {
+						const prev = reducer
+						reducer = async (model, event) => {
+							const result = await prev(model, event)
+							if (!result && event.type === model.TYPE)
+								return ESModel.reducer(model, event)
+							return result
+						}
+					}
+					if (preprocessor) {
+						const prev = preprocessor
+						preprocessor = async args => {
+							const e = await ESModel.preprocessor(args)
+							if (e) args.event = e
+							return prev(args)
+						}
 					}
 				}
-				if (preprocessor) {
-					const prev = preprocessor
-					preprocessor = async args => {
-						const e = await ESModel.preprocessor(args)
-						if (e) args.event = e
-						return prev(args)
-					}
+				let hasOne = false
+
+				const rwModel = this.rwDb.addModel(RWModel, {
+					name,
+					...rest,
+					migrationOptions,
+					dispatch,
+				})
+				rwModel.deriver = deriver || RWModel.deriver
+				this.rwStore[name] = rwModel
+				if (typeof rwModel.setWritable === 'function')
+					this.readWriters.push(rwModel)
+				if (rwModel.deriver) {
+					this.deriverModels.push(rwModel)
+					hasOne = true
 				}
-			}
-			let hasOne = false
 
-			const rwModel = this.rwDb.addModel(RWModel, {
-				name,
-				...rest,
-				migrationOptions,
-				dispatch,
-			})
-			rwModel.deriver = deriver || RWModel.deriver
-			this.rwStore[name] = rwModel
-			if (typeof rwModel.setWritable === 'function')
-				this.readWriters.push(rwModel)
-			if (rwModel.deriver) {
-				this.deriverModels.push(rwModel)
-				hasOne = true
-			}
+				let model
+				if (this.db === this.rwDb) {
+					model = rwModel
+				} else {
+					model = this.db.addModel(Model, {name, ...rest, dispatch})
+				}
+				model.preprocessor = preprocessor || Model.preprocessor
+				model.reducer = reducer || Model.reducer
+				this.store[name] = model
+				if (model.preprocessor) {
+					this.preprocModels.push(model)
+					hasOne = true
+				}
+				if (model.reducer) {
+					this.reducerNames.push(name)
+					this.reducerModels[name] = model
+					reducers[name] = model.reducer
+					hasOne = true
+				}
 
-			let model
-			if (this.db === this.rwDb) {
-				model = rwModel
-			} else {
-				model = this.db.addModel(Model, {name, ...rest, dispatch})
+				if (!hasOne)
+					throw new TypeError(
+						`${
+							this.name
+						}: At least one reducer, deriver or preprocessor required`
+					)
+			} catch (error) {
+				// TODO write test
+				if (error.message)
+					error.message = `ESDB: while configuring model ${name}: ${
+						error.message
+					}`
+				throw error
 			}
-			model.preprocessor = preprocessor || Model.preprocessor
-			model.reducer = reducer || Model.reducer
-			this.store[name] = model
-			if (model.preprocessor) {
-				this.preprocModels.push(model)
-				hasOne = true
-			}
-			if (model.reducer) {
-				this.reducerNames.push(name)
-				this.reducerModels[name] = model
-				reducers[name] = model.reducer
-				hasOne = true
-			}
-
-			if (!hasOne)
-				throw new TypeError(
-					`${this.name}: At least one reducer, deriver or preprocessor required`
-				)
 		}
 
 		if (!readOnly) {
