@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.2
+
+- JsonModel: don't error on existing indexes
+
 ## 2.3.1
 
 - JsonModel
