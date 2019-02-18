@@ -33,7 +33,8 @@ export const makeMigrations = ({
 		// We already added these, or it's an alias
 		if (name === idCol || name === 'json' || name !== col.name) continue
 		const expr = col.sql.replace('tbl.', '')
-		allMigrations[`0_${name}`] = ({db}) =>
+		// Make sure real columns are created before indexes on expressions
+		allMigrations[`${col.real ? 0 : 1}_${name}`] = ({db}) =>
 			db.exec(
 				`${
 					col.type
