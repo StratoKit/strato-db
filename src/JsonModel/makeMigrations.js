@@ -42,7 +42,9 @@ export const makeMigrations = ({
 						: ''
 				}${
 					col.index
-						? `CREATE ${col.unique ? 'UNIQUE ' : ''}INDEX ${sql.quoteId(
+						? `CREATE ${
+								col.unique ? 'UNIQUE ' : ''
+						  }INDEX IF NOT EXISTS ${sql.quoteId(
 								`${tableName}_${name}`
 						  )} ON ${tableQuoted}(${expr}) ${
 								col.ignoreNull ? `WHERE ${expr} IS NOT NULL` : ''
