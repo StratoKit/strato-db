@@ -167,7 +167,10 @@ class EventQueue extends JsonModel {
 					() => this.nextAddedResolve && this.nextAddedResolve(),
 					10000
 				)
-				if (!this.forever) this.addTimer.unref()
+				// if possible, mark the timer as non-blocking for process exit
+				// some mocking libraries might forget to add unref()
+				if (!this.forever && this.addTimer && this.addTimer.unref)
+					this.addTimer.unref()
 			}
 			// eslint-disable-next-line no-await-in-loop
 			event = await this.nextAddedP
