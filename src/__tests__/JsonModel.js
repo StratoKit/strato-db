@@ -120,8 +120,14 @@ test('get w/ other colName', async () => {
 
 test('getAll', async () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, slug: {}, objectId: {path: 'object.id'}},
+		columns: {
+			id: {type: 'INTEGER'},
+			slug: {},
+			objectId: {path: 'object.id'},
+			no: {real: true, get: false, value: () => 5},
+		},
 	})
+	await expect(m.getAll([], 'no')).rejects.toThrow('get:false')
 	await Promise.all(
 		[0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10, object: {id}}))
 	)
