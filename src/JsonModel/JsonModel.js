@@ -590,7 +590,8 @@ class JsonModel {
 			)
 			.then(rows => {
 				const objs = this.toObj(rows)
-				return ids.map(id => objs.find(o => o[colName] === id))
+				const {path} = this.columns[colName]
+				return ids.map(id => objs.find(o => get(o, path) === id))
 			})
 	}
 

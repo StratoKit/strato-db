@@ -1,4 +1,3 @@
-
 import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
 
 test('create', () => {
@@ -121,18 +120,25 @@ test('get w/ other colName', async () => {
 
 test('getAll', async () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, slug: {}},
+		columns: {id: {type: 'INTEGER'}, slug: {}, objectId: {path: 'object.id'}},
 	})
-	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10})))
+	await Promise.all(
+		[0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10, object: {id}}))
+	)
 	expect(await m.getAll([4, 'nope', 0])).toEqual([
-		{id: 4, slug: 14},
+		{id: 4, slug: 14, object: {id: 4}},
 		undefined,
-		{id: 0, slug: 10},
+		{id: 0, slug: 10, object: {id: 0}},
 	])
 	expect(await m.getAll([10, 'nope', 12], 'slug')).toEqual([
-		{id: 0, slug: 10},
+		{id: 0, slug: 10, object: {id: 0}},
 		undefined,
-		{id: 2, slug: 12},
+		{id: 2, slug: 12, object: {id: 2}},
+	])
+	expect(await m.getAll([2, 'nope', 4], 'objectId')).toEqual([
+		{id: 2, slug: 12, object: {id: 2}},
+		undefined,
+		{id: 4, slug: 14, object: {id: 4}},
 	])
 })
 
