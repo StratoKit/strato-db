@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.3
+
+- JsonModel: fix using columns with paths in `getAll`
+
 ## 2.3.2
 
 - JsonModel: don't error on existing indexes
