@@ -578,20 +578,19 @@ class JsonModel {
 			.then(this.toObj)
 	}
 
-	getAll(ids, colName = this.idCol) {
+	async getAll(ids, colName = this.idCol) {
 		const qs = ids.map(() => '?').join()
-		const where = this.columns[colName].sql
-		return this.db
-			.all(
-				`SELECT ${this.selectColsSql} FROM ${
-					this.quoted
-				} tbl WHERE ${where} IN (${qs})`,
-				ids
-			)
-			.then(rows => {
-				const objs = this.toObj(rows)
-				return ids.map(id => objs.find(o => o[colName] === id))
-			})
+		const {sql: where, path, real, get: isSelected} = this.columns[colName]
+		if (real && !isSelected)
+			throw new Error(`JsonModel: Cannot getAll on get:false column ${colName}`)
+		const rows = await this.db.all(
+			`SELECT ${this.selectColsSql} FROM ${
+				this.quoted
+			} tbl WHERE ${where} IN (${qs})`,
+			ids
+		)
+		const objs = this.toObj(rows)
+		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
 	getCached(cache, id, colName = this.idCol) {
