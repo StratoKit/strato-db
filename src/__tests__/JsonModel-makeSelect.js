@@ -1,4 +1,3 @@
-
 import {getModel} from './_helpers'
 
 test('makeSelect basic', () => {
@@ -111,9 +110,11 @@ test('makeSelect in', () => {
 	const m = getModel({
 		columns: {foo: {in: true}, bar: {real: true, in: true}},
 	})
-	const [q] = m.makeSelect({attrs: {foo: ['meep', 'moop']}})
+	const [q] = m.makeSelect({
+		attrs: {foo: ['meep', 'moop'], bar: ['meep', 'moop']},
+	})
 	expect(q).toEqual(
-		`SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",'$.foo') IN (SELECT value FROM json_each(?)))`
+		`SELECT tbl."bar" AS _1,tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",'$.foo') IN (SELECT value FROM json_each(?)))AND(tbl."bar" IN (SELECT value FROM json_each(?)))`
 	)
 	const [q2] = m.makeSelect({attrs: {foo: []}})
 	expect(q2).toEqual(
@@ -156,6 +157,23 @@ test('makeSelect inAll', () => {
 	expect(q2).toEqual(
 		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl'
 	)
+})
+
+test('in works', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			foo: {in: true, isArray: true},
+		},
+	})
+	await m.set({foo: [1, 2, 5]})
+	await m.set({foo: [1, 2, 3, 4]})
+	await m.set({foo: [1, 2, 4, 5]})
+	expect(await m.searchAll({foo: []})).toHaveLength(3)
+	expect(await m.searchAll({foo: [1, 2]})).toHaveLength(3)
+	expect(await m.searchAll({foo: [5]})).toHaveLength(2)
+	expect(await m.searchAll({foo: [4, 2]})).toHaveLength(3)
+	expect(await m.searchAll({foo: [4, 5]})).toHaveLength(3)
 })
 
 test('inAll works', async () => {

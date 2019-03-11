@@ -34,7 +34,7 @@ export const prepareSqlCol = col => {
 		col.whereVal = () => []
 	}
 	if (!col.sql) {
-		col.sql = col.type
+		col.sql = col.real
 			? `tbl.${col.quoted}`
 			: `json_extract(tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}')`
 	}
@@ -48,7 +48,7 @@ export const prepareSqlCol = col => {
 		if (col.textSearch)
 			throw new TypeError(`${name}: Only one of isArray/textSearch allowed`)
 		const eachSql = `json_each(${
-			col.type
+			col.real
 				? `tbl.${col.quoted}`
 				: `tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}'`
 		})`
