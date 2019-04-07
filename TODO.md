@@ -123,6 +123,15 @@
 
 ### Important
 
+- SubEvents
+  - Send child events from events in the same transaction
+    - => simpler reducers/preprocessors
+    - put a limit on subevents (100), configurable, prevent loops
+    - from any point in processing: reducer, preprocessor, deriver
+    - stored in-memory on the `.sub` key as an array
+    - subevent.data is only stored for debugging, event.data stays in \_events
+    - Before processing an event, remove all subevents from table with v=currentV
+  - keep processing subevents until no more
 - Somehow unhandledRejection can happen in preprocessor `{ v: 119531, type: 'CONTRACT_CONFIRMED', ts: 1538636160023, data: { id: 'contracts-34706' }, capId: 29682, error: { contracts: 'Error: No "id" given for "clients"\n at Clients_Clients.get (/Users/wmertens/Documents/AeroFS/Projects/meatier/node_modules/strato-db/src/JsonModel.js:834:5)\n at Object.get [as preprocessor] (/Users/wmertens/Documents/AeroFS/Projects/meatier/build/server/webpack:/src/_server/database/contracts/contractConfirmed.js:82:37)\n at <anonymous>' } }`
 - !!! Multi-process handling:
   - [ ] When handling event, check that the DB is on `event.v - 1`, else try again
@@ -132,6 +141,7 @@
 
 ### Nice to have
 
+- [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
 - [ ] think about transient event errors vs event errors vs db errors - if transient, event should be retried, no? Maybe configuration on what to do with errors.

@@ -1,12 +1,30 @@
 /* eslint-disable no-console */
 // Event Sourcing DataBase
-// * Events describe facts that happened in the outside world and have to be stored
-// * Events have version v, strictly ordered
-// * Each event is handled separately and serially.
-// * Each table is maintained by a reducer
-// * Reducers get the table at v-1 and the event, and describe the change for version v
-// * Once all reducers ran, the changes are applied and the db is at version v
-// * To make changes to a table, change the reducer and rebuild the DB, or migrate the table
+// * Only allows changes via messages that are stored and processed. This allows easy
+//   replication, debugging and possibly even rollback
+// * All the database tables participating should only be changed via events. There is a version entry
+//   in the metadata table that shows what event version the db is at.
+// * Events describe facts that happened
+//   * Think of them as newspaper clippings (that changed) or notes passed to the kitchen (this change requested)
+// * Models store the data in a table an define preprocessor, reducer, applyEvent and deriver
+//   * TODO rename applyEvent -> applyResult
+// * Events:
+//   * have version `v`, strictly ordered
+//   * are added to `history` table in a single transaction, and then processed asynchronously in a separate transaction
+//   * result of processing is stored in `history`
+// * Each event is handled separately and serially in a single transaction:
+//   * Preprocessors canonicalize the event
+//   * Reducers get the table at `v-1` and the event, and describe the change for version `v` into a result object
+//   * Once all reducers ran, the result objects are passed to model.applyEvent that changes the db
+//   * Then the derivers run, they can post-process the db for calculating or caching
+//     * Another option is a writable table with lazy user-space calculation. Delete entries in the deriver when they become invalid
+//   * Then the transaction completes and the db is at version `v`
+//   * Only applyEvent and deriver get a writeable db
+// * Sub-events can be emitted at any point during processing
+//   * for example USER_REGISTERED results in USER_ADD and EMAIL_OUT
+//   * they are processed exactly like events but in the transaction of the parent event, in-process
+//   * sub-events are stored in the event in a `sub` array, for reporting and debugging
+// * To make changes to a table, change the reducer and rebuild the DB with the history, or migrate the table
 
 import debug from 'debug'
 import {isEmpty} from 'lodash'
