@@ -354,6 +354,33 @@ test('falsyBool query', async () => {
 	expect(await m.searchOne({g: {}})).toHaveProperty('id', 2)
 })
 
+test('falsyBool indexing', async () => {
+	const m = getModel({
+		columns: {
+			id: {type: 'INTEGER'},
+			b: {real: true, falsyBool: true, index: 'ALL'},
+			c: {real: true, falsyBool: true, index: 'SPARSE'},
+			d: {falsyBool: true, index: 'ALL'},
+			f: {type: 'JSON', falsyBool: true, index: 'ALL'},
+		},
+	})
+	const checkIndex = async attrs => {
+		const [q, v] = m.makeSelect({attrs})
+		const {detail} = await m.db.get(`EXPLAIN QUERY PLAN ${q}`, v)
+		expect(
+			`${JSON.stringify(attrs)} ${q} ${JSON.stringify(v)}: ${detail} `
+		).toEqual(expect.stringContaining(' INDEX '))
+	}
+	await checkIndex({b: true})
+	await checkIndex({b: false})
+	await checkIndex({c: true})
+	await checkIndex({c: false})
+	await checkIndex({d: true})
+	await checkIndex({d: false})
+	await checkIndex({f: true})
+	await checkIndex({f: false})
+})
+
 test('columnName: ({columnName}) => columnDefinition', async () => {
 	let m
 	expect(() => {

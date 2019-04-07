@@ -24,14 +24,17 @@ export const prepareSqlCol = (col, name) => {
 			col.parse = col.alwaysObject ? parseJsonObject : parseJson
 	} else if (col.alwaysObject)
 		throw new TypeError(`${name}: .alwaysObject only applies to JSON type`)
-	if (col.falsyBool && !col.where) {
-		col.where = (_, v) => (v ? `${col.sql} IS NOT NULL` : `${col.sql} IS NULL`)
-		col.whereVal = () => []
-	}
 	if (!col.sql) {
 		col.sql = col.real
 			? `tbl.${col.quoted}`
 			: `json_extract(tbl.${sql.quoteId(col.jsonCol)},'$.${col.jsonPath}')`
+	}
+	if (col.falsyBool) {
+		if (col.where)
+			throw new TypeError(`${name}: .where not supported for falsyBool`)
+		const trueVal = col.stringify ? col.stringify(true) : true
+		col.where = `${col.sql} IS ?`
+		col.whereVal = v => [v ? trueVal : null]
 	}
 	if (col.isAnyOfArray) {
 		col.isArray = true
