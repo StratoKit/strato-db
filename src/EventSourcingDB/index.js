@@ -28,10 +28,10 @@
 
 import debug from 'debug'
 import {isEmpty} from 'lodash'
-import DB from './DB'
-import ESModel from './ESModel'
-import {createStore, combineReducers} from './async-redux'
-import EventQueue from './EventQueue'
+import DB from '../DB'
+import ESModel from '../ESModel'
+import {createStore, combineReducers} from '../async-redux'
+import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 
 const dbg = debug('stratokit/ESDB')
