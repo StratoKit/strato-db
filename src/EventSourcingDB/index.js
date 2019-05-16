@@ -30,7 +30,6 @@ import debug from 'debug'
 import {isEmpty} from 'lodash'
 import DB from '../DB'
 import ESModel from '../ESModel'
-import {createStore, combineReducers} from '../async-redux'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 
@@ -228,14 +227,6 @@ class ESDB extends EventEmitter {
 		}
 
 		if (!readOnly) {
-			this.modelReducer = combineReducers(reducers, true)
-			this.redux = createStore(
-				this.reducer.bind(this),
-				undefined,
-				undefined,
-				true
-			)
-			this.redux.subscribe(this.handleResult)
 			this.checkForEvents()
 		}
 	}
@@ -309,11 +300,18 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async reducer(state, event) {
-		if (!event.v) return false
-		event = await this.preprocessor(event)
+	async reducer(origEvent) {
+		const event = await this.preprocessor(origEvent)
 		if (event.error) return event
-		const result = await this.modelReducer(this.reducerModels, event)
+		const result = {}
+		await Promise.all(
+			this.reducerNames.map(async key => {
+				const model = this.reducerModels[key]
+				const out = await model.reducer(model, event)
+				result[key] = out
+			})
+		)
+
 		if (this.reducerNames.some(n => result[n].error)) {
 			const error = {}
 			for (const name of this.reducerNames) {
@@ -433,33 +431,24 @@ class ESDB extends EventEmitter {
 				dbg(`skipping ${event.v} because we're at ${nowV}`)
 				continue
 			}
-			if (!this._reduxInited) {
-				await this.redux.didInitialize
-				this._reduxInited = true
-			}
-			const doneEvent = await this.rwDb.withTransaction(async () => {
+			let resultEvent
+			await this.rwDb.withTransaction(async () => {
 				try {
-					// TODO just wait for the dispatch
-					// and call apply directly, not via redux
-					await this.redux.dispatch(event)
+					// The linter gets confused somehow
+					// eslint-disable-next-line require-atomic-updates
+					resultEvent = await this.reducer(event)
 				} catch (error) {
-					// Do not await this, deadlock
-					// This will never error, safe to call here
-					this.handleResult({
+					resultEvent = {
 						...event,
 						error: {
 							...event.error,
 							_redux: {message: error.message, stack: error.stack},
 						},
-					})
+					}
 				}
-				// This promise should always be there because the listeners are called
-				// synchronously after the dispatch
-				// We have to wait until the write applied before the next dispatch
-				// Will never error
-				return this._applyingP
+				await this.handleResult(resultEvent)
 			})
-			this.triggerWaitingEvent(doneEvent)
+			this.triggerWaitingEvent(resultEvent)
 			if (this._reallyStop) {
 				this._reallyStop = false
 				return
@@ -520,21 +509,14 @@ class ESDB extends EventEmitter {
 		return this._waitingP || Promise.resolve()
 	}
 
-	_applyingP = null
-
 	handleResult = async event => {
-		if (!event) event = this.redux.getState()
-		if (!event.v) {
-			return
-		}
-		this._applyingP = this.applyEvent(event).catch(error => {
+		await this.applyEvent(event).catch(error => {
 			console.error(
 				'!!! Error while applying event; changes not applied',
 				error
 			)
 		})
-		await this._applyingP
-		this._applyingP = null
+
 		if (event.error) {
 			// this throws if there is no listener
 			if (this.listenerCount('error')) {
