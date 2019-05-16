@@ -93,7 +93,7 @@ test('create without given queue', async () => {
 
 test('reducer', () => {
 	return withESDB(async eSDB => {
-		const result = await eSDB.reducer(events[0])
+		const result = await eSDB._reducer(events[0])
 		expect(result).toEqual({
 			v: 1,
 			type: 'foo',
@@ -101,7 +101,7 @@ test('reducer', () => {
 				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
 			},
 		})
-		const result2 = await eSDB.reducer(events[1])
+		const result2 = await eSDB._reducer(events[1])
 		expect(result2).toEqual({
 			v: 2,
 			type: 'bar',
@@ -116,7 +116,7 @@ test('reducer', () => {
 test('applyEvent', () => {
 	return withESDB(async eSDB => {
 		await eSDB.db.withTransaction(() =>
-			eSDB.applyEvent({
+			eSDB._applyEvent({
 				v: 1,
 				type: 'foo',
 				result: {
@@ -140,7 +140,7 @@ test('applyEvent', () => {
 test('applyEvent invalid', () => {
 	return withESDB(async eSDB => {
 		await expect(
-			eSDB.applyEvent({
+			eSDB._applyEvent({
 				v: 1,
 				type: 'foo',
 				result: {

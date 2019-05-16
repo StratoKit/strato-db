@@ -7,7 +7,6 @@
 // * Events describe facts that happened
 //   * Think of them as newspaper clippings (that changed) or notes passed to the kitchen (this change requested)
 // * Models store the data in a table an define preprocessor, reducer, applyEvent and deriver
-//   * TODO rename applyEvent -> applyResult
 // * Events:
 //   * have version `v`, strictly ordered
 //   * are added to `history` table in a single transaction, and then processed asynchronously in a separate transaction
@@ -238,226 +237,6 @@ class ESDB extends EventEmitter {
 		])
 	}
 
-	async dispatch(type, data, ts) {
-		const event = await this.queue.add(type, data, ts)
-		return this.handledVersion(event.v)
-	}
-
-	async preprocessor(event) {
-		for (const model of this.preprocModels) {
-			const {name} = model
-			const {store} = this
-			const {v, type} = event
-			let newEvent
-			try {
-				// eslint-disable-next-line no-await-in-loop
-				newEvent = await model.preprocessor({
-					event,
-					model,
-					store,
-				})
-			} catch (error) {
-				newEvent = {error}
-			}
-			// mutation allowed
-			if (!newEvent) newEvent = event
-			if (newEvent.error) {
-				return {
-					...event,
-					v,
-					type,
-					error: {[name]: newEvent.error},
-				}
-			}
-			if (newEvent.v !== v) {
-				// Just in case event was mutated
-				// Be sure to put the version back or we put the wrong v in history
-				return {
-					...event,
-					v,
-					type,
-					error: {
-						_preprocess: {
-							message: `${name}: preprocessor must retain event version`,
-						},
-					},
-				}
-			}
-			if (!newEvent.type) {
-				return {
-					...event,
-					v,
-					type,
-					error: {
-						_preprocess: {
-							message: `${name}: preprocessor must return event type`,
-						},
-					},
-				}
-			}
-			event = newEvent
-		}
-		return event
-	}
-
-	async reducer(origEvent) {
-		const event = await this.preprocessor(origEvent)
-		if (event.error) return event
-		const result = {}
-		await Promise.all(
-			this.reducerNames.map(async key => {
-				const model = this.reducerModels[key]
-				const out = await model.reducer(model, event)
-				result[key] = out
-			})
-		)
-
-		if (this.reducerNames.some(n => result[n].error)) {
-			const error = {}
-			for (const name of this.reducerNames) {
-				const r = result[name]
-				if (r.error) {
-					error[name] = r.error
-				}
-			}
-			return {...event, error}
-		}
-		for (const name of this.reducerNames) {
-			const r = result[name]
-			if (r === false || r === this.store[name]) {
-				// no change
-				delete result[name]
-			}
-		}
-		return {
-			...event,
-			result,
-		}
-	}
-
-	getVersionP = null
-
-	getVersion() {
-		if (!this.getVersionP) {
-			this.getVersionP = this.store.metadata.get('version').then(vObj => {
-				this.getVersionP = null
-				return vObj ? vObj.v : 0
-			})
-		}
-		return this.getVersionP
-	}
-
-	async waitForQueue() {
-		const v = await this.queue._getLatestVersion()
-		return this.handledVersion(v)
-	}
-
-	_waitingFor = {}
-
-	_maxWaitingFor = 0
-
-	async handledVersion(v) {
-		if (v === 0) return
-		// We must get the version first because our history might contain future events
-		if (v <= (await this.getVersion())) {
-			const event = await this.queue.get(v)
-			if (event.error) {
-				return Promise.reject(event)
-			}
-			return event
-		}
-		if (!this._waitingFor[v]) {
-			if (v > this._maxWaitingFor) this._maxWaitingFor = v
-			const o = {}
-			this._waitingFor[v] = o
-			o.promise = new Promise((resolve, reject) => {
-				o.resolve = resolve
-				o.reject = reject
-			})
-			this.startPolling(v)
-		}
-		return this._waitingFor[v].promise
-	}
-
-	triggerWaitingEvent(event) {
-		const o = this._waitingFor[event.v]
-		if (o) {
-			delete this._waitingFor[event.v]
-			if (event.error) {
-				o.reject(event)
-			} else {
-				o.resolve(event)
-			}
-		}
-		if (event.v >= this._maxWaitingFor) {
-			// Normally this will be empty but we might encounter a race condition
-			for (const [v, o] of Object.entries(this._waitingFor)) {
-				// eslint-disable-next-line promise/catch-or-return
-				this.queue.get(v).then(event => {
-					if (event.error) {
-						o.reject(event)
-					} else {
-						o.resolve(event)
-					}
-					return undefined
-				}, o.reject)
-				delete this._waitingFor[v]
-			}
-		}
-	}
-
-	// This is the loop that applies events from the queue. Use startPolling(false) to always poll
-	// so that events from other processes are also handled
-	// It would be nice to not have to poll, but sqlite triggers only work on the connection
-	// that makes the change
-	// This should never throw, handling errors can be done in apply
-	_waitForEvent = async () => {
-		/* eslint-disable no-await-in-loop */
-		let lastV = 0
-		dbg(`waiting for events until minVersion: ${this._minVersion}`)
-		while (!this._minVersion || this._minVersion > lastV) {
-			const event = await this.queue.getNext(
-				await this.getVersion(),
-				!(this._isPolling || this._minVersion)
-			)
-			if (!event) return lastV
-			// Clear previous result/error, if any
-			delete event.error
-			delete event.result
-			lastV = event.v
-			// It could be that it was processed elsewhere due to racing
-			const nowV = await this.getVersion()
-			if (event.v <= nowV) {
-				dbg(`skipping ${event.v} because we're at ${nowV}`)
-				continue
-			}
-			let resultEvent
-			await this.rwDb.withTransaction(async () => {
-				try {
-					// The linter gets confused somehow
-					// eslint-disable-next-line require-atomic-updates
-					resultEvent = await this.reducer(event)
-				} catch (error) {
-					resultEvent = {
-						...event,
-						error: {
-							...event.error,
-							_redux: {message: error.message, stack: error.stack},
-						},
-					}
-				}
-				await this.handleResult(resultEvent)
-			})
-			this.triggerWaitingEvent(resultEvent)
-			if (this._reallyStop) {
-				this._reallyStop = false
-				return
-			}
-		}
-		return lastV
-		/* eslint-enable no-await-in-loop */
-	}
-
 	checkForEvents() {
 		this.startPolling(1)
 	}
@@ -509,8 +288,228 @@ class ESDB extends EventEmitter {
 		return this._waitingP || Promise.resolve()
 	}
 
-	handleResult = async event => {
-		await this.applyEvent(event).catch(error => {
+	async dispatch(type, data, ts) {
+		const event = await this.queue.add(type, data, ts)
+		return this.handledVersion(event.v)
+	}
+
+	getVersionP = null
+
+	getVersion() {
+		if (!this.getVersionP) {
+			this.getVersionP = this.store.metadata.get('version').then(vObj => {
+				this.getVersionP = null
+				return vObj ? vObj.v : 0
+			})
+		}
+		return this.getVersionP
+	}
+
+	async waitForQueue() {
+		const v = await this.queue._getLatestVersion()
+		return this.handledVersion(v)
+	}
+
+	_waitingFor = {}
+
+	_maxWaitingFor = 0
+
+	async handledVersion(v) {
+		if (v === 0) return
+		// We must get the version first because our history might contain future events
+		if (v <= (await this.getVersion())) {
+			const event = await this.queue.get(v)
+			if (event.error) {
+				return Promise.reject(event)
+			}
+			return event
+		}
+		if (!this._waitingFor[v]) {
+			if (v > this._maxWaitingFor) this._maxWaitingFor = v
+			const o = {}
+			this._waitingFor[v] = o
+			o.promise = new Promise((resolve, reject) => {
+				o.resolve = resolve
+				o.reject = reject
+			})
+			this.startPolling(v)
+		}
+		return this._waitingFor[v].promise
+	}
+
+	_triggerEventListeners(event) {
+		const o = this._waitingFor[event.v]
+		if (o) {
+			delete this._waitingFor[event.v]
+			if (event.error) {
+				o.reject(event)
+			} else {
+				o.resolve(event)
+			}
+		}
+		if (event.v >= this._maxWaitingFor) {
+			// Normally this will be empty but we might encounter a race condition
+			for (const [v, o] of Object.entries(this._waitingFor)) {
+				// eslint-disable-next-line promise/catch-or-return
+				this.queue.get(v).then(event => {
+					if (event.error) {
+						o.reject(event)
+					} else {
+						o.resolve(event)
+					}
+					return undefined
+				}, o.reject)
+				delete this._waitingFor[v]
+			}
+		}
+	}
+
+	// This is the loop that applies events from the queue. Use startPolling(false) to always poll
+	// so that events from other processes are also handled
+	// It would be nice to not have to poll, but sqlite triggers only work on the connection
+	// that makes the change
+	// This should never throw, handling errors can be done in apply
+	_waitForEvent = async () => {
+		/* eslint-disable no-await-in-loop */
+		let lastV = 0
+		dbg(`waiting for events until minVersion: ${this._minVersion}`)
+		while (!this._minVersion || this._minVersion > lastV) {
+			const event = await this.queue.getNext(
+				await this.getVersion(),
+				!(this._isPolling || this._minVersion)
+			)
+			if (!event) return lastV
+			// Clear previous result/error, if any
+			delete event.error
+			delete event.result
+			lastV = event.v
+			// It could be that it was processed elsewhere due to racing
+			const nowV = await this.getVersion()
+			if (event.v <= nowV) {
+				dbg(`skipping ${event.v} because we're at ${nowV}`)
+				continue
+			}
+			const resultEvent = await this.rwDb.withTransaction(() =>
+				this._handleEvent(event)
+			)
+			this._triggerEventListeners(resultEvent)
+			if (this._reallyStop) {
+				this._reallyStop = false
+				return
+			}
+		}
+		return lastV
+		/* eslint-enable no-await-in-loop */
+	}
+
+	async _preprocessor(event) {
+		for (const model of this.preprocModels) {
+			const {name} = model
+			const {store} = this
+			const {v, type} = event
+			let newEvent
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				newEvent = await model.preprocessor({
+					event,
+					model,
+					store,
+				})
+			} catch (error) {
+				newEvent = {error}
+			}
+			// mutation allowed
+			if (!newEvent) newEvent = event
+			if (newEvent.error) {
+				return {
+					...event,
+					v,
+					type,
+					error: {[name]: newEvent.error},
+				}
+			}
+			if (newEvent.v !== v) {
+				// Just in case event was mutated
+				// Be sure to put the version back or we put the wrong v in history
+				return {
+					...event,
+					v,
+					type,
+					error: {
+						_preprocess: {
+							message: `${name}: preprocessor must retain event version`,
+						},
+					},
+				}
+			}
+			if (!newEvent.type) {
+				return {
+					...event,
+					v,
+					type,
+					error: {
+						_preprocess: {
+							message: `${name}: preprocessor must return event type`,
+						},
+					},
+				}
+			}
+			// allow other preprocessors to alter the event
+			event = newEvent
+		}
+		return event
+	}
+
+	async _reducer(origEvent) {
+		const event = await this._preprocessor(origEvent)
+		if (event.error) return event
+		const result = {}
+		await Promise.all(
+			this.reducerNames.map(async key => {
+				const model = this.reducerModels[key]
+				const out = await model.reducer(model, event)
+				result[key] = out
+			})
+		)
+
+		if (this.reducerNames.some(n => result[n].error)) {
+			const error = {}
+			for (const name of this.reducerNames) {
+				const r = result[name]
+				if (r.error) {
+					error[name] = r.error
+				}
+			}
+			return {...event, error}
+		}
+		for (const name of this.reducerNames) {
+			const r = result[name]
+			if (r === false || r === this.store[name]) {
+				// no change
+				delete result[name]
+			}
+		}
+		return {
+			...event,
+			result,
+		}
+	}
+
+	async _handleEvent(origEvent) {
+		let event
+		try {
+			event = await this._reducer(origEvent)
+		} catch (error) {
+			event = {
+				...origEvent,
+				error: {
+					...origEvent.error,
+					_redux: {message: error.message, stack: error.stack},
+				},
+			}
+		}
+
+		await this._applyEvent(event).catch(error => {
 			console.error(
 				'!!! Error while applying event; changes not applied',
 				error
@@ -538,9 +537,11 @@ class ESDB extends EventEmitter {
 		} catch (error) {
 			console.error('!!! "handled" event handler threw, ignoring', error)
 		}
+
+		return event
 	}
 
-	async applyEvent(event) {
+	async _applyEvent(event) {
 		const {rwStore, rwDb, readWriters} = this
 		for (const model of readWriters) model.setWritable(true)
 		try {
@@ -612,7 +613,7 @@ class ESDB extends EventEmitter {
 			}
 		} catch (error) {
 			// argh, now what? Probably retry applying, or crash the app…
-			// This can happen when DB has issue
+			// This can happen when DB has an issue
 			showHugeDbError(error, 'handleResult')
 
 			throw error
