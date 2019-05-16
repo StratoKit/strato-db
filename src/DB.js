@@ -124,13 +124,47 @@ class DB {
 				if (Array.isArray(args[0])) {
 					args = sql(...args)
 				}
-				if (dbgQ.enabled)
-					dbgQ(
-						this.name,
-						method,
-						...args.map(a => String(a).replace(/\s+/g, ' '))
+				let result
+				try {
+					result = realDb[method](...args)
+				} catch (error) {
+					console.error(
+						`!!! synchronous error for ${this.name}.${method}`,
+						error
 					)
-				return realDb[method](...args)
+					throw error
+				}
+				if (dbgQ.enabled)
+					if (result.then) {
+						const now = Performance.now()
+						// eslint-disable-next-line promise/catch-or-return
+						result.then(
+							o => {
+								const duration = Performance.now() - now
+								dbgQ(
+									`${this.name}.${method} ${duration}ms ${String(
+										args[0]
+									).replace(/\s+/g, ' ')} ${JSON.stringify(args.slice(1)).slice(
+										0,
+										200
+										// eslint-disable-next-line promise/always-return
+									)} -> ${o && o.length}}`
+								)
+							},
+							err => {
+								const duration = Performance.now() - now
+								dbgQ(
+									`!!! FAILED ${JSON.stringiy(err.message)} ${
+										this.name
+									}.${method} ${duration}ms ${String(args[0]).replace(
+										/\s+/g,
+										' '
+									)} ${JSON.stringify(args.slice(1)).slice(0, 200)}`
+								)
+							}
+						)
+					}
+				return result
 			}
 		}
 		this._db.each = this._realEach.bind(this)
