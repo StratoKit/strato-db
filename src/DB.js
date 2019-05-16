@@ -3,11 +3,21 @@ import path from 'path'
 import {sortBy} from 'lodash'
 import debug from 'debug'
 import openDB from './sqlite-promised'
+import {performance} from 'perf_hooks'
+import {inspect} from 'util'
 
 const dbg = debug('stratokit/DB')
 const dbgQ = debug('stratokit/DB:query')
 
 const RETRY_COUNT = 3
+
+const getDuration = ts =>
+	(performance.now() - ts).toLocaleString({
+		maximumFractionDigits: 2,
+	})
+
+const objToString = o =>
+	inspect(o, {compact: true, breakLength: Infinity}).slice(0, 200)
 
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
 
@@ -124,7 +134,8 @@ class DB {
 				if (Array.isArray(args[0])) {
 					args = sql(...args)
 				}
-				let result
+				let result, now
+				if (dbgQ.enabled) now = performance.now()
 				try {
 					result = realDb[method](...args)
 				} catch (error) {
@@ -134,36 +145,31 @@ class DB {
 					)
 					throw error
 				}
-				if (dbgQ.enabled)
-					if (result.then) {
-						const now = Performance.now()
+				if (dbgQ.enabled) {
+					const what = `${this.name}.${method}`
+					const q = String(args[0]).replace(/\s+/g, ' ')
+					const v = args[1] ? objToString(args[1]) : ''
+					if (result && result.then) {
 						// eslint-disable-next-line promise/catch-or-return
 						result.then(
 							o => {
-								const duration = Performance.now() - now
-								dbgQ(
-									`${this.name}.${method} ${duration}ms ${String(
-										args[0]
-									).replace(/\s+/g, ' ')} ${JSON.stringify(args.slice(1)).slice(
-										0,
-										200
-										// eslint-disable-next-line promise/always-return
-									)} -> ${o && o.length}}`
-								)
+								const d = getDuration(now)
+								const out =
+									method !== 'exec' && method !== 'run'
+										? `-> ${objToString(o)}`
+										: ''
+								return dbgQ(`${what} ${q} ${v} ${d}ms ${out}`)
 							},
 							err => {
-								const duration = Performance.now() - now
-								dbgQ(
-									`!!! FAILED ${JSON.stringiy(err.message)} ${
-										this.name
-									}.${method} ${duration}ms ${String(args[0]).replace(
-										/\s+/g,
-										' '
-									)} ${JSON.stringify(args.slice(1)).slice(0, 200)}`
-								)
+								const d = getDuration(now)
+								dbgQ(`!!! FAILED ${err.message} ${what} ${q} ${v}${d}ms `)
 							}
 						)
+					} else {
+						const d = getDuration(now)
+						dbgQ(`${what} ${q} ${v} ${d}ms -> ${objToString(result)}`)
 					}
+				}
 				return result
 			}
 		}
