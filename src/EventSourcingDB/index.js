@@ -338,6 +338,28 @@ class ESDB extends EventEmitter {
 	}
 
 	_triggerEventListeners(event) {
+		if (event.error) {
+			// this throws if there is no listener
+			if (this.listenerCount('error')) {
+				try {
+					this.emit('error', event)
+				} catch (error) {
+					console.error('!!! "error" event handler threw, ignoring', error)
+				}
+			}
+		} else {
+			try {
+				this.emit('result', event)
+			} catch (error) {
+				console.error('!!! "result" event handler threw, ignoring', error)
+			}
+		}
+		try {
+			this.emit('handled', event)
+		} catch (error) {
+			console.error('!!! "handled" event handler threw, ignoring', error)
+		}
+
 		const o = this._waitingFor[event.v]
 		if (o) {
 			delete this._waitingFor[event.v]
@@ -510,28 +532,6 @@ class ESDB extends EventEmitter {
 				error
 			)
 		})
-
-		if (event.error) {
-			// this throws if there is no listener
-			if (this.listenerCount('error')) {
-				try {
-					this.emit('error', event)
-				} catch (error) {
-					console.error('!!! "error" event handler threw, ignoring', error)
-				}
-			}
-		} else {
-			try {
-				this.emit('result', event)
-			} catch (error) {
-				console.error('!!! "result" event handler threw, ignoring', error)
-			}
-		}
-		try {
-			this.emit('handled', event)
-		} catch (error) {
-			console.error('!!! "handled" event handler threw, ignoring', error)
-		}
 
 		return event
 	}
