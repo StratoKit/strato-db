@@ -331,9 +331,10 @@ test('preprocessors', async () => {
 		},
 		{
 			meep: {
-				preprocessor: async ({event, model, store}) => {
+				preprocessor: async ({event, model, store, dispatch}) => {
 					if (!model) throw new Error('expecting my model')
 					if (!store) throw new Error('expecting the store')
+					if (!dispatch) throw new Error('expecting dispatch for subevents')
 					if (event.type === 'create_thing') {
 						event.type = 'set_thing'
 						event.data.id = 5

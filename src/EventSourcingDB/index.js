@@ -302,6 +302,11 @@ class ESDB extends EventEmitter {
 		return this.handledVersion(event.v)
 	}
 
+	_subDispatch(event, type, data) {
+		if (!event.events) event.events = []
+		event.events.push({type, data})
+	}
+
 	getVersionP = null
 
 	getVersion() {
@@ -416,10 +421,8 @@ class ESDB extends EventEmitter {
 			lastV = event.v
 			// It could be that it was processed elsewhere due to racing
 			const nowV = await this.getVersion()
-			if (event.v <= nowV) {
-				dbg(`skipping ${event.v} because we're at ${nowV}`)
-				continue
-			}
+			if (event.v <= nowV) continue
+
 			const resultEvent = await this.rwDb.withTransaction(() =>
 				this._handleEvent(event)
 			)
@@ -445,6 +448,7 @@ class ESDB extends EventEmitter {
 					event,
 					model,
 					store,
+					dispatch: this._subDispatch.bind(this, event),
 				})
 			} catch (error) {
 				newEvent = {error}
@@ -527,6 +531,15 @@ class ESDB extends EventEmitter {
 			)
 		})
 
+		// handle sub-events one by one
+		if (event.events) {
+			for (let i = 0; i < event.events.length; i++) {
+				const subEvent = event.events[i]
+				// eslint-disable-next-line no-await-in-loop
+				const doneEvent = await this._handleEvent({...subEvent, v: event.v})
+				event.events[i] = doneEvent
+			}
+		}
 		return event
 	}
 
@@ -586,6 +599,7 @@ class ESDB extends EventEmitter {
 								store: this.rwStore,
 								event,
 								result,
+								dispatch: this._subDispatch.bind(this, event),
 							})
 						)
 					)
