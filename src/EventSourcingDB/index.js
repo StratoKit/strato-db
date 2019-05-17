@@ -460,9 +460,7 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async _reducer(origEvent) {
-		const event = await this._preprocessor(origEvent)
-		if (event.error) return event
+	async _reducer(event) {
 		const result = {}
 		await Promise.all(
 			this.reducerNames.map(async key => {
@@ -496,18 +494,15 @@ class ESDB extends EventEmitter {
 	}
 
 	async _handleEvent(origEvent) {
-		let event
-		try {
-			event = await this._reducer(origEvent)
-		} catch (error) {
-			event = {
+		let event = await this._preprocessor(origEvent)
+		if (!event.error)
+			event = await this._reducer(origEvent).catch(error => ({
 				...origEvent,
 				error: {
 					...origEvent.error,
 					_redux: {message: error.message, stack: error.stack},
 				},
-			}
-		}
+			}))
 
 		await this._applyEvent(event).catch(error => {
 			console.error(
