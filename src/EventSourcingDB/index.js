@@ -74,6 +74,13 @@ const showHugeDbError = (err, where) => {
 	}
 }
 
+const errorToString = error => {
+	const msg = error
+		? error.stack || error.message || String(error)
+		: new Error('missing error').stack
+	return String(msg).replace(/\s+/g, ' ')
+}
+
 class ESDB extends EventEmitter {
 	// eslint-disable-next-line complexity
 	constructor({queue, models, queueFile, withViews = true, ...dbOptions}) {
@@ -221,6 +228,8 @@ class ESDB extends EventEmitter {
 					error.message = `ESDB: while configuring model ${name}: ${
 						error.message
 					}`
+				if (error.stack)
+					error.stack = `ESDB: while configuring model ${name}: ${error.stack}`
 				throw error
 			}
 		}
@@ -442,37 +451,20 @@ class ESDB extends EventEmitter {
 			}
 			// mutation allowed
 			if (!newEvent) newEvent = event
+			if (!newEvent.error) {
+				// Just in case event was mutated
+				if (newEvent.v !== v)
+					newEvent.error = new Error(`preprocessor must retain event version`)
+				else if (!newEvent.type)
+					newEvent.error = new Error(`preprocessor must retain event type`)
+			}
 			if (newEvent.error) {
 				return {
 					...event,
 					v,
 					type,
-					error: {[name]: newEvent.error},
-				}
-			}
-			if (newEvent.v !== v) {
-				// Just in case event was mutated
-				// Be sure to put the version back or we put the wrong v in history
-				return {
-					...event,
-					v,
-					type,
 					error: {
-						_preprocess: {
-							message: `${name}: preprocessor must retain event version`,
-						},
-					},
-				}
-			}
-			if (!newEvent.type) {
-				return {
-					...event,
-					v,
-					type,
-					error: {
-						_preprocess: {
-							message: `${name}: preprocessor must return event type`,
-						},
+						[`_preprocess_${name}`]: errorToString(newEvent.error),
 					},
 				}
 			}
@@ -487,7 +479,9 @@ class ESDB extends EventEmitter {
 		await Promise.all(
 			this.reducerNames.map(async key => {
 				const model = this.reducerModels[key]
-				const out = await model.reducer(model, event)
+				const out = await model.reducer(model, event).catch(error => ({
+					error: errorToString(error),
+				}))
 				result[key] = out
 			})
 		)
@@ -497,7 +491,7 @@ class ESDB extends EventEmitter {
 			for (const name of this.reducerNames) {
 				const r = result[name]
 				if (r.error) {
-					error[name] = r.error
+					error[`reduce_${name}`] = r.error
 				}
 			}
 			return {...event, error}
