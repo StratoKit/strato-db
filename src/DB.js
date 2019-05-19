@@ -11,6 +11,8 @@ const dbgQ = debug('stratokit/DB:query')
 
 const RETRY_COUNT = 3
 
+const wait = ms => new Promise(r => setTimeout(r, ms))
+
 const getDuration = ts =>
 	(performance.now() - ts).toLocaleString({
 		maximumFractionDigits: 2,
@@ -245,9 +247,10 @@ class DB {
 		return this
 	}
 
-	_hold(method, args) {
+	async _hold(method, args) {
 		if (dbgQ.enabled) dbgQ('_hold', this.name, method)
-		return this.openDB().then(db => db[method](...args))
+		const db = await this.openDB()
+		return db[method](...args)
 	}
 
 	all(...args) {
@@ -347,9 +350,8 @@ class DB {
 			if (error.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
 				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
-				return new Promise(resolve =>
-					setTimeout(resolve, Math.random() * 1000 + 200)
-				).then(() => this.__withTransaction(fn, count - 1))
+				await wait(Math.random() * 1000 + 200)
+				return this.__withTransaction(fn, count - 1)
 			}
 			throw error
 		}
