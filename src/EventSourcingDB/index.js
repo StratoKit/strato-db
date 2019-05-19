@@ -6,6 +6,7 @@
 //   in the metadata table that shows what event version the db is at.
 // * Events describe facts that happened
 //   * Think of them as newspaper clippings (that changed) or notes passed to the kitchen (this change requested)
+//   * Should not require outside-db data to know how to handle them. Otherwise, split them in parts
 // * Models store the data in a table an define preprocessor, reducer, applyEvent and deriver
 // * Events:
 //   * have version `v`, strictly ordered
@@ -24,6 +25,19 @@
 //   * they are processed exactly like events but in the transaction of the parent event, in-process
 //   * sub-events are stored in the event in a `sub` array, for reporting and debugging
 // * To make changes to a table, change the reducer and rebuild the DB with the history, or migrate the table
+//
+// Extra notes:
+// * preprocessors should always process events statelessly - processing again should be no problem
+// * preprocessors, reducers, derivers should be pure, only working with the database state.
+// * To incorporate external state in event processing, split the event up in multiple events recording current state, and listen to the db to know what to do
+
+// TODO how to handle errors
+// * Ideally, reducers etc never fail
+// * When they fail, the whole app hangs for new events
+// * therefore all failures are exceptional and need intervention like app restart for db issues
+// * => warn immediately with error when it happens
+// * => make changing event easy, e.g. call queue.set from graphql or delete it by changing it to type 'HANDLE_FAILED'
+// TODO Maybe throw dispatching if the db is in an error state (event retry failed a few times)
 
 import debug from 'debug'
 import {isEmpty} from 'lodash'
@@ -274,7 +288,7 @@ class ESDB extends EventEmitter {
 					)
 					// Crash program but leave some time to notify
 					// eslint-disable-next-line unicorn/no-process-exit
-					setTimeout(() => process.exit(100), 50)
+					setTimeout(() => process.exit(100), 500)
 
 					throw new Error(error)
 				})
@@ -329,11 +343,12 @@ class ESDB extends EventEmitter {
 	_maxWaitingFor = 0
 
 	async handledVersion(v) {
-		if (v === 0) return
+		if (!v) return
 		// We must get the version first because our history might contain future events
 		if (v <= (await this.getVersion())) {
 			const event = await this.queue.get(v)
 			if (event.error) {
+				// This can only happen if we skipped a failed event
 				return Promise.reject(event)
 			}
 			return event
@@ -351,9 +366,25 @@ class ESDB extends EventEmitter {
 		return this._waitingFor[v].promise
 	}
 
+	// TODO handle DB errors while getting the events from history
 	_triggerEventListeners(event) {
+		const o = this._waitingFor[event.v]
+		if (o) delete this._waitingFor[event.v]
+
+		if (event.v >= this._maxWaitingFor) {
+			// Normally this will be empty but we might encounter a race condition
+			for (const vStr of Object.keys(this._waitingFor)) {
+				const v = Number(vStr)
+				if (v > event.v) continue
+				// eslint-disable-next-line promise/catch-or-return
+				this.queue.get(v).then(event => this._triggerEventListeners(event))
+				delete this._waitingFor[v]
+			}
+		}
+
+		// Note that error events don't increase the DB version
 		if (event.error) {
-			// this throws if there is no listener
+			// emit 'error' throws if there is no listener
 			if (this.listenerCount('error')) {
 				try {
 					this.emit('error', event)
@@ -367,66 +398,69 @@ class ESDB extends EventEmitter {
 			} catch (error) {
 				console.error('!!! "result" event handler threw, ignoring', error)
 			}
-		}
-		try {
-			this.emit('handled', event)
-		} catch (error) {
-			console.error('!!! "handled" event handler threw, ignoring', error)
-		}
-
-		const o = this._waitingFor[event.v]
-		if (o) {
-			delete this._waitingFor[event.v]
-			if (event.error) {
-				o.reject(event)
-			} else {
-				o.resolve(event)
-			}
-		}
-		if (event.v >= this._maxWaitingFor) {
-			// Normally this will be empty but we might encounter a race condition
-			for (const [v, o] of Object.entries(this._waitingFor)) {
-				// eslint-disable-next-line promise/catch-or-return
-				this.queue.get(v).then(event => {
-					if (event.error) {
-						o.reject(event)
-					} else {
-						o.resolve(event)
-					}
-					return undefined
-				}, o.reject)
-				delete this._waitingFor[v]
-			}
+			if (o) o.resolve(event)
 		}
 	}
 
 	// This is the loop that applies events from the queue. Use startPolling(false) to always poll
 	// so that events from other processes are also handled
-	// It would be nice to not have to poll, but sqlite triggers only work on the connection
-	// that makes the change
+	// It would be nice to not have to poll, but sqlite triggers only work on
+	// the connection that makes the change
 	// This should never throw, handling errors can be done in apply
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
+		const {rwDb} = this
 		let lastV = 0
-		dbg(`waiting for events until minVersion: ${this._minVersion}`)
+		if (dbg.enabled && this._minVersion)
+			dbg(`waiting for events until minVersion: ${this._minVersion}`)
 		while (!this._minVersion || this._minVersion > lastV) {
+			// TODO when this throws, log error, wait, try re-openening
 			const event = await this.queue.getNext(
 				await this.getVersion(),
 				!(this._isPolling || this._minVersion)
 			)
 			if (!event) return lastV
-			// Clear previous result/error, if any
-			delete event.error
-			delete event.result
-			lastV = event.v
-			// It could be that it was processed elsewhere due to racing
-			const nowV = await this.getVersion()
-			if (event.v <= nowV) continue
+			// TODO exponential backoff on retrying events, with max retry
+			// TODO watchdog with timeout alerts/abort
+			const resultEvent = await rwDb
+				.withTransaction(async () => {
+					lastV = event.v
 
-			const resultEvent = await this.rwDb.withTransaction(() =>
-				this._handleEvent(event)
-			)
+					// It could be that it was processed elsewhere due to racing
+					const nowV = await this.getVersion()
+					if (event.v <= nowV) return
+
+					// Clear previous result/error, if any
+					delete event.error
+					delete event.result
+
+					await rwDb.run('SAVEPOINT handle')
+					const result = await this._handleEvent(event)
+					if (result.error) {
+						// Undo all changes, but retain the event info
+						await rwDb.run('ROLLBACK TO SAVEPOINT handle')
+						if (result.result) {
+							result.failedResult = result.result
+							delete result.result
+						}
+					} else {
+						await rwDb.run('RELEASE SAVEPOINT handle')
+					}
+					return this._resultQueue.set(result)
+				})
+				.catch(error => {
+					// TODO close/reopen DB
+					return {
+						...event,
+						error: {_SQLite: errorToString(error)},
+					}
+				})
+
+			// TODO retry failed without racing and with exponential standoff
+			if (resultEvent.error) lastV = resultEvent.v - 1
+
 			this._triggerEventListeners(resultEvent)
+
 			if (this._reallyStop) {
 				this._reallyStop = false
 				return
@@ -513,113 +547,106 @@ class ESDB extends EventEmitter {
 		}
 	}
 
-	async _handleEvent(origEvent) {
-		let event = await this._preprocessor(origEvent)
-		if (!event.error)
-			event = await this._reducer(origEvent).catch(error => ({
+	async _handleEvent(origEvent, depth = 0) {
+		let event
+		if (depth > 100) {
+			return {
 				...origEvent,
 				error: {
 					...origEvent.error,
-					_redux: {message: error.message, stack: error.stack},
+					_handle: 'events recursing too deep',
 				},
-			}))
+			}
+		}
+		event = await this._preprocessor(origEvent)
+		if (event.error) return event
 
-		await this._applyEvent(event).catch(error => {
-			console.error(
-				'!!! Error while applying event; changes not applied',
-				error
-			)
-		})
+		event = await this._reducer(origEvent)
+		if (event.error) return event
 
-		// handle sub-events one by one
+		event = await this._applyEvent(event, depth === 0)
+		if (event.error) return event
+
+		// handle sub-events in order
 		if (event.events) {
 			for (let i = 0; i < event.events.length; i++) {
 				const subEvent = event.events[i]
 				// eslint-disable-next-line no-await-in-loop
-				const doneEvent = await this._handleEvent({...subEvent, v: event.v})
+				const doneEvent = await this._handleEvent(
+					{...subEvent, v: event.v},
+					depth + 1
+				)
+				delete doneEvent.v
 				event.events[i] = doneEvent
+				if (doneEvent.error) {
+					if (doneEvent.result) {
+						doneEvent.failedResult = doneEvent.result
+						delete doneEvent.result
+					}
+					event.error = {_handle: `subevent ${i} failed`}
+					return event
+				}
 			}
 		}
+
 		return event
 	}
 
-	async _applyEvent(event) {
+	async _applyEvent(event, updateVersion) {
 		const {rwStore, rwDb, readWriters} = this
-		for (const model of readWriters) model.setWritable(true)
+		let phase = '???'
 		try {
-			const {v, result} = event
-			const currVDoc = await rwDb.get(
-				`SELECT json_extract(json,'$.v') AS v FROM metadata WHERE id='version'`
-			)
-			const currV = currVDoc && currVDoc.v
-			if (currV && v <= currV) {
-				event.error = {
-					...event.error,
-					_apply: `Current version ${currV} is >= event version ${v}`,
-				}
-				event.failedResult = event.result
-				delete event.result
-			} else {
-				if (result && !isEmpty(result)) {
-					// Apply reducer results
-					try {
-						await rwDb.run('SAVEPOINT apply')
-						await Promise.all(
-							Object.entries(result).map(
-								([name, r]) => r && rwStore[name].applyChanges(r)
-							)
-						)
-						await rwDb.run('RELEASE SAVEPOINT apply')
-					} catch (error) {
-						showHugeDbError(error, 'apply')
-						await rwDb.run('ROLLBACK TO SAVEPOINT apply')
-						event.failedResult = event.result
-						delete event.result
-						event.error = {_apply: error.message || error}
-					}
-				}
-				// Even if the apply failed we'll consider this event handled
-				await rwDb.run(
-					`INSERT OR REPLACE INTO metadata(id,json) VALUES ('version','{"v":${v}}')`
+			dbg('apply', event, updateVersion)
+			for (const model of readWriters) model.setWritable(true)
+			const {result} = event
+
+			if (result && !isEmpty(result)) {
+				phase = 'apply'
+				// Apply reducer results
+				await Promise.all(
+					Object.entries(result).map(
+						([name, r]) => r && rwStore[name].applyChanges(r)
+					)
 				)
 			}
 
-			await this._resultQueue.set(event)
+			// Even if the apply/derive failed we'll consider this event handled
+			if (updateVersion) {
+				phase = 'version'
+				await rwDb.run(
+					`INSERT OR REPLACE INTO metadata(id,json) VALUES ('version','{"v":${
+						event.v
+					}}')`
+				)
+			}
 
 			// Apply derivers
 			if (!event.error && this.deriverModels.length) {
-				try {
-					// TODO probably don't use this but roll back to apply
-					await rwDb.run('SAVEPOINT derive')
-					await Promise.all(
-						this.deriverModels.map(model =>
-							model.deriver({
-								model,
-								// TODO would this not better be the RO store?
-								store: this.rwStore,
-								event,
-								result,
-								dispatch: this._subDispatch.bind(this, event),
-							})
-						)
+				phase = 'derive'
+				await Promise.all(
+					this.deriverModels.map(model =>
+						model.deriver({
+							model,
+							// TODO would this not better be the RO store?
+							store: this.rwStore,
+							event,
+							result,
+							dispatch: this._subDispatch.bind(this, event),
+						})
 					)
-					await rwDb.run('RELEASE SAVEPOINT derive')
-				} catch (error) {
-					showHugeDbError(error, 'derive')
-					await rwDb.run('ROLLBACK TO SAVEPOINT derive')
-					event.failedResult = event.result
-					delete event.result
-					event.error = {_derive: error.message || error}
-					// TODO _resultQueue?
-					await this.queue.set(event)
-				}
+				)
 			}
 		} catch (error) {
 			// argh, now what? Probably retry applying, or crash the app…
 			// This can happen when DB has an issue
-			showHugeDbError(error, 'handleResult')
-
-			throw error
+			showHugeDbError(error, phase)
+			if (event.result) {
+				event.failedResult = event.result
+				delete event.result
+			}
+			if (!event.error) event.error = {}
+			// TODO test apply errors
+			event.error[`_apply-${phase}`] = errorToString(error)
 		} finally {
 			for (const model of readWriters) model.setWritable(false)
 		}
