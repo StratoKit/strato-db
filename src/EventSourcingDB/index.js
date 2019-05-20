@@ -31,13 +31,11 @@
 // * preprocessors, reducers, derivers should be pure, only working with the database state.
 // * To incorporate external state in event processing, split the event up in multiple events recording current state, and listen to the db to know what to do
 
-// TODO how to handle errors
 // * Ideally, reducers etc never fail
 // * When they fail, the whole app hangs for new events
 // * therefore all failures are exceptional and need intervention like app restart for db issues
 // * => warn immediately with error when it happens
-// * => make changing event easy, e.g. call queue.set from graphql or delete it by changing it to type 'HANDLE_FAILED'
-// TODO Maybe throw dispatching if the db is in an error state (event retry failed a few times)
+// * => make changing event easy, e.g. call queue.set from graphql or delete it by changing it to type 'HANDLE_FAILED' and rename .error
 
 import debug from 'debug'
 import {isEmpty} from 'lodash'
@@ -98,6 +96,8 @@ const errorToString = error => {
 }
 
 class ESDB extends EventEmitter {
+	MAX_RETRY = 38 // this is an hour
+
 	// eslint-disable-next-line complexity
 	constructor({queue, models, queueFile, withViews = true, ...dbOptions}) {
 		super()
@@ -429,19 +429,30 @@ class ESDB extends EventEmitter {
 		if (dbg.enabled && this._minVersion)
 			dbg(`waiting for events until minVersion: ${this._minVersion}`)
 		while (!this._minVersion || this._minVersion > lastV) {
-			// TODO exponential backoff on retrying events, with max retry
 			if (errorCount) {
+				if (errorCount > this.MAX_RETRY)
+					throw new Error(`Giving up on processing event ${lastV + 1}`)
 				// These will reopen automatically
-				this.db.close()
-				this.rwDb.close()
-				this.queue.close()
-				await wait(5000)
+				if (this.db.file !== ':memory:') this.db.close()
+				if (this.rwDb.file !== ':memory:') this.rwDb.close()
+				if (this.queue.db.file !== ':memory:') this.queue.db.close()
+				await wait(5000 * errorCount)
 			}
-			// TODO when this throws, log error, wait, try re-openening
-			const event = await this.queue.getNext(
-				await this.getVersion(),
-				!(this._isPolling || this._minVersion)
-			)
+			let event
+			try {
+				// eslint-disable-next-line require-atomic-updates
+				event = await this.queue.getNext(
+					await this.getVersion(),
+					!(this._isPolling || this._minVersion)
+				)
+			} catch (error) {
+				errorCount++
+				console.error(
+					`!!! ESDB: queue.getNext failed - this should not happen`,
+					error
+				)
+				continue
+			}
 			if (!event) return lastV
 			// TODO watchdog with timeout alerts/abort
 			const resultEvent = await rwDb
@@ -476,9 +487,14 @@ class ESDB extends EventEmitter {
 						error: {_SQLite: errorToString(error)},
 					}
 				})
-			if (!resultEvent) continue // We lost the race
+			if (!resultEvent) continue // Another process handled the event
 
 			if (resultEvent.error) {
+				if (process.env.NODE_ENV !== 'test')
+					console.error(
+						`!!! ESDB: event ${event.type} processing failed`,
+						resultEvent.error
+					)
 				errorCount++
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
@@ -661,7 +677,6 @@ class ESDB extends EventEmitter {
 				)
 			}
 		} catch (error) {
-			// argh, now what? Probably retry applying, or crash the app…
 			// This can happen when DB has an issue
 			showHugeDbError(error, phase)
 			if (event.result) {
