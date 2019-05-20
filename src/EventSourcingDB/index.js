@@ -486,11 +486,11 @@ class ESDB extends EventEmitter {
 			})
 		)
 
-		if (this.reducerNames.some(n => result[n].error)) {
+		if (this.reducerNames.some(n => result[n] && result[n].error)) {
 			const error = {}
 			for (const name of this.reducerNames) {
 				const r = result[name]
-				if (r.error) {
+				if (r && r.error) {
 					error[`reduce_${name}`] = r.error
 				}
 			}
@@ -498,10 +498,10 @@ class ESDB extends EventEmitter {
 		}
 		for (const name of this.reducerNames) {
 			const r = result[name]
-			if (r === false || r === this.store[name]) {
+			// in <v3 we allowed returning the model to indicate no change
+			if (!r || r === this.reducerModels[name])
 				// no change
 				delete result[name]
-			}
 		}
 		return {
 			...event,
