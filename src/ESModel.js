@@ -60,10 +60,13 @@ class ESModel extends JsonModel {
 		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
 		if (meta) d.push(meta)
 
-		const {data} = await this.dispatch(this.TYPE, d)
-		const id = data[1]
-		// Note, his could return a later version of the object
-		return this.get(id)
+		const {
+			data,
+			result: {[this.name]: r},
+		} = await this.dispatch(this.TYPE, d)
+		if (r.esFail) throw new Error(`${this.name}.set ${data[1]}: ${r.esFail}`)
+		const out = r.ins ? r.ins[0] : r.set[0]
+		return this.Item ? Object.assign(new this.Item(), out) : out
 	}
 
 	async update(o, upsert, meta) {
@@ -74,8 +77,14 @@ class ESModel extends JsonModel {
 		const d = [upsert ? ESModel.SAVE : ESModel.UPDATE, null, undefToNull(o)]
 		if (meta) d.push(meta)
 
-		const {data} = await this.dispatch(this.TYPE, d)
+		const {
+			data,
+			result: {[this.name]: r},
+		} = await this.dispatch(this.TYPE, d)
 		id = data[1]
+		if (r.esFail) throw new Error(`${this.name}.update ${id}: ${r.esFail}`)
+		if (r.ins)
+			return this.Item ? Object.assign(new this.Item(), r.ins[0]) : r.ins[0]
 		// Note, his could return a later version of the object
 		return this.get(id)
 	}
@@ -109,6 +118,7 @@ class ESModel extends JsonModel {
 	}
 
 	async applyChanges(result) {
+		if (result.esFail) return
 		this._maxId = 0
 		return super.applyChanges(result)
 	}
@@ -139,9 +149,9 @@ class ESModel extends JsonModel {
 			case ESModel.SET:
 				return exists ? {set: [obj]} : {ins: [obj]}
 			case ESModel.INSERT:
-				return exists ? {error: `object ${id} already exists`} : {ins: [obj]}
+				return exists ? {esFail: 'EEXIST'} : {ins: [obj]}
 			case ESModel.UPDATE:
-				return exists ? {upd: [obj]} : {error: `object ${id} does not exist`}
+				return exists ? {upd: [obj]} : {esFail: 'ENOENT'}
 			case ESModel.SAVE:
 				return exists ? {upd: [obj]} : {ins: [obj]}
 			default:

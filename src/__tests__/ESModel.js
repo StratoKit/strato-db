@@ -150,7 +150,7 @@ test('set insertOnly', () =>
 					eSDB.store.test.set(sampleObject, true),
 					eSDB.store.test.set(sampleObject, true),
 				])
-			).rejects.toHaveProperty('error.test')
+			).rejects.toThrow('EEXIST')
 		},
 		{test: {Model: ESModel}}
 	))
@@ -196,8 +196,8 @@ test('update w/ undefined values', () =>
 test('update non-existent object', () =>
 	withESDB(
 		async eSDB => {
-			await expect(eSDB.store.test.update(sampleObject)).rejects.toHaveProperty(
-				'error.test'
+			await expect(eSDB.store.test.update(sampleObject)).rejects.toThrow(
+				'ENOENT'
 			)
 		},
 		{test: {Model: ESModel}}
