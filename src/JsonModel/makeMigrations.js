@@ -21,9 +21,10 @@ export const makeMigrations = ({
 		// We make id a real column to allow foreign keys
 		0: ({db}) => {
 			const {quoted, type, autoIncrement} = columns[idCol]
+			// The NOT NULL is a SQLite bug, otherwise it allows NULL as id
 			const keySql = `${type} PRIMARY KEY ${
 				autoIncrement ? 'AUTOINCREMENT' : ''
-			}`
+			} NOT NULL`
 			return db.exec(
 				`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
 			)
