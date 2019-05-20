@@ -233,43 +233,11 @@ test('close()', async () => {
 	await db.close()
 })
 
-test('waitForP', async () => {
-	let r
-	// eslint-disable-next-line promise/avoid-new
-	const waitForP = new Promise(resolve => {
-		r = resolve
-	})
-	const db = new DB({waitForP})
-	let canary = 0
-	// eslint-disable-next-line promise/catch-or-return
-	const p = db.get('SELECT 1').then(() => {
-		if (canary === 2) canary = 1
-		return true
-	})
-	// eslint-disable-next-line promise/catch-or-return
-	db.dbP.then(() => {
-		if (canary === 0) canary = 2
-		return true
-	})
-	expect(canary).toBe(0)
-	r()
-	await p
-	expect(canary).toBe(1)
-	await db.close()
-})
-
 test('onWillOpen', async () => {
 	let t = 0
-	let r
-	// eslint-disable-next-line promise/avoid-new
-	const p = new Promise(resolve => {
-		r = resolve
-	})
 	const db = new DB({
-		waitForP: p,
 		onWillOpen() {
 			if (t === 0) t = 1
-			r()
 		},
 	})
 	db.registerMigrations('meep', {
@@ -281,40 +249,6 @@ test('onWillOpen', async () => {
 	})
 	await db.openDB()
 	expect(t).toBe(2)
-	await db.close()
-})
-
-test.skip('model.onDbOpened', async () => {
-	// TODO - onDidOpen is no good for models
-	let t = 0
-	let r
-	// eslint-disable-next-line promise/avoid-new
-	const p = new Promise(resolve => {
-		r = resolve
-	})
-	const db = new DB({
-		waitForP: p,
-		onWillOpen() {
-			if (t === 0) t = 1
-			r()
-		},
-		onDidOpen() {
-			if (t === 2) t = 3
-			r()
-		},
-	})
-	db.registerMigrations('meep', {
-		c: {
-			up: () => {
-				if (t === 1) t = 2
-			},
-		},
-	})
-	await db.exec('SELECT 1').then(() => {
-		if (t === 3) t = 4
-		return true
-	})
-	expect(t).toBe(4)
 	await db.close()
 })
 

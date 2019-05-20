@@ -3,11 +3,23 @@ import path from 'path'
 import {sortBy} from 'lodash'
 import debug from 'debug'
 import openDB from './sqlite-promised'
+import {performance} from 'perf_hooks'
+import {inspect} from 'util'
 
 const dbg = debug('stratokit/DB')
 const dbgQ = debug('stratokit/DB:query')
 
 const RETRY_COUNT = 3
+
+const wait = ms => new Promise(r => setTimeout(r, ms))
+
+const getDuration = ts =>
+	(performance.now() - ts).toLocaleString({
+		maximumFractionDigits: 2,
+	})
+
+const objToString = o =>
+	inspect(o, {compact: true, breakLength: Infinity}).slice(0, 200)
 
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
 
@@ -50,21 +62,13 @@ let connId = 1
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({
-		file,
-		readOnly,
-		verbose,
-		waitForP,
-		onWillOpen,
-		name,
-		...rest
-	} = {}) {
+	constructor({file, readOnly, verbose, onWillOpen, name, ...rest} = {}) {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
-		this.options = {waitForP, onWillOpen, verbose, migrations: []}
+		this.options = {onWillOpen, verbose, migrations: []}
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
@@ -92,10 +96,9 @@ class DB {
 		const {
 			file,
 			readOnly,
-			options: {verbose, waitForP, onWillOpen},
+			options: {verbose, onWillOpen},
 		} = this
 		if (onWillOpen) await onWillOpen()
-		if (waitForP) await waitForP
 
 		dbg(`${this.name} opening ${this.file}`)
 		const realDb = await openDB(file, {
@@ -124,7 +127,8 @@ class DB {
 				if (Array.isArray(args[0])) {
 					args = sql(...args)
 				}
-				let result
+				let result, now
+				if (dbgQ.enabled) now = performance.now()
 				try {
 					result = realDb[method](...args)
 				} catch (error) {
@@ -134,36 +138,31 @@ class DB {
 					)
 					throw error
 				}
-				if (dbgQ.enabled)
-					if (result.then) {
-						const now = Performance.now()
+				if (dbgQ.enabled) {
+					const what = `${this.name}.${method}`
+					const q = String(args[0]).replace(/\s+/g, ' ')
+					const v = args[1] ? objToString(args[1]) : ''
+					if (result && result.then) {
 						// eslint-disable-next-line promise/catch-or-return
 						result.then(
 							o => {
-								const duration = Performance.now() - now
-								dbgQ(
-									`${this.name}.${method} ${duration}ms ${String(
-										args[0]
-									).replace(/\s+/g, ' ')} ${JSON.stringify(args.slice(1)).slice(
-										0,
-										200
-										// eslint-disable-next-line promise/always-return
-									)} -> ${o && o.length}}`
-								)
+								const d = getDuration(now)
+								const out =
+									method !== 'exec' && method !== 'run'
+										? `-> ${objToString(o)}`
+										: ''
+								return dbgQ(`${what} ${q} ${v} ${d}ms ${out}`)
 							},
 							err => {
-								const duration = Performance.now() - now
-								dbgQ(
-									`!!! FAILED ${JSON.stringiy(err.message)} ${
-										this.name
-									}.${method} ${duration}ms ${String(args[0]).replace(
-										/\s+/g,
-										' '
-									)} ${JSON.stringify(args.slice(1)).slice(0, 200)}`
-								)
+								const d = getDuration(now)
+								dbgQ(`!!! FAILED ${err.message} ${what} ${q} ${v}${d}ms `)
 							}
 						)
+					} else {
+						const d = getDuration(now)
+						dbgQ(`${what} ${q} ${v} ${d}ms -> ${objToString(result)}`)
 					}
+				}
 				return result
 			}
 		}
@@ -239,9 +238,10 @@ class DB {
 		return this
 	}
 
-	_hold(method, args) {
+	async _hold(method, args) {
 		if (dbgQ.enabled) dbgQ('_hold', this.name, method)
-		return this.openDB().then(db => db[method](...args))
+		const db = await this.openDB()
+		return db[method](...args)
 	}
 
 	all(...args) {
@@ -341,9 +341,8 @@ class DB {
 			if (error.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
 				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
-				return new Promise(resolve =>
-					setTimeout(resolve, Math.random() * 1000 + 200)
-				).then(() => this.__withTransaction(fn, count - 1))
+				await wait(Math.random() * 1000 + 200)
+				return this.__withTransaction(fn, count - 1)
 			}
 			throw error
 		}

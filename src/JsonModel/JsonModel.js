@@ -66,7 +66,7 @@ class JsonModel {
 		this.quoted = sql.quoteId(name)
 		this.idCol = idCol
 		this.idColQ = sql.quoteId(idCol)
-		this.Item = ItemClass || Object
+		this.Item = ItemClass
 
 		const idColDef = (columns && columns[idCol]) || {}
 		const jsonColDef = (columns && columns.json) || {}
@@ -146,9 +146,22 @@ class JsonModel {
 			options && options.cols
 				? options.cols.map(n => this.columns[n])
 				: this.getCols
-		const out = new this.Item()
+		const out = this.Item ? new this.Item() : {}
 		for (const k of mapCols) {
-			const val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+			let val
+			if (dbg.enabled) {
+				try {
+					val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+				} catch (error) {
+					dbg(
+						`!!! ${this.name}.${k.name}:  parse failed for value ${String(
+							row[k.alias]
+						).slice(0, 20)}`
+					)
+				}
+			} else {
+				val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+			}
 			if (val != null) {
 				if (k.path) set(out, k.path, val)
 				else Object.assign(out, val) // json col
@@ -227,7 +240,7 @@ class JsonModel {
 				.run(insertOnly ? insertSql : updateSql, colVals)
 				.then(result => {
 					// Return what get(id) would return
-					const newObj = new Item()
+					const newObj = Item ? new Item() : {}
 					setCols.forEach(col => {
 						const val = colVals[col.i]
 						const v = col.parse ? col.parse(val) : val

@@ -35,8 +35,11 @@ export const testModels = {
 				},
 			},
 		},
+		preprocessor: async ({event}) => {
+			if (event.type === 'error_pre') throw new Error('pre error for you')
+		},
 		reducer: async (model, {type}) => {
-			if (type === 'errorme') throw new Error('error for you')
+			if (type === 'error_reduce') throw new Error('error for you')
 			if (!model.get) return false
 			const c = (await model.get('count')) || {
 				id: 'count',
@@ -49,6 +52,9 @@ export const testModels = {
 				set: [c],
 				// audit: '',
 			}
+		},
+		deriver: async ({event}) => {
+			if (event.type === 'error_derive') throw new Error('post error for you')
 		},
 	},
 	ignorer: {

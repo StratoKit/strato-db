@@ -93,7 +93,7 @@ test('create without given queue', async () => {
 
 test('reducer', () => {
 	return withESDB(async eSDB => {
-		const result = await eSDB.reducer(null, events[0])
+		const result = await eSDB._reducer(events[0])
 		expect(result).toEqual({
 			v: 1,
 			type: 'foo',
@@ -101,7 +101,7 @@ test('reducer', () => {
 				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
 			},
 		})
-		const result2 = await eSDB.reducer(null, events[1])
+		const result2 = await eSDB._reducer(events[1])
 		expect(result2).toEqual({
 			v: 2,
 			type: 'bar',
@@ -116,7 +116,7 @@ test('reducer', () => {
 test('applyEvent', () => {
 	return withESDB(async eSDB => {
 		await eSDB.db.withTransaction(() =>
-			eSDB.applyEvent({
+			eSDB._applyEvent({
 				v: 1,
 				type: 'foo',
 				result: {
@@ -134,21 +134,6 @@ test('applyEvent', () => {
 			id: 'version',
 			v: 1,
 		})
-	})
-})
-
-test('applyEvent invalid', () => {
-	return withESDB(async eSDB => {
-		await expect(
-			eSDB.applyEvent({
-				v: 1,
-				type: 'foo',
-				result: {
-					// it will try to call map as a function
-					metadata: {set: {map: 5}},
-				},
-			})
-		).resolves.toHaveProperty('error._apply', 'set.map is not a function')
 	})
 })
 
@@ -302,15 +287,23 @@ test('derivers', async () => {
 test('preprocessors', async () => {
 	return withESDB(
 		async eSDB => {
-			await expect(eSDB.dispatch('pre type')).rejects.toHaveProperty(
-				'error._preprocess.message'
+			await expect(
+				eSDB._preprocessor({type: 'pre type'})
+			).resolves.toHaveProperty(
+				'error._preprocess_meep',
+				expect.stringContaining('type')
 			)
-			await expect(eSDB.dispatch('pre version')).rejects.toHaveProperty(
-				'error._preprocess.message'
+			await expect(
+				eSDB._preprocessor({type: 'pre version'})
+			).resolves.toHaveProperty(
+				'error._preprocess_meep',
+				expect.stringContaining('version')
 			)
-			await expect(eSDB.dispatch('bad event')).rejects.toHaveProperty(
-				'error.meep',
-				'Yeah, no.'
+			await expect(
+				eSDB._preprocessor({type: 'bad event'})
+			).resolves.toHaveProperty(
+				'error._preprocess_meep',
+				expect.stringContaining('Yeah, no.')
 			)
 			await eSDB.dispatch('create_thing', {foo: 2})
 			expect(await eSDB.store.meep.searchOne()).toEqual({
@@ -320,9 +313,10 @@ test('preprocessors', async () => {
 		},
 		{
 			meep: {
-				preprocessor: async ({event, model, store}) => {
+				preprocessor: async ({event, model, store, dispatch}) => {
 					if (!model) throw new Error('expecting my model')
 					if (!store) throw new Error('expecting the store')
+					if (!dispatch) throw new Error('expecting dispatch for subevents')
 					if (event.type === 'create_thing') {
 						event.type = 'set_thing'
 						event.data.id = 5
@@ -351,20 +345,59 @@ test('preprocessors', async () => {
 	)
 })
 
-test.skip('event error in reducer', () =>
+test('event error in preprocessor', () =>
 	withESDB(async eSDB => {
-		await eSDB.dispatch
+		await expect(
+			eSDB._handleEvent({type: 'error_pre'})
+		).resolves.toHaveProperty(
+			'error._preprocess_count',
+			expect.stringContaining('pre error for you')
+		)
 		// All the below: don't call next phases
-		// Error in preprocessor => error: _preprocess
-		// Error in reducer => error: _redux
 		// Error in apply => error: _apply
-		// Error in derive => error: _derive
+	}))
+
+test('event error in reducer', () =>
+	withESDB(async eSDB => {
+		await expect(
+			eSDB._handleEvent({type: 'error_reduce'})
+		).resolves.toHaveProperty(
+			'error.reduce_count',
+			expect.stringContaining('error for you')
+		)
+	}))
+
+test('event error in apply', () => {
+	return withESDB(async eSDB => {
+		await expect(
+			eSDB._applyEvent({
+				v: 1,
+				type: 'foo',
+				result: {
+					// it will try to call map as a function
+					metadata: {set: {map: 5}},
+				},
+			})
+		).resolves.toHaveProperty(
+			'error._apply-apply',
+			expect.stringContaining('set.map is not a function')
+		)
+	})
+})
+
+test('event error in deriver', () =>
+	withESDB(async eSDB => {
+		await expect(
+			eSDB._handleEvent({v: 1, type: 'error_derive'})
+		).resolves.toHaveProperty(
+			'error._apply-derive',
+			expect.stringContaining('error for you')
+		)
 	}))
 
 test('event emitter', async () => {
 	return withESDB(async eSDB => {
-		let handled = 0,
-			errored = 0,
+		let errored = 0,
 			resulted = 0
 		eSDB.on('result', event => {
 			resulted++
@@ -376,19 +409,11 @@ test('event emitter', async () => {
 			expect(event.error).toBeTruthy()
 			expect(event.result).toBeUndefined()
 		})
-		eSDB.on('handled', event => {
-			handled++
-			expect(event).toBeTruthy()
-			// Get called in order
-			expect(event.v).toBe(handled)
-		})
-		eSDB.dispatch('foo')
-		eSDB.dispatch('bar')
-		await expect(eSDB.dispatch('errorme')).rejects.toHaveProperty(
-			'error._redux.message',
-			'error for you'
-		)
-		expect(handled).toBe(3)
+		await eSDB.dispatch('foo')
+		await eSDB.dispatch('bar')
+		await expect(
+			eSDB._dispatchWithError('error_reduce')
+		).rejects.toHaveProperty('error')
 		expect(errored).toBe(1)
 		expect(resulted).toBe(2)
 	})
