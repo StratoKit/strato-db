@@ -2,7 +2,6 @@
 
 ## General
 
-- [ ] Make safe for use in multi-process writers (ESDB)
 - [ ] Get started on documentation
 - [ ] Try to clean up the API, make it consistent between classes. Ideas:
   - DB and ESDB to have same API surface (.addModel)
@@ -20,7 +19,6 @@
 
 ### Nice to have
 
-- [ ] remove waitForP again - onWillOpen can simply return that promise if needed
 - [ ] pragma recursive_triggers
 - [ ] PRAGMA schema.synchronous = extra (make configurable)
 - [ ] pragma journal_size_limit setting, default to 4MB (1000 pages)
@@ -47,7 +45,7 @@
   - [ ] setting for running vacuum when idle (auto_vacuum?)
   - [ ] setting for incremental_vacuum, running with N=100 after each transaction
   - [ ] figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection
-- [ ] put all metadata in `_stratoMeta` table, including queue version etc
+- [ ] put all metadata in `_stratoMeta` table
 - [ ] prepared statements
   - similar to makeSelect, but cannot change sort etc.
   - `where` values can change, just not the amount of items in arrays
@@ -78,9 +76,10 @@
   END;
   ```
 
+- [ ] columns using the same path should get the same JSON path. There are some edge cases.
+
 ### Nice to have
 
-- [ ] create non-integer primary keys with NOT NULL (sqlite bug)
 - [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
 - [ ] also do stringify on paths, e.g. to stringify objects
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
@@ -93,12 +92,11 @@
   - [ ] boolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
   - [ ] falsyColumn() -> implement falsyBool
   - [ ] uuidColumn() -> use buffer stringify/parse to implement efficient UUID by default. See https://stackoverflow.com/questions/20342058/which-uuid-version-to-use
-- [ ] move function implementations to separate files, especially constructor and makeSelect; initialize all this.x helper vars so they are obvious
 - [ ] foreign key support
 - [ ] prepared statements
   - `q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort`
   - However, `whereVal` values should be allowed to change
-  - But `where` should stay the same and should not be recalculated, best if it is not a function
+  - But `where` should stay the same and should not be recalculated, best if it is not a function. Most of the time this can be done
   - Probably `.makeSelect()` would need to return an intermediate query object
 - Benchmark test that warns if runtime increases on current system
   - getting/setting can be optimized by creating Functions instead of lodash get/set, but first create benchmark
@@ -117,39 +115,13 @@
 
 - [ ] cancellable getNext Promise
 - [ ] test multi-process changes
-- [ ] probably should write more tests for getNext with nextAddedP
 
 ## ESDB
-
-### Important
-
-- SubEvents
-  - Send child events from events in the same transaction
-    - => simpler reducers/preprocessors
-    - put a limit on subevents (100), configurable, prevent loops
-    - from any point in processing: reducer, preprocessor, deriver
-    - stored in-memory on the `.sub` key as an array
-    - subevent.data is only stored for debugging, event.data stays in \_events
-    - Before processing an event, remove all subevents from table with v=currentV
-  - keep processing subevents until no more
-- Somehow unhandledRejection can happen in preprocessor `{ v: 119531, type: 'CONTRACT_CONFIRMED', ts: 1538636160023, data: { id: 'contracts-34706' }, capId: 29682, error: { contracts: 'Error: No "id" given for "clients"\n at Clients_Clients.get (/Users/wmertens/Documents/AeroFS/Projects/meatier/node_modules/strato-db/src/JsonModel.js:834:5)\n at Object.get [as preprocessor] (/Users/wmertens/Documents/AeroFS/Projects/meatier/build/server/webpack:/src/_server/database/contracts/contractConfirmed.js:82:37)\n at <anonymous>' } }`
-- !!! Multi-process handling:
-  - [ ] When handling event, check that the DB is on `event.v - 1`, else try again
-    - This means we can never skip a version…
-  - [ ] Store listeners should also get events handled by other processes
-  - [ ] ESModel getNextId should only work during reducer run and be reset before
 
 ### Nice to have
 
 - [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
-- [ ] think about transient event errors vs event errors vs db errors - if transient, event should be retried, no? Maybe configuration on what to do with errors.
-  - When an apply failed due to non-transient error, should the application halt or ignore?
-- [ ] finish stopPolling implementation
-- [ ] Allow passing a Model directly? Maybe only allow that?
-- [ ] promises for each deriver so they can depend on each other
-  - to be specified at startup, and checked for cycles
-- [ ] jsonmodel for ESDB that includes auto-caching between events, use pragma data_version to know when data changed, applyChanges
-- [ ] IDEA eventually allow multiple ESDBs by storing version per queue name
-- [ ] optimization: if multiple events in queue, do per 10 in the same transaction
+- [ ] move the version from metadata into a separate `_esdb-version` table with a single row and column
+- [ ] split up into more files, move tests

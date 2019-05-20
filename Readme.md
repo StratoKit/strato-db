@@ -10,14 +10,14 @@ The overall concept is to be a minimal wrapper that keeps SQL close by, but allo
 
 `EventQueue`: Stores events in an auto-incrementing `DB` table. Minimal message queue.
 
-`EventSourcingDB`: Implements the Event Sourcing concept in a DB via an asynchronous fork of `redux`. See [Server Side Redux](./Server Side Redux.md).
+`EventSourcingDB`: Implements the Event Sourcing concept using EventQueue. See [Server Side Redux](./Server Side Redux.md).
 
 `ESModel`: A drop-in replacement for JsonModel to use ESDB
 
 ## Install
 
 ```js
-$ npm install Yaska/strato-db#master-build
+$ npm install @yaska-eu/strato-db
 ...
 ```
 
@@ -74,7 +74,7 @@ It works fine with multi-GB databases, and if you choose your queries and indexe
 
 The important things are tested, our goal is 100% coverage.
 
-Multi-process behavior is not very worked out for the `EventSourcingDB`. Since it's layering a single-locking queue on top of SQLite, it works without problems, but no effort is made to avoid double work.
+Multi-process behavior is not very worked out for the `EventSourcingDB`. Since it's layering a single-locking queue on top of SQLite, it works without problems, but no effort is made to avoid double work. To have DB slaves, the idea would be to either use distributed SQLite as implemented by BedrockDB, or to distribute the event queue to slaves and have them derive their own copy of the data.
 
 Take a look at the TODO.md, there are plenty of improvements planned.
 
