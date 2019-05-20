@@ -62,21 +62,13 @@ let connId = 1
 // Note: since we switch db methods at runtime, internal methods
 // should always use `this._db`
 class DB {
-	constructor({
-		file,
-		readOnly,
-		verbose,
-		waitForP,
-		onWillOpen,
-		name,
-		...rest
-	} = {}) {
+	constructor({file, readOnly, verbose, onWillOpen, name, ...rest} = {}) {
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
 		this.readOnly = readOnly
-		this.options = {waitForP, onWillOpen, verbose, migrations: []}
+		this.options = {onWillOpen, verbose, migrations: []}
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
@@ -104,10 +96,9 @@ class DB {
 		const {
 			file,
 			readOnly,
-			options: {verbose, waitForP, onWillOpen},
+			options: {verbose, onWillOpen},
 		} = this
 		if (onWillOpen) await onWillOpen()
-		if (waitForP) await waitForP
 
 		dbg(`${this.name} opening ${this.file}`)
 		const realDb = await openDB(file, {
