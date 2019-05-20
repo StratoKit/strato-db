@@ -148,7 +148,20 @@ class JsonModel {
 				: this.getCols
 		const out = new this.Item()
 		for (const k of mapCols) {
-			const val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+			let val
+			if (dbg.enabled) {
+				try {
+					val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+				} catch (error) {
+					dbg(
+						`!!! ${this.name}.${k.name}:  parse failed for value ${String(
+							row[k.alias]
+						).slice(0, 20)}`
+					)
+				}
+			} else {
+				val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
+			}
 			if (val != null) {
 				if (k.path) set(out, k.path, val)
 				else Object.assign(out, val) // json col
