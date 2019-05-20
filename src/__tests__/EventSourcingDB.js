@@ -137,24 +137,6 @@ test('applyEvent', () => {
 	})
 })
 
-test('applyEvent invalid', () => {
-	return withESDB(async eSDB => {
-		await expect(
-			eSDB._applyEvent({
-				v: 1,
-				type: 'foo',
-				result: {
-					// it will try to call map as a function
-					metadata: {set: {map: 5}},
-				},
-			})
-		).resolves.toHaveProperty(
-			'error._apply',
-			expect.stringContaining('set.map is not a function')
-		)
-	})
-})
-
 test('waitForQueue', async () =>
 	withESDB(async (eSDB, queue) => {
 		await expect(eSDB.waitForQueue()).resolves.toBeFalsy()
@@ -385,12 +367,30 @@ test('event error in reducer', () =>
 		)
 	}))
 
+test('event error in apply', () => {
+	return withESDB(async eSDB => {
+		await expect(
+			eSDB._applyEvent({
+				v: 1,
+				type: 'foo',
+				result: {
+					// it will try to call map as a function
+					metadata: {set: {map: 5}},
+				},
+			})
+		).resolves.toHaveProperty(
+			'error._apply-apply',
+			expect.stringContaining('set.map is not a function')
+		)
+	})
+})
+
 test('event error in deriver', () =>
 	withESDB(async eSDB => {
 		await expect(
-			eSDB._handleEvent({type: 'error_post'})
+			eSDB._handleEvent({v: 1, type: 'error_derive'})
 		).resolves.toHaveProperty(
-			'error._derive',
+			'error._apply-derive',
 			expect.stringContaining('error for you')
 		)
 	}))
@@ -409,15 +409,11 @@ test('event emitter', async () => {
 			expect(event.error).toBeTruthy()
 			expect(event.result).toBeUndefined()
 		})
-		eSDB.dispatch('foo')
-		eSDB.dispatch('bar')
-		eSDB.dispatch('error_reduce')
-		let v
-		do {
-			// undocumented way to wait until failed event
-			eSDB._reallyStop = true
-			v = await eSDB._waitForEvent()
-		} while (v !== 3)
+		await eSDB.dispatch('foo')
+		await eSDB.dispatch('bar')
+		await expect(
+			eSDB._dispatchWithError('error_reduce')
+		).rejects.toHaveProperty('error')
 		expect(errored).toBe(1)
 		expect(resulted).toBe(2)
 	})

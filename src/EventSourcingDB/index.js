@@ -48,6 +48,8 @@ import EventEmitter from 'events'
 
 const dbg = debug('stratokit/ESDB')
 
+const wait = ms => new Promise(r => setTimeout(r, ms))
+
 const registerHistoryMigration = (rwDb, queue) => {
 	rwDb.registerMigrations('historyExport', {
 		2018040800: {
@@ -287,15 +289,17 @@ class ESDB extends EventEmitter {
 						error
 					)
 					// Crash program but leave some time to notify
-					// eslint-disable-next-line unicorn/no-process-exit
-					setTimeout(() => process.exit(100), 500)
+					if (process.env.NODE_ENV !== 'test')
+						// eslint-disable-next-line unicorn/no-process-exit
+						setTimeout(() => process.exit(100), 500)
 
 					throw new Error(error)
 				})
 				.then(lastV => {
 					this._waitingP = null
 					// Subtle race condition: new wantVersion coming in between end of _wait and .then
-					if (this._minVersion && lastV < this._minVersion)
+					// lastV is falsy when forcing a stop
+					if (lastV != null && this._minVersion && lastV < this._minVersion)
 						return this.startPolling(this._minVersion)
 					this._minVersion = 0
 					return undefined
@@ -314,6 +318,16 @@ class ESDB extends EventEmitter {
 	async dispatch(type, data, ts) {
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
+	}
+
+	// Only use this for testing
+	async _dispatchWithError(type, data, ts) {
+		const event = await this.queue.add(type, data, ts)
+		this._stopPollingOnError = true
+		await this.startPolling(event.v)
+		const result = await this.queue.get(event.v)
+		if (result.error) throw result
+		return result
 	}
 
 	_subDispatch(event, type, data) {
@@ -411,16 +425,24 @@ class ESDB extends EventEmitter {
 		/* eslint-disable no-await-in-loop */
 		const {rwDb} = this
 		let lastV = 0
+		let errorCount = 0
 		if (dbg.enabled && this._minVersion)
 			dbg(`waiting for events until minVersion: ${this._minVersion}`)
 		while (!this._minVersion || this._minVersion > lastV) {
+			// TODO exponential backoff on retrying events, with max retry
+			if (errorCount) {
+				// These will reopen automatically
+				this.db.close()
+				this.rwDb.close()
+				this.queue.close()
+				await wait(5000)
+			}
 			// TODO when this throws, log error, wait, try re-openening
 			const event = await this.queue.getNext(
 				await this.getVersion(),
 				!(this._isPolling || this._minVersion)
 			)
 			if (!event) return lastV
-			// TODO exponential backoff on retrying events, with max retry
 			// TODO watchdog with timeout alerts/abort
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
@@ -449,19 +471,21 @@ class ESDB extends EventEmitter {
 					return this._resultQueue.set(result)
 				})
 				.catch(error => {
-					// TODO close/reopen DB
 					return {
 						...event,
 						error: {_SQLite: errorToString(error)},
 					}
 				})
+			if (!resultEvent) continue // We lost the race
 
-			// TODO retry failed without racing and with exponential standoff
-			if (resultEvent.error) lastV = resultEvent.v - 1
+			if (resultEvent.error) {
+				errorCount++
+				lastV = resultEvent.v - 1
+			} else errorCount = 0
 
 			this._triggerEventListeners(resultEvent)
 
-			if (this._reallyStop) {
+			if (this._reallyStop || (errorCount && this._stopPollingOnError)) {
 				this._reallyStop = false
 				return
 			}
