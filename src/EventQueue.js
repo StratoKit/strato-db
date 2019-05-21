@@ -39,20 +39,18 @@ class EventQueue extends JsonModel {
 					db.exec(
 						`CREATE INDEX IF NOT EXISTS "history type,size" on history(type, size)`
 					),
-				'20181214_addViews': withViews
+				'20190521_addViews': withViews
 					? async ({db}) => {
+							const historySchema = await db.all('PRAGMA table_info("history")')
 							// This adds a field with data size, kept up-to-date with triggers
-							// Maybe this should go into the metadata table instead, not via sqlite
-							await db
-								.exec(`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`)
-								.catch(() => {})
-							await db
-								.exec(`DROP TRIGGER "history size insert"`)
-								.catch(() => {})
-							await db
-								.exec(`DROP TRIGGER "history size update"`)
-								.catch(() => {})
+							if (!historySchema.some(f => f.name === 'size'))
+								await db.exec(
+									`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`
+								)
+							// The size WHERE clause is to prevent recursive triggers
 							await db.exec(`
+								DROP TRIGGER IF EXISTS "history size insert";
+								DROP TRIGGER IF EXISTS "history size update";
 								CREATE TRIGGER "history size insert" AFTER INSERT ON history BEGIN
 									UPDATE history SET
 										size=ifNull(length(new.json),0)+ifNull(length(new.data),0)+ifNull(length(new.result),0)
@@ -61,12 +59,11 @@ class EventQueue extends JsonModel {
 								CREATE TRIGGER "history size update" AFTER UPDATE ON history BEGIN
 									UPDATE history SET
 										size=ifNull(length(new.json),0)+ifNull(length(new.data),0)+ifNull(length(new.result),0)
-									WHERE v=new.v;
+									WHERE v=new.v AND size!=ifNull(length(new.json),0)+ifNull(length(new.data),0)+ifNull(length(new.result),0);
 								END;
-							`)
-							await db.exec(`DROP VIEW _recentHistory`).catch(() => {})
-							await db.exec(`DROP VIEW _historyTypes`).catch(() => {})
-							await db.exec(`
+
+								DROP VIEW IF EXISTS _recentHistory;
+								DROP VIEW IF EXISTS _historyTypes;
 								CREATE VIEW _recentHistory AS
 									SELECT datetime(ts/1000, "unixepoch", "localtime") AS t, *
 									FROM history ORDER BY v DESC LIMIT 1000;

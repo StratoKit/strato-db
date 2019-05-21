@@ -126,7 +126,9 @@ class DB {
 				)
 			}
 		}
+		// Some sane settings
 		await realDb.run('PRAGMA foreign_keys = ON')
+		await realDb.run('PRAGMA recursive_triggers = ON')
 
 		this._realDb = realDb
 		this._db = {

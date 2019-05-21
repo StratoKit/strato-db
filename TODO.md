@@ -18,7 +18,6 @@
 
 ### Nice to have
 
-- [ ] pragma recursive_triggers
 - [ ] PRAGMA schema.synchronous = extra (make configurable)
 - [ ] pragma journal_size_limit setting, default to 4MB (1000 pages)
 - [ ] in development, invert PRAGMA reverse_unordered_selects every so often
