@@ -3,7 +3,7 @@ import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
 test('create', () => {
 	const m = getModel()
 	expect(() => m.all()).not.toThrow()
-	expect(m.db.models[m.name]).toBe(m)
+	expect(m.db.store[m.name]).toBe(m)
 })
 
 test('create invalid', () => {

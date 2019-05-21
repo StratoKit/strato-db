@@ -75,16 +75,24 @@ class DB {
 	}
 
 	// Store all your models here, by name
-	models = {}
+	store = {}
+
+	get models() {
+		if (process.env.NODE_ENV !== 'production' && !this.warnedModel)
+			console.error(
+				new Error('!!! db.models is deprecated, use db.store instead')
+			)
+		return this.store
+	}
 
 	addModel(Model, options) {
 		const model = new Model({
 			...options,
 			db: this,
 		})
-		if (this.models[model.name])
+		if (this.store[model.name])
 			throw new TypeError(`Model name ${model.name} was already added`)
-		this.models[model.name] = model
+		this.store[model.name] = model
 		return model
 	}
 
@@ -121,7 +129,16 @@ class DB {
 		await realDb.run('PRAGMA foreign_keys = ON')
 
 		this._realDb = realDb
-		this._db = {models: {}}
+		this._db = {
+			store: {},
+			get models() {
+				if (process.env.NODE_ENV !== 'production' && !this.warnedModel)
+					console.error(
+						new Error('!!! db.models is deprecated, use db.store instead')
+					)
+				return this.store
+			},
+		}
 		for (const method of ['all', 'exec', 'get', 'prepare', 'run']) {
 			this._db[method] = (...args) => {
 				if (Array.isArray(args[0])) {
@@ -373,7 +390,7 @@ class DB {
 		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		await this._withTransaction(async () => {
 			const didRun = await this._getRanMigrations()
-			for (const model of Object.values(this.models))
+			for (const model of Object.values(this.store))
 				if (model.setWritable) model.setWritable(true)
 			for (const {runKey, up} of migrations) {
 				if (!didRun[runKey]) {
@@ -383,7 +400,7 @@ class DB {
 					await this._markMigration(runKey, 1) // eslint-disable-line no-await-in-loop
 				}
 			}
-			for (const model of Object.values(this.models))
+			for (const model of Object.values(this.store))
 				if (model.setWritable) model.setWritable(false)
 		})
 		this.migrationsRan = true

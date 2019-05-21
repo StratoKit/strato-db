@@ -60,8 +60,8 @@ const eSDB = new EventSourcingDB({
 })
 
 // only opens the db once this runs
-await db.models.things.set({id: 'foo', info: 'is a foo'})
-await db.models.things.search({info: 'is a foo'})
+await db.store.things.set({id: 'foo', info: 'is a foo'})
+await db.store.things.search({info: 'is a foo'})
 ```
 
 ## Status

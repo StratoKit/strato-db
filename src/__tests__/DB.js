@@ -62,7 +62,7 @@ test('creates DB', async () => {
 	expect(db.dbP).toBeInstanceOf(Promise)
 	const version = await db.get('SELECT sqlite_version()')
 	expect(version['sqlite_version()']).toBeTruthy()
-	expect(db.models).toEqual({})
+	expect(db.store).toEqual({})
 	await db.close()
 })
 
@@ -82,7 +82,7 @@ test('can register model', () => {
 	}
 	const m = db.addModel(Hi)
 	expect(m.name).toBe('hi')
-	expect(db.models.hi).toBe(m)
+	expect(db.store.hi).toBe(m)
 	expect(() => db.addModel(Hi)).toThrow()
 	return db.close()
 })
@@ -100,7 +100,7 @@ test('has migration', async () => {
 		0: {
 			up: db => {
 				if (canary === 0) canary = 1
-				expect(db.models).toEqual({})
+				expect(db.store).toEqual({})
 				return db.exec(`
 				CREATE TABLE foo(hi NUMBER);
 				INSERT INTO foo VALUES (42);

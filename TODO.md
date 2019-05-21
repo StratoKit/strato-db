@@ -6,7 +6,6 @@
 - [ ] Try to clean up the API, make it consistent between classes. Ideas:
   - DB and ESDB to have same API surface (.addModel)
   - join JsonModel and ESModel code, switch behavior based on `dispatch` option
-  - db.models => db.store or eSDB.store => eSDB.models
 - [ ] optimize
 
 ## node-sqlite3

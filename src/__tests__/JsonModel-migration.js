@@ -1,4 +1,3 @@
-
 import {DB, JsonModel, getModel} from './_helpers'
 
 test('falsy migration', async () => {
@@ -44,7 +43,7 @@ test('concurrent migrations', async () => {
 		migrations: {
 			2: {
 				async up({db}) {
-					expect(await db.models.b.searchOne()).toEqual({id: '1'})
+					expect(await db.store.b.searchOne()).toEqual({id: '1'})
 				},
 			},
 		},
