@@ -18,7 +18,6 @@
 
 ### Nice to have
 
-- [ ] PRAGMA schema.synchronous = extra (make configurable)
 - [ ] in development, invert PRAGMA reverse_unordered_selects every so often
   - this makes sure that ordering issues are noticed
 - [ ] accept column def and create/add if needed, using pragma table_info
@@ -121,3 +120,4 @@
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
 - [ ] split up into more files, move tests
+- [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
