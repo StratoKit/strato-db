@@ -129,6 +129,7 @@ class DB {
 		// Some sane settings
 		await realDb.run('PRAGMA foreign_keys = ON')
 		await realDb.run('PRAGMA recursive_triggers = ON')
+		await realDb.run('PRAGMA journal_size_limit = 4000000')
 
 		this._realDb = realDb
 		this._db = {

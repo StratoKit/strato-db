@@ -19,7 +19,6 @@
 ### Nice to have
 
 - [ ] PRAGMA schema.synchronous = extra (make configurable)
-- [ ] pragma journal_size_limit setting, default to 4MB (1000 pages)
 - [ ] in development, invert PRAGMA reverse_unordered_selects every so often
   - this makes sure that ordering issues are noticed
 - [ ] accept column def and create/add if needed, using pragma table_info
