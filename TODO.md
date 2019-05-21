@@ -29,16 +29,6 @@
   ```
 
 - [ ] manage indexes, using PRAGMA index_list. Drop unused indexes with \_strato prefix
-- withTransaction
-  - [ ] re-run fn() if commit fails (what are transient failure codes?)
-    - [ ] test with multi connections
-    - [ ] test with multi process
-- maintenance
-  - [ ] run PRAGMA quick_check at startup
-  - [ ] setting for running vacuum when idle (auto_vacuum?)
-  - [ ] setting for incremental_vacuum, running with N=100 after each transaction
-  - [ ] figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection
-- [ ] put all metadata in `_stratoMeta` table
 - [ ] prepared statements
   - similar to makeSelect, but cannot change sort etc.
   - `where` values can change, just not the amount of items in arrays
