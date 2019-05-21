@@ -7,26 +7,32 @@ const dbg = debug('queue')
 
 class EventQueue extends JsonModel {
 	constructor({name = 'history', forever, withViews, ...rest}) {
+		const columns = {
+			v: {
+				type: 'INTEGER',
+				autoIncrement: true,
+			},
+			type: {type: 'TEXT'},
+			ts: {
+				type: 'INTEGER',
+				value: o => Number(o.ts) || Date.now(),
+				index: 'ALL',
+			},
+			data: {type: 'JSON'},
+			result: {type: 'JSON'},
+			size: {type: 'INTEGER', default: 0, get: false},
+		}
+		if (rest.columns)
+			for (const [key, value] of Object.entries(rest.columns)) {
+				if (!value) continue
+				if (columns[key]) throw new TypeError(`Cannot override column ${key}`)
+				columns[key] = value
+			}
 		super({
 			...rest,
 			name,
 			idCol: 'v',
-			columns: {
-				...rest.columns,
-				v: {
-					type: 'INTEGER',
-					autoIncrement: true,
-				},
-				type: {type: 'TEXT'},
-				ts: {
-					type: 'INTEGER',
-					value: o => Number(o.ts) || Date.now(),
-					index: 'ALL',
-				},
-				data: {type: 'JSON'},
-				result: {type: 'JSON'},
-				size: {type: 'INTEGER', default: 0, get: false},
-			},
+			columns,
 			migrations: {
 				...rest.migrations,
 				addTypeSizeIndex: ({db}) =>
