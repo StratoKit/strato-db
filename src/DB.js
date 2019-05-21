@@ -130,6 +130,9 @@ class DB {
 		await realDb.run('PRAGMA foreign_keys = ON')
 		await realDb.run('PRAGMA recursive_triggers = ON')
 		await realDb.run('PRAGMA journal_size_limit = 4000000')
+		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
+			// 50% of the time, return unordered selects in reverse order (chosen once per open)
+			await realDb.run('PRAGMA reverse_unordered_selects = ON')
 
 		this._realDb = realDb
 		this._db = {

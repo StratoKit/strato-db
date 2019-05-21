@@ -18,8 +18,6 @@
 
 ### Nice to have
 
-- [ ] in development, invert PRAGMA reverse_unordered_selects every so often
-  - this makes sure that ordering issues are noticed
 - [ ] accept column def and create/add if needed, using pragma table_info
 
   ```text
