@@ -135,7 +135,11 @@ class ESDB extends EventEmitter {
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
 			})
-			this.queue = new EventQueue({db: qDb, withViews})
+			this.queue = new EventQueue({
+				db: qDb,
+				withViews,
+				columns: {events: {type: 'JSON'}},
+			})
 		}
 		const qDbFile = this.queue.db.file
 		// If queue is in same file as rwDb, share the connection

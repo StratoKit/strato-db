@@ -79,7 +79,10 @@ export const testModels = {
 }
 const withDBs = async fn => {
 	const db = new DB({name: 'D'})
-	const queue = new EQ({db: new DB({name: 'Q'})})
+	const queue = new EQ({
+		db: new DB({name: 'Q'}),
+		columns: {events: {type: 'JSON'}},
+	})
 	const ret = await fn(db, queue)
 	await db.close()
 	await queue.db.close()
