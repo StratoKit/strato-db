@@ -35,7 +35,6 @@
     - [ ] test with multi process
 - maintenance
   - [ ] run PRAGMA quick_check at startup
-  - [ ] run pragma optimize every few hours
   - [ ] setting for running vacuum when idle (auto_vacuum?)
   - [ ] setting for incremental_vacuum, running with N=100 after each transaction
   - [ ] figure out if vacuum, pragma optimize and integrity_check can run while other processes are writing, if so run them in a separate connection

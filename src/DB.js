@@ -134,6 +134,12 @@ class DB {
 			// 50% of the time, return unordered selects in reverse order (chosen once per open)
 			await realDb.run('PRAGMA reverse_unordered_selects = ON')
 
+		if (!readOnly)
+			this._optimizerToken = setInterval(
+				() => this._realDb.run(`PRAGMA optimize`),
+				2 * 3600 * 1000
+			)
+
 		this._realDb = realDb
 		this._db = {
 			store: {},
@@ -234,6 +240,7 @@ class DB {
 	}
 
 	async close() {
+		clearInterval(this._optimizerToken)
 		if (this._dbP) {
 			await this._dbP
 		}
