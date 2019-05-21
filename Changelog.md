@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.0.0
+
+### Breaking
+
+- EventSourcingDB events that result in errors now halt processing and have to be fixed before processing continues
+- `waitForP` was removed from DB, use `onWillOpen` instead, if it returns a Promise that will be waited for.
+- The EventSourcingDB version is now stored in the SQLite `user_version` pragma, and the `metadata` model is no longer available by default. If you need it, add `metadata: {}` to the `models` passed to ESDB
+- `DB.models` was renamed to `DB.store` for consistency with ESDB and also to be different from the `models` option. `DB.models` still works but will output an error on first use in non-production.
+- DB connections now set `PRAGMA recursive_triggers`
+- In NODE_ENV=development, the order of unordered query results will sometimes be reversed to show where ordering is not consistent. In test this is not done since the ordering is always the same and used in snapshots etc.
+
+### Changes
+
+- EventSourcingDB refactor:
+  - sub-events! You can dispatch events during events; they are handled depth-first in the same transaction. If any result in error, they error the parent event
+  - make error handling more robust
+  - simplify redux loop
+  - retry failed events with increasing timeouts and exit program after an hour
+- DB, JsonModel, EventSourcingDB: Better debugging information for queries and errors
+- DB: limit WAL file size after transaction to 4MB
+- DB: run `PRAGMA optimize` every 2 hours
+
 ## 2.3.3
 
 - JsonModel: fix using columns with paths in `getAll`
