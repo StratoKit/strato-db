@@ -24,9 +24,7 @@ test('create', () =>
 			expect(eSDB.rwDb).toBeTruthy()
 			expect(eSDB.queue).toBeTruthy()
 			expect(eSDB.models).toBeUndefined()
-			expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
 			expect(eSDB.store.count).toBeTruthy()
-			expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
 			expect(eSDB.rwStore.count).toBeTruthy()
 			// Make sure the read-only database can start (no timeout)
 			// and that migrations work
@@ -47,9 +45,7 @@ test('create in single file', async () => {
 	expect(eSDB.rwDb).toBeTruthy()
 	expect(eSDB.queue).toBeTruthy()
 	expect(eSDB.models).toBeUndefined()
-	expect(eSDB.store && eSDB.store.metadata).toBeTruthy()
 	expect(eSDB.store.count).toBeTruthy()
-	expect(eSDB.rwStore && eSDB.rwStore.metadata).toBeTruthy()
 	expect(eSDB.rwStore.count).toBeTruthy()
 	// Make sure the read-only database can start (no timeout)
 	// and that migrations work
@@ -116,24 +112,23 @@ test('reducer', () => {
 test('applyEvent', () => {
 	return withESDB(async eSDB => {
 		await eSDB.db.withTransaction(() =>
-			eSDB._applyEvent({
-				v: 1,
-				type: 'foo',
-				result: {
-					count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
-					metadata: {set: [{id: 'version', v: 1}]},
+			eSDB._applyEvent(
+				{
+					v: 50,
+					type: 'foo',
+					result: {
+						count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
+					},
 				},
-			})
+				true
+			)
 		)
 		expect(await eSDB.store.count.get('count')).toEqual({
 			id: 'count',
 			total: 1,
 			byType: {foo: 1},
 		})
-		expect(await eSDB.store.metadata.get('version')).toEqual({
-			id: 'version',
-			v: 1,
-		})
+		expect(await eSDB.getVersion()).toBe(50)
 	})
 })
 
@@ -375,7 +370,7 @@ test('event error in apply', () => {
 				type: 'foo',
 				result: {
 					// it will try to call map as a function
-					metadata: {set: {map: 5}},
+					count: {set: {map: 5}},
 				},
 			})
 		).resolves.toHaveProperty(
@@ -476,27 +471,6 @@ test('preprocessor/reducer for ESModel', async () =>
 					return false
 				},
 			},
-		}
-	))
-
-test('metadata can also be used', async () =>
-	withESDB(
-		async eSDB => {
-			await eSDB.store.metadata.set({id: 'test', yey: true})
-			await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
-				id: 'test',
-				yey: true,
-			})
-			await eSDB.dispatch('IGNOREME')
-			await eSDB.store.metadata.update({id: 'test', bar: true})
-			await expect(eSDB.store.metadata.get('test')).resolves.toEqual({
-				id: 'test',
-				yey: true,
-				bar: true,
-			})
-		},
-		{
-			// no models
 		}
 	))
 

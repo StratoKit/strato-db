@@ -123,5 +123,4 @@
 - [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
-- [ ] move the version from metadata into a separate `_esdb-version` table with a single row and column
 - [ ] split up into more files, move tests

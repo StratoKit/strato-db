@@ -2,8 +2,8 @@
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
-// * All the database tables participating should only be changed via events. There is a version entry
-//   in the metadata table that shows what event version the db is at.
+// * All the database tables participating should only be changed via events
+// * The current version is stored in the SQLite `user_version` pragma and corresponds to the last event applied
 // * Events describe facts that happened
 //   * Think of them as newspaper clippings (that changed) or notes passed to the kitchen (this change requested)
 //   * Should not require outside-db data to know how to handle them. Otherwise, split them in parts
@@ -107,9 +107,7 @@ class ESDB extends EventEmitter {
 			)
 		if (!models) throw new TypeError('models are required')
 		if (queueFile && queue)
-			throw new TypeError('Either pass  queue or queueFile')
-
-		models = {metadata: {}, ...models}
+			throw new TypeError('Either pass queue or queueFile')
 
 		this.rwDb = new DB(dbOptions)
 		const {readOnly} = this.rwDb
@@ -151,6 +149,22 @@ class ESDB extends EventEmitter {
 		if (this.rwDb.file !== qDbFile) {
 			registerHistoryMigration(this.rwDb, this.queue)
 		}
+		this.rwDb.registerMigrations('ESDB', {
+			// Move v2 metadata version to DB user_version
+			userVersion: async db => {
+				const {user_version: uv} = await db.get('PRAGMA user_version')
+				if (uv) return // Somehow we already have a version
+				const hasMetadata = await db.get(
+					'SELECT 1 FROM sqlite_master WHERE name="metadata"'
+				)
+				if (!hasMetadata) return
+				const vObj = await db.get(
+					'SELECT json_extract(json, "$.v") AS v FROM metadata WHERE id="version"'
+				)
+				const v = vObj && Number(vObj.v)
+				if (v) await db.run(`PRAGMA user_version=${v}`)
+			},
+		})
 
 		this.store = {}
 		this.rwStore = {}
@@ -339,10 +353,12 @@ class ESDB extends EventEmitter {
 
 	getVersion() {
 		if (!this.getVersionP) {
-			this.getVersionP = this.store.metadata.get('version').then(vObj => {
-				this.getVersionP = null
-				return vObj ? vObj.v : 0
-			})
+			this.getVersionP = this.db
+				.get('PRAGMA user_version')
+				.then(u => u.user_version)
+				.finally(() => {
+					this.getVersionP = null
+				})
 		}
 		return this.getVersionP
 	}
@@ -650,14 +666,9 @@ class ESDB extends EventEmitter {
 				)
 			}
 
-			// Even if the apply/derive failed we'll consider this event handled
 			if (updateVersion) {
 				phase = 'version'
-				await rwDb.run(
-					`INSERT OR REPLACE INTO metadata(id,json) VALUES ('version','{"v":${
-						event.v
-					}}')`
-				)
+				await rwDb.run(`PRAGMA user_version=${event.v}`)
 			}
 
 			// Apply derivers
