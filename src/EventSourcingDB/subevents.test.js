@@ -1,5 +1,4 @@
-import {withESDB, testModels} from '../__tests__/_helpers'
-import {flatMapDeep} from 'lodash'
+import {withESDB} from '../__tests__/_helpers'
 
 test('work', () => {
 	const models = {
