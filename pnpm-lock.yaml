@@ -25,13 +25,13 @@ devDependencies:
   eslint-plugin-import: 2.17.2
   eslint-plugin-jest: 22.5.1
   eslint-plugin-promise: 4.1.1
-  eslint-plugin-unicorn: 7.1.0
+  eslint-plugin-unicorn: 8.0.2
   estraverse: 4.2.0
-  fs-extra: 7.0.1
+  fs-extra: 8.0.1
   jest-cli: 24.8.0
   nps-utils: 1.7.0
   prettier: 1.17.1
-  tmp-promise: 1.1.0
+  tmp-promise: 2.0.1
 lockfileVersion: 5
 packages:
   /@babel/cli/7.4.4:
@@ -1319,10 +1319,6 @@ packages:
     optional: true
     resolution:
       integrity: sha512-Un7MIEDdUC5gNpcGDV97op1Ywk748MpHcFTHoYs6qnj1Z3j7I53VG3nwZhKzoBZmbdRNnb6WRdFlwl7tSDuZGw==
-  /bluebird/3.5.4:
-    dev: true
-    resolution:
-      integrity: sha512-FG+nFEZChJrbQ9tIccIfZJBz3J7mLrAhxakAbnrJWn8d7aKOC+LWifa0G+p4ZqKp4y13T7juYvdhq9NzKdsrjw==
   /brace-expansion/1.1.11:
     dependencies:
       balanced-match: 1.0.0
@@ -2020,15 +2016,18 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-faAHw7uzlNPy7b45J1guyjazw28M+7gJokKUjC5JSFoYfUEyy6Gw/i7YQvmv2Yk00sUjWcmzXQLpU1Ki/C2IZQ==
-  /eslint-plugin-unicorn/7.1.0:
+  /eslint-plugin-unicorn/8.0.2:
     dependencies:
       clean-regexp: 1.0.0
       eslint-ast-utils: 1.1.0
       import-modules: 1.1.0
       lodash.camelcase: 4.3.0
+      lodash.defaultsdeep: 4.6.0
       lodash.kebabcase: 4.1.1
       lodash.snakecase: 4.1.1
+      lodash.topairs: 4.3.0
       lodash.upperfirst: 4.3.1
+      reserved-words: 0.1.2
       safe-regex: 2.0.2
     dev: true
     engines:
@@ -2036,7 +2035,7 @@ packages:
     peerDependencies:
       eslint: '>=5.0.0'
     resolution:
-      integrity: sha512-lW/ZwGR638V0XuZgR160qVQvPtw8tw3laKT5LjJPt+W+tN7kVf2S2V7x+ZrEEwSjEb3OiEzb3cppzaKuYtgYeg==
+      integrity: sha512-Ik2/Bt/PvPnf1lZgUnNFK2310XoRn/4LYiP5gkEPVDa4w9HCoii7I6SeKh2X5Rdp2WLy4eUiLcYtiBUp+q2IRw==
   /eslint-rule-composer/0.3.0:
     dev: true
     engines:
@@ -2399,7 +2398,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-QpD60n8T6Jvn8zeZxrxaCr//DRk=
-  /fs-extra/7.0.1:
+  /fs-extra/8.0.1:
     dependencies:
       graceful-fs: 4.1.15
       jsonfile: 4.0.0
@@ -2408,7 +2407,7 @@ packages:
     engines:
       node: '>=6 <7 || >=8'
     resolution:
-      integrity: sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==
+      integrity: sha512-W+XLrggcDzlle47X/XnS7FXrXu9sDo+Ze9zpndeBxdgv88FHLm1HtmkhEwavruS6koanBjp098rUpHs65EmG7A==
   /fs-minipass/1.2.6:
     dependencies:
       minipass: 2.3.5
@@ -3655,6 +3654,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-soqmKIorn8ZRA1x3EfZathkDMaY=
+  /lodash.defaultsdeep/4.6.0:
+    dev: true
+    resolution:
+      integrity: sha1-vsECT4WxvZbL6kBbI8FK1kQ6b4E=
   /lodash.get/4.4.2:
     dev: true
     resolution:
@@ -3671,6 +3674,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-7dFMgk4sycHgsKG0K7UhBRakJDg=
+  /lodash.topairs/4.3.0:
+    dev: true
+    resolution:
+      integrity: sha1-O23qo31g+xFnE8RsXxfqGQ7EjWQ=
   /lodash.upperfirst/4.3.1:
     dev: true
     resolution:
@@ -4666,6 +4673,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-J6SDjUgDxQj5NusnOtdFxDwN/+HWykR8GELwctJ7mdqhcyy1xEc4SRFHUXvxTp661YaVKAjfRLZ9cCqS6tn32A==
+  /regexp-tree/0.1.10:
+    dev: true
+    hasBin: true
+    resolution:
+      integrity: sha512-K1qVSbcedffwuIslMwpe6vGlj+ZXRnGkvjAtFHfDZZZuEdA/h0dxljAPu9vhUo6Rrx2U2AwJ+nSQ6hK+lrP5MQ==
   /regexp-tree/0.1.8:
     dev: true
     hasBin: true
@@ -4793,6 +4805,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-wR6XJ2tluOKSP3Xav1+y7ww4Qbk=
+  /reserved-words/0.1.2:
+    dev: true
+    resolution:
+      integrity: sha1-AKCUD5jNUBrqqsMWQR2a3FKzGrE=
   /resolve-cwd/2.0.0:
     dependencies:
       resolve-from: 3.0.0
@@ -4885,7 +4901,7 @@ packages:
       integrity: sha1-QKNmnzsHfR6UPURinhV91IAjvy4=
   /safe-regex/2.0.2:
     dependencies:
-      regexp-tree: 0.1.8
+      regexp-tree: 0.1.10
     dev: true
     resolution:
       integrity: sha512-rRALJT0mh4qVFIJ9HvfjKDN77F9vp7kltOpFFI/8e6oKyHFmmxz4aSkY/YVauRDe7U0RrHdw9Lsxdel3E19s0A==
@@ -5323,13 +5339,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
-  /tmp-promise/1.1.0:
+  /tmp-promise/2.0.1:
     dependencies:
-      bluebird: 3.5.4
       tmp: 0.1.0
     dev: true
     resolution:
-      integrity: sha512-8+Ah9aB1IRXCnIOxXZ0uFozV1nMU5xiu7hhFVUSxZ3bYu+psD4TzagCzVbexUCgNNGJnsmNDQlS4nG3mTyoNkw==
+      integrity: sha512-2A0lDPWiuu+92AVO19p5D6eq2egvCPiVUkzR11jE+GG4QMjj4YQ4glr2RqzYT0TMeMs2tIXLPDYo4wWh2/WoSg==
   /tmp/0.0.33:
     dependencies:
       os-tmpdir: 1.0.2
@@ -5727,16 +5742,16 @@ specifiers:
   eslint-import-resolver-node: ^0.3.2
   eslint-plugin-babel: ^5.3.0
   eslint-plugin-import: ^2.16.0
-  eslint-plugin-jest: ^22.3.0
+  eslint-plugin-jest: 22.5.1
   eslint-plugin-promise: ^4.0.1
-  eslint-plugin-unicorn: ^7.1.0
+  eslint-plugin-unicorn: 8.0.2
   estraverse: ^4.2.0
-  fs-extra: ^7.0.1
+  fs-extra: 8.0.1
   jest-cli: ^24.1.0
   lodash: ^4.17.11
   nps-utils: ^1.6.0
   prettier: ^1.16.4
   prop-types: ^15.7.2
   sqlite3: ^4.0.6
-  tmp-promise: ^1.0.5
+  tmp-promise: 2.0.1
   uuid: ^3.3.2
