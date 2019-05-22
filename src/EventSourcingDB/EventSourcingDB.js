@@ -579,6 +579,7 @@ class ESDB extends EventEmitter {
 
 	async _reducer(event) {
 		const result = {}
+		const events = event.events || []
 		await Promise.all(
 			this.reducerNames.map(async key => {
 				const model = this.reducerModels[key]
@@ -589,6 +590,19 @@ class ESDB extends EventEmitter {
 					out = {
 						error: errorToString(error),
 					}
+				}
+				// in <v3 we allowed returning the model to indicate no change
+				if (!out || out === model) return
+				if (out.events) {
+					if (!Array.isArray(out.events)) {
+						result[key] = {error: `.events is not an array`}
+						return
+					}
+					events.push(...out.events)
+					delete out.events
+				} else if ('events' in out) {
+					// allow falsy events
+					delete out.events
 				}
 				result[key] = out
 			})
@@ -604,17 +618,13 @@ class ESDB extends EventEmitter {
 			}
 			return {...event, error}
 		}
-		for (const name of this.reducerNames) {
-			const r = result[name]
-			// in <v3 we allowed returning the model to indicate no change
-			if (!r || r === this.reducerModels[name])
-				// no change
-				delete result[name]
-		}
-		return {
+
+		const resultEvent = {
 			...event,
 			result,
 		}
+		if (events.length) resultEvent.events = events
+		return resultEvent
 	}
 
 	async _handleEvent(origEvent, depth = 0) {
@@ -666,7 +676,6 @@ class ESDB extends EventEmitter {
 		const {rwStore, rwDb, readWriters} = this
 		let phase = '???'
 		try {
-			dbg('apply', event, updateVersion)
 			for (const model of readWriters) model.setWritable(true)
 			const {result} = event
 

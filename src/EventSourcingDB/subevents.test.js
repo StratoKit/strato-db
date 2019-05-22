@@ -7,7 +7,10 @@ test('work', () => {
 				if (event.type === 'hi') dispatch('hello')
 			},
 			reducer: (model, event) => {
-				return {set: [{id: event.type}]}
+				return {
+					set: [{id: event.type}],
+					events: event.type === 'hi' && [{type: 'everybody'}],
+				}
 			},
 			deriver: ({event, dispatch}) => {
 				if (event.type === 'hi') dispatch('there')
@@ -16,9 +19,10 @@ test('work', () => {
 	}
 	return withESDB(async eSDB => {
 		const event = await eSDB.dispatch('hi')
-		expect(event.events).toHaveLength(2)
+		expect(event.events).toHaveLength(3)
 		expect(await eSDB.store.foo.exists({id: 'hi'})).toBeTruthy()
 		expect(await eSDB.store.foo.exists({id: 'hello'})).toBeTruthy()
+		expect(await eSDB.store.foo.exists({id: 'everybody'})).toBeTruthy()
 		expect(await eSDB.store.foo.exists({id: 'there'})).toBeTruthy()
 	}, models)
 })
@@ -28,6 +32,7 @@ test('depth first order', () => {
 		foo: {
 			reducer: (model, event) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
+				if (event.type === '3') return {events: [{type: '4'}]}
 			},
 			deriver: async ({model, event, dispatch}) => {
 				if (event.type === 'hi') {
@@ -35,7 +40,7 @@ test('depth first order', () => {
 					dispatch('3')
 				}
 				if (event.type === '1') dispatch('2')
-				if (event.type === '3') dispatch('4')
+				if (event.type === '3') dispatch('5')
 				const t = await model.get('hi')
 				return model.set({id: 'hi', all: t.all + event.type})
 			},
@@ -47,7 +52,7 @@ test('depth first order', () => {
 		const event = await eSDB.dispatch('hi')
 		expect(spy).toHaveBeenCalledTimes(1)
 		expect(event.events).toHaveLength(2)
-		expect(await eSDB.store.foo.get('hi')).toHaveProperty('all', 'hi1234')
+		expect(await eSDB.store.foo.get('hi')).toHaveProperty('all', 'hi12345')
 	}, models)
 })
 
