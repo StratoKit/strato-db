@@ -406,6 +406,7 @@ test('event emitter', async () => {
 		})
 		await eSDB.dispatch('foo')
 		await eSDB.dispatch('bar')
+		eSDB.__BE_QUIET = true
 		await expect(
 			eSDB._dispatchWithError('error_reduce')
 		).rejects.toHaveProperty('error')

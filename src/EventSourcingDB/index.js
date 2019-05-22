@@ -512,6 +512,11 @@ class ESDB extends EventEmitter {
 					return this._resultQueue.set(result)
 				})
 				.catch(error => {
+					if (!this.__BE_QUIET)
+						console.error(
+							'!!! ESDB: an error occured outside of the normal error handlers',
+							error
+						)
 					return {
 						...event,
 						error: {_SQLite: errorToString(error)},
@@ -520,7 +525,7 @@ class ESDB extends EventEmitter {
 			if (!resultEvent) continue // Another process handled the event
 
 			if (resultEvent.error) {
-				if (process.env.NODE_ENV !== 'test')
+				if (!this.__BE_QUIET)
 					console.error(
 						`!!! ESDB: event ${event.type} processing failed`,
 						resultEvent.error

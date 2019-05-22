@@ -60,6 +60,7 @@ test('no infinite recursion', () => {
 		},
 	}
 	return withESDB(async eSDB => {
+		eSDB.__BE_QUIET = true
 		const doNotCall = jest.fn()
 		const event = await eSDB._dispatchWithError('hi').then(doNotCall, e => e)
 		expect(doNotCall).toHaveBeenCalledTimes(0)
