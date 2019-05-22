@@ -1,7 +1,7 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 /* eslint-disable import/no-named-as-default-member */
-import DB, {sql, valToSql} from '../DB'
+import DB, {sql, valToSql} from './DB'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 

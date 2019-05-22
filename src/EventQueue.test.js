@@ -1,5 +1,5 @@
-import DB from '../DB'
-import EventQueue from '../EventQueue'
+import DB from './DB'
+import EventQueue from './EventQueue'
 
 const getModel = options => {
 	const db = new DB()

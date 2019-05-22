@@ -82,7 +82,7 @@
     "testPathIgnorePatterns": [
       "<rootDir>/dist/",
       "<rootDir>/node_modules/",
-      "_helpers.js"
+      "_test-helpers.js"
     ]
   }
 }

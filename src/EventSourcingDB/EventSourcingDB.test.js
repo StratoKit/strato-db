@@ -3,8 +3,8 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import JsonModel from '../JsonModel'
-import ESDB from '../EventSourcingDB'
-import {withESDB, testModels} from './_helpers'
+import ESDB from '.'
+import {withESDB, testModels} from '../_test-helpers'
 
 const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
 

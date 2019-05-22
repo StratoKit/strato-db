@@ -1,4 +1,4 @@
-import {getModel, sharedSetup} from './_helpers'
+import {getModel, sharedSetup} from '../_test-helpers'
 
 const indexesSql = `
 	SELECT m.tbl_name || '.' || ifNull(ii.name, m.name) AS col, m.sql

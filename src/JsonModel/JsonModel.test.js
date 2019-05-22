@@ -1,4 +1,4 @@
-import {DB, JsonModel, getModel, sharedSetup} from './_helpers'
+import {DB, JsonModel, getModel, sharedSetup} from '../_test-helpers'
 
 test('create', () => {
 	const m = getModel()

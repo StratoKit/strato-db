@@ -1,4 +1,4 @@
-import {withESDB} from '../__tests__/_helpers'
+import {withESDB} from '../_test-helpers'
 
 test('work', () => {
 	const models = {

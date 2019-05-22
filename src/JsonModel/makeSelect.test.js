@@ -1,4 +1,4 @@
-import {getModel} from './_helpers'
+import {getModel} from '../_test-helpers'
 
 test('makeSelect basic', () => {
 	const m = getModel({

@@ -1,5 +1,5 @@
 
-import {getModel} from './_helpers'
+import {getModel} from '../_test-helpers'
 
 test('set with id', async () => {
 	const m = getModel()

@@ -1,5 +1,5 @@
-import ESModel, {undefToNull, getId} from '../ESModel'
-import {withESDB} from './_helpers'
+import ESModel, {undefToNull, getId} from './ESModel'
+import {withESDB} from './_test-helpers'
 
 class ESModelCustomId extends ESModel {
 	constructor(options) {

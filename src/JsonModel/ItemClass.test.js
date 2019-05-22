@@ -1,4 +1,4 @@
-import {getModel} from './_helpers'
+import {getModel} from '../_test-helpers'
 
 class Foo {
 	getF() {
