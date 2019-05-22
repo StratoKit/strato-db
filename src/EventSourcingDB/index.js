@@ -166,7 +166,16 @@ class ESDB extends EventEmitter {
 					'SELECT json_extract(json, "$.v") AS v FROM metadata WHERE id="version"'
 				)
 				const v = vObj && Number(vObj.v)
-				if (v) await db.run(`PRAGMA user_version=${v}`)
+				if (!v) return
+				await db.run(`PRAGMA user_version=${v}`)
+				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
+				if (count === 1) {
+					await db.exec(
+						`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
+					)
+				} else {
+					await db.run(`DELETE FROM metadata WHERE id="version"`)
+				}
 			},
 		})
 
