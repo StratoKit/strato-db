@@ -286,6 +286,7 @@ class ESDB extends EventEmitter {
 		return Promise.all([
 			this.rwDb && this.rwDb.close(),
 			this.db !== this.rwDb && this.db.close(),
+			this.queue.db.close(),
 		])
 	}
 
