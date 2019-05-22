@@ -18,8 +18,10 @@ const getDuration = ts =>
 		maximumFractionDigits: 2,
 	})
 
-const objToString = o =>
-	inspect(o, {compact: true, breakLength: Infinity}).slice(0, 200)
+const objToString = o => {
+	const s = inspect(o, {compact: true, breakLength: Infinity})
+	return s.length > 250 ? `${s.slice(0, 250)}… (${s.length}b)` : s
+}
 
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
 
