@@ -1,7 +1,7 @@
 const {concurrent, rimraf} = require('nps-utils')
 const {version} = require('./package.json')
 
-const runBabel = `NODE_ENV=production babel -s true --ignore '**/__tests__' -D -d dist/`
+const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__snapshots__' -d dist/`
 const scripts = {
 	build: {
 		default: `nps build.clean build.babel`,
