@@ -15,7 +15,7 @@ import {
 import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
-import {settleAll} from '../settleAll'
+import {settleAll} from '../lib/settleAll'
 
 const dbg = debug('stratokit/JSON')
 const DEV = process.env.NODE_ENV !== 'production'

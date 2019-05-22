@@ -1,5 +1,4 @@
-
-import {getModel} from '../_test-helpers'
+import {getModel} from '../lib/_test-helpers'
 
 test('toObj nothing', () => {
 	const m = getModel()

@@ -1,7 +1,7 @@
-import DB from './DB'
-import ESDB from './EventSourcingDB'
-import EQ from './EventQueue'
-import JsonModel from './JsonModel'
+import DB from '../DB'
+import ESDB from '../EventSourcingDB'
+import EQ from '../EventQueue'
+import JsonModel from '../JsonModel'
 
 export {DB, JsonModel}
 

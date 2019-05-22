@@ -1,5 +1,5 @@
 import uuid from 'uuid'
-import {uniqueSlugId} from '../slugify'
+import {uniqueSlugId} from '../lib/slugify'
 
 const makeDefaultIdValue = idCol => obj => {
 	if (obj[idCol] != null) return obj[idCol]

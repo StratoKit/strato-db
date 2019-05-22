@@ -1,4 +1,4 @@
-import {DB, JsonModel, getModel} from '../_test-helpers'
+import {DB, JsonModel, getModel} from '../lib/_test-helpers'
 
 test('falsy migration', async () => {
 	const m = getModel({

@@ -1,5 +1,5 @@
 import {sql, valToSql} from '../DB'
-import {uniqueSlugId} from '../slugify'
+import {uniqueSlugId} from '../lib/slugify'
 import {get} from 'lodash'
 
 // eslint-disable-next-line complexity

@@ -2,7 +2,7 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import {chmod} from 'fs-extra'
 import ESDB from '.'
-import {testModels} from '../_test-helpers'
+import {testModels} from '../lib/_test-helpers'
 
 test('open eSDB read-only separate queue', () =>
 	tmp.withDir(

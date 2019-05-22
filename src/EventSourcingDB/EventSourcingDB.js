@@ -43,7 +43,7 @@ import DB from '../DB'
 import ESModel from '../ESModel'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
-import {settleAll} from '../settleAll'
+import {settleAll} from '../lib/settleAll'
 
 const dbg = debug('stratokit/ESDB')
 
