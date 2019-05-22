@@ -375,7 +375,7 @@ test('event error in apply', () => {
 			})
 		).resolves.toHaveProperty(
 			'error._apply-apply',
-			expect.stringContaining('set.map is not a function')
+			expect.stringContaining('.map is not a function')
 		)
 	})
 })

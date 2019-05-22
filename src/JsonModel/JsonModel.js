@@ -15,6 +15,7 @@ import {
 import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
+import {settleAll} from '../settleAll'
 
 const dbg = debug('stratokit/JSON')
 const DEV = process.env.NODE_ENV !== 'production'
@@ -645,7 +646,7 @@ class JsonModel {
 			const result = await this.search(attrs, {...options, cursor})
 			cursor = result.cursor
 			// eslint-disable-next-line no-await-in-loop
-			await Promise.all(result.items.map(v => fn(v, i++)))
+			await settleAll(result.items, v => fn(v, i++))
 		} while (cursor)
 	}
 
@@ -708,11 +709,11 @@ class JsonModel {
 			const {rm, set, ins, upd, sav, ...rest} = result
 			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
 		}
-		if (rm) await Promise.all(rm.map(item => this.remove(item)))
-		if (ins) await Promise.all(ins.map(obj => this.set(obj, true)))
-		if (set) await Promise.all(set.map(obj => this.set(obj)))
-		if (upd) await Promise.all(upd.map(obj => this.updateNoTrans(obj)))
-		if (sav) await Promise.all(sav.map(obj => this.updateNoTrans(obj, true)))
+		if (rm) await settleAll(rm, item => this.remove(item))
+		if (ins) await settleAll(ins, obj => this.set(obj, true))
+		if (set) await settleAll(set, obj => this.set(obj))
+		if (upd) await settleAll(upd, obj => this.updateNoTrans(obj))
+		if (sav) await settleAll(sav, obj => this.updateNoTrans(obj, true))
 	}
 }
 

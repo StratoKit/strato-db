@@ -43,6 +43,7 @@ import DB from '../DB'
 import ESModel from '../ESModel'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
+import {settleAll} from '../settleAll'
 
 const dbg = debug('stratokit/ESDB')
 
@@ -592,9 +593,14 @@ class ESDB extends EventEmitter {
 		await Promise.all(
 			this.reducerNames.map(async key => {
 				const model = this.reducerModels[key]
-				const out = await model.reducer(model, event).catch(error => ({
-					error: errorToString(error),
-				}))
+				let out
+				try {
+					out = await model.reducer(model, event)
+				} catch (error) {
+					out = {
+						error: errorToString(error),
+					}
+				}
 				result[key] = out
 			})
 		)
@@ -677,11 +683,10 @@ class ESDB extends EventEmitter {
 
 			if (result && !isEmpty(result)) {
 				phase = 'apply'
-				// Apply reducer results
-				await Promise.all(
-					Object.entries(result).map(
-						([name, r]) => r && rwStore[name].applyChanges(r)
-					)
+				// Apply reducer results, wait for all to settle
+				await settleAll(
+					Object.entries(result),
+					async ([name, r]) => r && rwStore[name].applyChanges(r)
 				)
 			}
 
@@ -693,17 +698,15 @@ class ESDB extends EventEmitter {
 			// Apply derivers
 			if (!event.error && this.deriverModels.length) {
 				phase = 'derive'
-				await Promise.all(
-					this.deriverModels.map(model =>
-						model.deriver({
-							model,
-							// TODO would this not better be the RO store?
-							store: this.rwStore,
-							event,
-							result,
-							dispatch: this._subDispatch.bind(this, event),
-						})
-					)
+				await settleAll(this.deriverModels, async model =>
+					model.deriver({
+						model,
+						// TODO would this not better be the RO store?
+						store: this.rwStore,
+						event,
+						result,
+						dispatch: this._subDispatch.bind(this, event),
+					})
 				)
 			}
 		} catch (error) {
