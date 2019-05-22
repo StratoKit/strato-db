@@ -78,17 +78,6 @@ const registerHistoryMigration = (rwDb, queue) => {
 	})
 }
 
-const screenLine = '\n!!! -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n'
-const showHugeDbError = (err, where) => {
-	if (process.env.NODE_ENV !== 'test') {
-		console.error(
-			`${screenLine}!!! SEVERE ERROR in ${where} !!!${screenLine}`,
-			err,
-			screenLine
-		)
-	}
-}
-
 const errorToString = error => {
 	const msg = error
 		? error.stack || error.message || String(error)
@@ -710,8 +699,6 @@ class ESDB extends EventEmitter {
 				)
 			}
 		} catch (error) {
-			// This can happen when DB has an issue
-			showHugeDbError(error, phase)
 			if (event.result) {
 				event.failedResult = event.result
 				delete event.result
