@@ -58,6 +58,7 @@ module.exports = {
 		'space-infix-ops': 0,
 		'unicorn/explicit-length-check': 0,
 		'unicorn/filename-case': 0,
+		'unicorn/prevent-abbreviations': 0,
 		curly: 0,
 		indent: 0,
 		quotes: 0,
