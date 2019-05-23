@@ -341,7 +341,7 @@ class ESDB extends EventEmitter {
 	// Only use this for testing
 	async _dispatchWithError(type, data, ts) {
 		const event = await this.queue.add(type, data, ts)
-		this._stopPollingOnError = true
+		this.__STOP_ON_ERROR = true
 		await this.startPolling(event.v)
 		const result = await this.queue.get(event.v)
 		if (result.error) throw result
@@ -515,18 +515,20 @@ class ESDB extends EventEmitter {
 			if (!resultEvent) continue // Another process handled the event
 
 			if (resultEvent.error) {
+				errorCount++
 				if (!this.__BE_QUIET)
 					console.error(
-						`!!! ESDB: event ${event.type} processing failed`,
+						`!!! ESDB: event ${
+							event.type
+						} processing failed (try #${errorCount})`,
 						resultEvent.error
 					)
-				errorCount++
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
 			this._triggerEventListeners(resultEvent)
 
-			if (this._reallyStop || (errorCount && this._stopPollingOnError)) {
+			if (this._reallyStop || (errorCount && this.__STOP_ON_ERROR)) {
 				this._reallyStop = false
 				return
 			}
