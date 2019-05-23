@@ -6,11 +6,9 @@ test('work', () => {
 			preprocessor: ({event, dispatch}) => {
 				if (event.type === 'hi') dispatch('hello')
 			},
-			reducer: (model, event) => {
-				return {
-					set: [{id: event.type}],
-					events: event.type === 'hi' && [{type: 'everybody'}],
-				}
+			reducer: (model, event, {dispatch}) => {
+				if (event.type === 'hi') dispatch('everybody')
+				return {set: [{id: event.type}]}
 			},
 			deriver: ({event, dispatch}) => {
 				if (event.type === 'hi') dispatch('there')
@@ -30,9 +28,9 @@ test('work', () => {
 test('depth first order', () => {
 	const models = {
 		foo: {
-			reducer: (model, event) => {
+			reducer: (model, event, {dispatch}) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
-				if (event.type === '3') return {events: [{type: '4'}]}
+				if (event.type === '3') dispatch('4')
 			},
 			deriver: async ({model, event, dispatch}) => {
 				if (event.type === 'hi') {

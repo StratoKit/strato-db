@@ -196,8 +196,8 @@ class ESDB extends EventEmitter {
 				if (RWModel === ESModel) {
 					if (reducer) {
 						const prev = reducer
-						reducer = async (model, event) => {
-							const result = await prev(model, event)
+						reducer = async (model, event, helpers) => {
+							const result = await prev(model, event, helpers)
 							if (!result && event.type === model.TYPE)
 								return ESModel.reducer(model, event)
 							return result
@@ -580,12 +580,17 @@ class ESDB extends EventEmitter {
 	async _reducer(event) {
 		const result = {}
 		const events = event.events || []
+		const helpers = {
+			store: this.store,
+			dispatch: this._subDispatch.bind(this, event),
+			event,
+		}
 		await Promise.all(
 			this.reducerNames.map(async key => {
 				const model = this.reducerModels[key]
 				let out
 				try {
-					out = await model.reducer(model, event)
+					out = await model.reducer(model, event, helpers)
 				} catch (error) {
 					out = {
 						error: errorToString(error),
