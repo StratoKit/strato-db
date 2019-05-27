@@ -5,7 +5,7 @@
 // Events all type `es/name` and data `[actionEnum, id, obj]`
 // The id is assigned by the preprocessor except for RM
 
-import JsonModel from './JsonModel'
+import JsonModel from '../JsonModel'
 
 export const undefToNull = data => {
 	if (data == null) return null

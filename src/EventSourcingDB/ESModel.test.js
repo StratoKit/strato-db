@@ -1,5 +1,5 @@
 import ESModel, {undefToNull, getId} from './ESModel'
-import {withESDB} from './lib/_test-helpers'
+import {withESDB} from '../lib/_test-helpers'
 
 class ESModelCustomId extends ESModel {
 	constructor(options) {
@@ -128,7 +128,7 @@ test('set w/o id int', () =>
 	withESDB(
 		async eSDB => {
 			const sampleWithoutId = {
-				sampleObject,
+				...sampleObject,
 				id: undefined,
 			}
 			await Promise.all([
