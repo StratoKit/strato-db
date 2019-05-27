@@ -96,6 +96,7 @@
 
 ### Nice to have
 
+- [ ] split DB into multiple files, per 1GB, automatically attach for queries. (make sure it's multi-process safe - lock the db, make sure new writes are not possible in old files)
 - [ ] cancellable getNext Promise
 - [ ] test multi-process changes
 
