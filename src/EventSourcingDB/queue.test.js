@@ -1,6 +1,5 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
-import {JsonModel} from '..'
 import ESDB from '.'
 import {withESDB, testModels} from '../lib/_test-helpers'
 

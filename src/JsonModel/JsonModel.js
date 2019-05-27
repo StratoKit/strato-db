@@ -16,21 +16,9 @@ import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
+import {DEV, deprecated, unknown} from '../lib/warning'
 
 const dbg = debug('stratokit/JSON')
-const DEV = process.env.NODE_ENV !== 'production'
-let deprecated, unknown
-if (DEV) {
-	const warned = {}
-	const warner = type => (tag, msg) => {
-		if (warned[tag]) return
-		warned[tag] = true
-		// eslint-disable-next-line no-console
-		console.error(new Error(`!!! ${type} ${msg}`))
-	}
-	deprecated = warner('DEPRECATED')
-	unknown = warner('UNKNOWN')
-}
 
 // ItemClass: Object-like class that can be assigned to like Object
 // columns: object with column names each having an object with
@@ -211,7 +199,7 @@ class JsonModel {
 			.join()})`
 		const insertSql = `INSERT ${setSql}`
 		const updateSql = `INSERT OR REPLACE ${setSql}`
-		return async (o, insertOnly) => {
+		return async (o, insertOnly, noReturn) => {
 			const obj = cloneObj(o)
 			const results = await Promise.all(
 				valueCols.map(col =>
@@ -237,23 +225,24 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			return this.db
-				.run(insertOnly ? insertSql : updateSql, colVals)
-				.then(result => {
-					// Return what get(id) would return
-					const newObj = Item ? new Item() : {}
-					setCols.forEach(col => {
-						const val = colVals[col.i]
-						const v = col.parse ? col.parse(val) : val
-						if (col.path === '') Object.assign(newObj, v)
-						else set(newObj, col.path, v)
-					})
-					if (newObj[this.idCol] == null) {
-						// This can only happen for integer ids, so we use the last inserted rowid
-						newObj[this.idCol] = result.lastID
-					}
-					return newObj
-				})
+			const P = this.db.run(insertOnly ? insertSql : updateSql, colVals)
+			return noReturn
+				? P
+				: P.then(result => {
+						// Return what get(id) would return
+						const newObj = Item ? new Item() : {}
+						setCols.forEach(col => {
+							const val = colVals[col.i]
+							const v = col.parse ? col.parse(val) : val
+							if (col.path === '') Object.assign(newObj, v)
+							else set(newObj, col.path, v)
+						})
+						if (newObj[this.idCol] == null) {
+							// This can only happen for integer ids, so we use the last inserted rowid
+							newObj[this.idCol] = result.lastID
+						}
+						return newObj
+				  })
 		}
 	}
 
@@ -653,27 +642,27 @@ class JsonModel {
 	// --- Mutator methods below ---
 
 	// Contract: All subclasses use set() to store values
-	set(obj, insertOnly) {
+	set(...args) {
 		// we cannot store `set` directly on the instance because it would override subclass `set` functions
-		return this._set(obj, insertOnly)
+		return this._set(...args)
 	}
 
 	// Change only the given fields, shallowly
 	// upsert: also allow inserting
-	async updateNoTrans(obj, upsert) {
+	async updateNoTrans(obj, upsert, noReturn) {
 		if (!obj) throw new Error('update() called without object')
 		const id = obj[this.idCol]
 		if (id == null) {
 			if (!upsert) throw new Error('Can only update object with id')
-			return this.set(obj)
+			return this.set(obj, false, noReturn)
 		}
 		const prev = await this.get(id)
 		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
-		return this.set({...prev, ...obj})
+		return this.set({...prev, ...obj}, false, noReturn)
 	}
 
-	update(obj, upsert) {
-		return this.db.withTransaction(() => this.updateNoTrans(obj, upsert))
+	update(...args) {
+		return this.db.withTransaction(() => this.updateNoTrans(...args))
 	}
 
 	remove(idOrObj) {
@@ -707,13 +696,15 @@ class JsonModel {
 		const {rm, set, ins, upd, sav} = result
 		if (DEV) {
 			const {rm, set, ins, upd, sav, ...rest} = result
-			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
+			Object.keys(rest).forEach(
+				k => typeof rest[k] !== 'undefined' && unknown(k, `key ${k} in result`)
+			)
 		}
 		if (rm) await settleAll(rm, item => this.remove(item))
-		if (ins) await settleAll(ins, obj => this.set(obj, true))
-		if (set) await settleAll(set, obj => this.set(obj))
-		if (upd) await settleAll(upd, obj => this.updateNoTrans(obj))
-		if (sav) await settleAll(sav, obj => this.updateNoTrans(obj, true))
+		if (ins) await settleAll(ins, obj => this.set(obj, true, true))
+		if (set) await settleAll(set, obj => this.set(obj, false, true))
+		if (upd) await settleAll(upd, obj => this.updateNoTrans(obj, true, true))
+		if (sav) await settleAll(sav, obj => this.updateNoTrans(obj, false, true))
 	}
 }
 

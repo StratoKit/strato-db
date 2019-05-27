@@ -6,6 +6,7 @@
 // The id is assigned by the preprocessor except for RM
 
 import JsonModel from '../JsonModel'
+import {DEV} from '../lib/warning'
 
 export const undefToNull = data => {
 	if (data == null) return null
@@ -54,23 +55,36 @@ class ESModel extends JsonModel {
 		this.writable = state
 	}
 
-	async set(obj, insertOnly, meta) {
-		if (this.writable) return super.set(obj, insertOnly)
+	async set(obj, insertOnly, noReturn, meta) {
+		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
+			throw new Error(`${this.name}: meta argument is now in fourth position`)
+		if (this.writable) return super.set(obj, insertOnly, noReturn)
 
 		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
-		if (meta) d.push(meta)
+		if (meta) d[3] = meta
 
 		const {
 			data,
+			// We know this is always present, our reducer always
 			result: {[this.name]: r},
 		} = await this.dispatch(this.TYPE, d)
-		if (r.esFail) throw new Error(`${this.name}.set ${data[1]}: ${r.esFail}`)
-		const out = r.ins ? r.ins[0] : r.set[0]
-		return this.Item ? Object.assign(new this.Item(), out) : out
+		const id = data[1]
+
+		if (r.esFail) throw new Error(`${this.name}.set ${id}: ${r.esFail}`)
+
+		// We have to get because we don't know what calculated values did
+		// Unfortunately, this might be the object after a later event
+		return noReturn ? undefined : this.get(id)
 	}
 
-	async update(o, upsert, meta) {
-		if (this.writable) return super.update(o, upsert)
+	async update(o, upsert, noReturn, meta) {
+		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
+			throw new Error(`${this.name}: meta argument is now in fourth position`)
+
+		if (this.writable) return super.update(o, upsert, noReturn)
+
+		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
+			throw new Error(`${this.name}: meta argument is now in fourth position`)
 		let id = o[this.idCol]
 		if (id == null && !upsert) throw new TypeError('No ID specified')
 
@@ -82,10 +96,11 @@ class ESModel extends JsonModel {
 			result: {[this.name]: r},
 		} = await this.dispatch(this.TYPE, d)
 		id = data[1]
+
 		if (r.esFail) throw new Error(`${this.name}.update ${id}: ${r.esFail}`)
-		if (r.ins)
-			return this.Item ? Object.assign(new this.Item(), r.ins[0]) : r.ins[0]
-		// Note, his could return a later version of the object
+
+		// We have to get because we don't know what calculated values did
+		// Unfortunately, this might be the object after a later event
 		return this.get(id)
 	}
 
@@ -120,7 +135,7 @@ class ESModel extends JsonModel {
 	async applyChanges(result) {
 		if (result.esFail) return
 		this._maxId = 0
-		return super.applyChanges(result)
+		return super.applyChanges({...result, esFail: undefined})
 	}
 
 	static async preprocessor({model, event}) {

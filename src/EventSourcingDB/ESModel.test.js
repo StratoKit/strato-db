@@ -24,6 +24,7 @@ class ESModelIntId extends ESModel {
 					index: true,
 					type: 'INTEGER',
 				},
+				calc: {value: o => o.myId || 0},
 			},
 			idCol: 'myId',
 		})
@@ -142,6 +143,23 @@ test('set w/o id int', () =>
 		{test: {Model: ESModelIntId}}
 	))
 
+test('set w/ calc value', () =>
+	withESDB(
+		async eSDB => {
+			const sampleWithoutId = {
+				...sampleObject,
+				id: undefined,
+			}
+			await expect(
+				eSDB.store.test.set(sampleWithoutId)
+			).resolves.toHaveProperty('calc', 1)
+			await expect(
+				eSDB.store.test.update({myId: 1, calc: 5})
+			).resolves.toHaveProperty('calc', 1)
+		},
+		{test: {Model: ESModelIntId}}
+	))
+
 test('set insertOnly', () =>
 	withESDB(
 		async eSDB => {
@@ -219,6 +237,7 @@ test('update upsert w/o id', () =>
 			expect(await eSDB.store.test.update({top: 'kek'}, true)).toEqual({
 				myId: 1,
 				top: 'kek',
+				calc: 1,
 			})
 		},
 		{test: {Model: ESModelIntId}}
@@ -325,10 +344,10 @@ test('metadata in event', () =>
 	withESDB(
 		async (eSDB, queue) => {
 			const {m} = eSDB.store
-			await m.set({meep: 'moop'}, null, {meta: 1})
-			await m.update({id: 1, beep: 'boop'}, null, {meta: 2})
-			await m.set({meep: 'moop'}, true, {meta: 3})
-			await m.update({id: 3, beep: 'boop'}, true, 'hi')
+			await m.set({meep: 'moop'}, null, true, {meta: 1})
+			await m.update({id: 1, beep: 'boop'}, null, true, {meta: 2})
+			await m.set({meep: 'moop'}, true, true, {meta: 3})
+			await m.update({id: 3, beep: 'boop'}, true, true, 'hi')
 			await m.set({})
 			await m.remove(3, {meta: 4})
 			await m.remove(2)
