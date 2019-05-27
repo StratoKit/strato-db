@@ -10,6 +10,7 @@
 - `DB.models` was renamed to `DB.store` for consistency with ESDB and also to be different from the `models` option. `DB.models` still works but will output an error on first use in non-production.
 - DB connections now set `PRAGMA recursive_triggers`
 - In NODE_ENV=development, the order of unordered query results will sometimes be reversed to show where ordering is not consistent. In test this is not done since the ordering is always the same and used in snapshots etc.
+- The `meta` argument in ESModel `.set` and `.update` moved to 4th position to make room for `noResult`
 
 ### Changes
 
@@ -21,6 +22,7 @@
 - DB, JsonModel, EventSourcingDB: Better debugging information for queries and errors
 - DB: limit WAL file size after transaction to 4MB
 - DB: run `PRAGMA optimize` every 2 hours
+- JsonModel: `.set` and `.update` take the `noReturn` boolean as their 3rd argument to indicate they don't have to return the value, as an optimization
 
 ## 2.3.3
 
