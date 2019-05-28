@@ -6,7 +6,10 @@
 - [ ] Try to clean up the API, make it consistent between classes. Ideas:
   - DB and ESDB to have same API surface (.addModel)
   - join JsonModel and ESModel code, switch behavior based on `dispatch` option
-- [ ] optimize
+- Optimize:
+  - [ ] create benchmark
+  - [ ] use prepared statements in JsonModel
+  - [ ] API to get prepared statements from JM .search
 
 ## node-sqlite3
 
@@ -18,6 +21,8 @@
 
 ### Nice to have
 
+- [ ] perform logging on prepared statements
+- [ ] intercept/recreate prepared statements on db close
 - [ ] accept column def and create/add if needed, using pragma table_info
 
   ```text
@@ -29,14 +34,6 @@
   ```
 
 - [ ] manage indexes, using PRAGMA index_list. Drop unused indexes with \_strato prefix
-- [ ] prepared statements
-  - similar to makeSelect, but cannot change sort etc.
-  - `where` values can change, just not the amount of items in arrays
-  - calling them ensures serial access because of binding
-  - => prepare, allow .get/all/etc; while those are active calls are queued up
-    https://github.com/mapbox/node-sqlite3/wiki/API#statementbindparam--callback
-  - [ ] what happens with them on schema change?
-  - When using prepared statements, replace `IN (?,?,?)` tests with `IN (select value from json_each(?))` and pass the array as a JSON string. That way the prepared statement can handle any array length
 - [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
 
 ### Someday
@@ -81,6 +78,7 @@
   - However, `whereVal` values should be allowed to change
   - But `where` should stay the same and should not be recalculated, best if it is not a function. Most of the time this can be done
   - Probably `.makeSelect()` would need to return an intermediate query object
+  - Note: When using prepared statements, replace `IN (?,?,?)` clauses with `IN (SELECT value FROM json_each(?))` and pass the array as a JSON string. That way the prepared statement can handle any array length
 - Benchmark test that warns if runtime increases on current system
   - getting/setting can be optimized by creating Functions instead of lodash get/set, but first create benchmark
   - it's probably better to always create same object from columns and then assign json if not null
