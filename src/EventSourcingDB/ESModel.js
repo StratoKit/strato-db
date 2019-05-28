@@ -58,7 +58,11 @@ class ESModel extends JsonModel {
 	async set(obj, insertOnly, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
-		if (this.writable) return super.set(obj, insertOnly, noReturn)
+		if (this.writable) {
+			const id = obj[this.idCol]
+			if (id > this._maxId) this._maxId = id
+			return super.set(obj, insertOnly, noReturn)
+		}
 
 		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
 		if (meta) d[3] = meta
