@@ -197,7 +197,7 @@ test('marks migrations as ran', async () => {
 	})
 	await db.openDB()
 	const ran = await db._getRanMigrations()
-	expect(ran).toEqual({'a whee': true, 'b whee': true}) // eslint-disable-line camelcase
+	expect(ran).toEqual({'a whee': true, 'b whee': true})
 	await db.close()
 })
 
