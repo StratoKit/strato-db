@@ -62,7 +62,7 @@ test('getNext(undef/0)', async () => {
 test('getNext() waits', async () => {
 	const m = getModel()
 	await m.setKnownV(10)
-	expect(await m.get({v: 11})).toBeFalsy()
+	expect(await m.get(11)).toBeFalsy()
 	const p = m.getNext()
 	await m.add('t')
 	const e = await p

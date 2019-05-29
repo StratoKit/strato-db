@@ -197,8 +197,8 @@ class JsonModel {
 		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
 			.map(() => '?')
 			.join()})`
-		const insertSql = `INSERT ${setSql}`
-		const updateSql = `INSERT OR REPLACE ${setSql}`
+		const insertSql = this.db.prepare(`INSERT ${setSql}`)
+		const updateSql = this.db.prepare(`INSERT OR REPLACE ${setSql}`)
 		return async (o, insertOnly, noReturn) => {
 			const obj = cloneObj(o)
 			const results = await Promise.all(
@@ -225,7 +225,7 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			const P = this.db.run(insertOnly ? insertSql : updateSql, colVals)
+			const P = (insertOnly ? insertSql : updateSql).run(colVals)
 			return noReturn
 				? P
 				: P.then(result => {
@@ -393,6 +393,7 @@ class JsonModel {
 					if (Array.isArray(val)) {
 						vals.push(...val)
 					} else {
+						// eslint-disable-next-line max-depth
 						if (val)
 							throw new Error(`whereVal for ${a} should return array or falsy`)
 						valid = false
@@ -559,9 +560,11 @@ class JsonModel {
 	}
 
 	all() {
-		return this.db
-			.all(`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`)
-			.then(this.toObj)
+		if (!this._allSql)
+			this._allSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`
+			)
+		return this._allSql.all().then(this.toObj)
 	}
 
 	get(id, colName = this.idCol) {
@@ -570,28 +573,33 @@ class JsonModel {
 				new Error(`No "${colName}" given for "${this.name}"`)
 			)
 		}
-		const where = this.columns[colName].sql
-		return this.db
-			.get(
+		if (!this.columns[colName]._getSql) {
+			const where = this.columns[colName].sql
+			this.columns[colName]._getSql = this.db.prepare(
 				`SELECT ${this.selectColsSql} FROM ${
 					this.quoted
-				} tbl WHERE ${where} = ?`,
-				[id]
+				} tbl WHERE ${where} = ?`
 			)
-			.then(this.toObj)
+		}
+		return this.columns[colName]._getSql.get([id]).then(this.toObj)
 	}
 
 	async getAll(ids, colName = this.idCol) {
-		const qs = ids.map(() => '?').join()
-		const {sql: where, path, real, get: isSelected} = this.columns[colName]
-		if (real && !isSelected)
-			throw new Error(`JsonModel: Cannot getAll on get:false column ${colName}`)
-		const rows = await this.db.all(
-			`SELECT ${this.selectColsSql} FROM ${
-				this.quoted
-			} tbl WHERE ${where} IN (${qs})`,
-			ids
-		)
+		let {path, _getAllSql} = this.columns[colName]
+		if (!_getAllSql) {
+			const {sql: where, real, get: isSelected} = this.columns[colName]
+			if (real && !isSelected)
+				throw new Error(
+					`JsonModel: Cannot getAll on get:false column ${colName}`
+				)
+			_getAllSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${
+					this.quoted
+				} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`
+			)
+			this.columns[colName]._getAllSql = _getAllSql
+		}
+		const rows = await _getAllSql.all([JSON.stringify(ids)])
 		const objs = this.toObj(rows)
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
@@ -667,10 +675,12 @@ class JsonModel {
 
 	remove(idOrObj) {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		return this.db.run(
-			`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
-			id
-		)
+		if (!this._deleteSql)
+			this._deleteSql = this.db.prepare(
+				`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
+				id
+			)
+		return this._deleteSql.run([id])
 	}
 
 	delete(idOrObj) {
@@ -680,16 +690,18 @@ class JsonModel {
 
 	changeId(oldId, newId) {
 		if (newId == null) throw new TypeError('newId must be a valid id')
-		const {quoted} = this.columns[this.idCol]
-		return this.db
-			.run(`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`, [
-				newId,
-				oldId,
-			])
-			.then(({changes}) => {
-				if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
-				return undefined
-			})
+		let {_changeIdSql} = this.columns[this.idCol]
+		if (!_changeIdSql) {
+			const {quoted} = this.columns[this.idCol]
+			_changeIdSql = this.db.prepare(
+				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`
+			)
+			this.columns[this.idCol]._changeIdSql = _changeIdSql
+		}
+		return _changeIdSql.run([newId, oldId]).then(({changes}) => {
+			if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
+			return undefined
+		})
 	}
 
 	async applyChanges(result) {
