@@ -313,6 +313,6 @@ test('DB methods: errors with filename', async () => {
 	await expect(db.all('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.exec('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.each('bad sql haha')).rejects.toThrow(':memory:')
-	await expect(db.prepare('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.prepare('bad sql haha').get()).rejects.toThrow(':memory:')
 	await db.close()
 })

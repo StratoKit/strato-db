@@ -63,6 +63,7 @@ sql.quoteId = quoteSqlId
 let connId = 1
 // This class lazily creates the db
 // TODO event emitter proxying the sqlite3 events
+// TODO split in sqlite wrapper and migrationable with onDidOpen handler
 class DB {
 	constructor({
 		file,
@@ -72,6 +73,7 @@ class DB {
 		name,
 		_sqlite,
 		_store = {},
+		_statements = {},
 		_migrations = [],
 		...rest
 	} = {}) {
@@ -83,6 +85,7 @@ class DB {
 		this._isChild = !!_sqlite
 		this._sqlite = _sqlite
 		this.store = _store
+		this.statements = _statements
 		this.options = {onWillOpen, verbose, migrations: _migrations}
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
@@ -179,6 +182,7 @@ class DB {
 			)
 			this._optimizerToken.unref()
 			await childDb.runMigrations()
+			await childDb.close()
 			this.migrationsRan = true
 		}
 
@@ -203,15 +207,18 @@ class DB {
 	}
 
 	async close() {
-		dbg('closing', this.file)
+		dbg('closing', this._isChild ? 'child' : this.file)
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
+		// eslint-disable-next-line no-await-in-loop
+		for (const stmt of Object.values(this.statements)) await stmt.finalize()
+		if (this._isChild) return
 		const {_sqlite} = this
 		this._sqlite = null
 		clearInterval(this._optimizerToken)
 		if (this._dbP) await this._dbP
-		if (_sqlite) await this._call('close', [], _sqlite)
+		if (_sqlite) await this._call('close', [], _sqlite, this.name)
 
 		return this
 	}
@@ -222,33 +229,58 @@ class DB {
 		return this._sqlite
 	}
 
-	async _call(method, args, _sqlite, returnThis, returnFn) {
-		const {name} = this
-		if (!_sqlite) _sqlite = await this._hold(method, args)
-		if (Array.isArray(args[0])) {
+	// eslint-disable-next-line max-params
+	async _call(method, args, obj, name, returnThis, returnFn) {
+		const isStmt = obj && obj.isStatement
+		let _sqlite
+		if (!obj) _sqlite = await this._hold(method)
+		else if (isStmt) _sqlite = obj._stmt
+		else _sqlite = obj
+		if (!_sqlite)
+			throw new Error(`${name}: sqlite or statement not initialized`)
+
+		// Template strings
+		if (!isStmt && Array.isArray(args[0])) {
 			args = sql(...args)
 			if (!args[1].length) args.pop()
 		}
+
 		const now = dbgQ.enabled ? performance.now() : undefined
 		let fnResult
 		const result = new Promise((resolve, reject) => {
 			// We need to consume `this` from sqlite3 callback
-			fnResult = _sqlite[method](...args, function(err, out) {
+			const cb = function(err, out) {
 				if (err) reject(new Error(`${name}: sqlite3: ${err.message}`))
-				else resolve(returnFn ? fnResult : returnThis ? this : out)
-			})
+				else
+					resolve(
+						returnFn
+							? fnResult
+							: returnThis
+							? {lastID: this.lastID, changes: this.changes}
+							: out
+					)
+			}
+			if (!_sqlite[method])
+				return cb({message: `method ${method} not supported`})
+			fnResult = _sqlite[method](...(args || []), cb)
 		})
 		if (dbgQ.enabled) {
 			const what = `${name}.${method}`
-			const q = String(args[0]).replace(/\s+/g, ' ')
-			const v = args[1] ? objToString(args[1]) : ''
+			const q = isStmt ? `` : String(args[0]).replace(/\s+/g, ' ')
+			const v = args
+				? isStmt
+					? objToString(args)
+					: objToString(args[isStmt ? 0 : 1])
+				: ''
 			// eslint-disable-next-line promise/catch-or-return
 			result.then(
 				o => {
 					if (returnFn) o = fnResult
 					const d = getDuration(now)
 					const out =
-						method !== 'exec' && method !== 'run' ? `-> ${objToString(o)}` : ''
+						method !== 'exec' && method !== 'run' && method !== 'prepare'
+							? `-> ${objToString(o)}`
+							: ''
 					return dbgQ(`${what} ${q} ${v} ${d}ms ${out}`)
 				},
 				err => {
@@ -261,31 +293,25 @@ class DB {
 	}
 
 	all(...args) {
-		return this._call('all', args, this._sqlite)
+		return this._call('all', args, this._sqlite, this.name)
 	}
 
 	get(...args) {
-		return this._call('get', args, this._sqlite)
+		return this._call('get', args, this._sqlite, this.name)
 	}
 
 	run(...args) {
-		return this._call('run', args, this._sqlite, true)
+		return this._call('run', args, this._sqlite, this.name, true)
 	}
 
 	async exec(...args) {
-		await this._call('exec', args, this._sqlite)
+		await this._call('exec', args, this._sqlite, this.name)
 		return this
 	}
 
-	async prepare(...args) {
-		const prepared = await this._call(
-			'prepare',
-			args,
-			this._sqlite,
-			false,
-			true
-		)
-		return new Statement(this, prepared)
+	prepare(sql) {
+		if (this.statements[sql]) return this.statements[sql]
+		return new Statement(this, sql)
 	}
 
 	each(...args) {
@@ -295,7 +321,7 @@ class DB {
 			const onRow = args[lastIdx]
 			args[lastIdx] = (_, row) => onRow(row)
 		}
-		return this._call('each', args, this._sqlite)
+		return this._call('each', args, this._sqlite, this.name)
 	}
 
 	async dataVersion() {

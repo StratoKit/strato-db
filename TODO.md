@@ -21,8 +21,6 @@
 
 ### Nice to have
 
-- [ ] perform logging on prepared statements
-- [ ] intercept/recreate prepared statements on db close
 - [ ] accept column def and create/add if needed, using pragma table_info
 
   ```text
