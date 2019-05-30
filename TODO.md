@@ -81,6 +81,7 @@
   - getting/setting can be optimized by creating Functions instead of lodash get/set, but first create benchmark
   - it's probably better to always create same object from columns and then assign json if not null
 - Test for `uniqueSlugId`
+- Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
 
 ## Queue
 

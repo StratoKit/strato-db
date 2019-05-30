@@ -151,6 +151,7 @@ class ESModel extends JsonModel {
 		}
 	}
 
+	// ESModel will only emit rm, ins, upd and esFail
 	static async reducer(model, {type, data}) {
 		if (!model || type !== model.TYPE) return false
 
@@ -166,7 +167,7 @@ class ESModel extends JsonModel {
 
 		switch (action) {
 			case ESModel.SET:
-				return exists ? {set: [obj]} : {ins: [obj]}
+				return exists ? {rm: [obj.id], ins: [obj]} : {ins: [obj]}
 			case ESModel.INSERT:
 				return exists ? {esFail: 'EEXIST'} : {ins: [obj]}
 			case ESModel.UPDATE:
