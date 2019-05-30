@@ -8,11 +8,11 @@ const dbg = debug('stratokit/DB:stmt')
 
 let id = 0
 class Statement {
-	constructor(db, sql) {
+	constructor(db, sql, name) {
 		db.statements[sql] = this
 		this._sql = sql
 		this._db = db
-		this.name = `${db.name}{${id++}}`
+		this.name = `${db.name}{${id++}${name ? ` ${name}` : ''}}}`
 	}
 
 	get isStatement() {

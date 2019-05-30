@@ -309,9 +309,9 @@ class DB {
 		return this
 	}
 
-	prepare(sql) {
+	prepare(sql, name) {
 		if (this.statements[sql]) return this.statements[sql]
-		return new Statement(this, sql)
+		return new Statement(this, sql, name)
 	}
 
 	each(...args) {

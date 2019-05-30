@@ -197,8 +197,11 @@ class JsonModel {
 		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
 			.map(() => '?')
 			.join()})`
-		const insertSql = this.db.prepare(`INSERT ${setSql}`)
-		const updateSql = this.db.prepare(`INSERT OR REPLACE ${setSql}`)
+		const insertSql = this.db.prepare(`INSERT ${setSql}`, `ins ${this.name}`)
+		const updateSql = this.db.prepare(
+			`INSERT OR REPLACE ${setSql}`,
+			`set ${this.name}`
+		)
 		return async (o, insertOnly, noReturn) => {
 			const obj = cloneObj(o)
 			const results = await Promise.all(
@@ -562,7 +565,8 @@ class JsonModel {
 	all() {
 		if (!this._allSql)
 			this._allSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`,
+				`all ${this.name}`
 			)
 		return this._allSql.all().then(this.toObj)
 	}
@@ -578,7 +582,8 @@ class JsonModel {
 			this.columns[colName]._getSql = this.db.prepare(
 				`SELECT ${this.selectColsSql} FROM ${
 					this.quoted
-				} tbl WHERE ${where} = ?`
+				} tbl WHERE ${where} = ?`,
+				`get ${this.name}.${colName}`
 			)
 		}
 		return this.columns[colName]._getSql.get([id]).then(this.toObj)
@@ -595,7 +600,8 @@ class JsonModel {
 			_getAllSql = this.db.prepare(
 				`SELECT ${this.selectColsSql} FROM ${
 					this.quoted
-				} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`
+				} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
+				`get ${this.name}.${colName}`
 			)
 			this.columns[colName]._getAllSql = _getAllSql
 		}
@@ -678,7 +684,7 @@ class JsonModel {
 		if (!this._deleteSql)
 			this._deleteSql = this.db.prepare(
 				`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
-				id
+				`del ${this.name}`
 			)
 		return this._deleteSql.run([id])
 	}
@@ -694,7 +700,8 @@ class JsonModel {
 		if (!_changeIdSql) {
 			const {quoted} = this.columns[this.idCol]
 			_changeIdSql = this.db.prepare(
-				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`
+				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`,
+				`mv ${this.name}`
 			)
 			this.columns[this.idCol]._changeIdSql = _changeIdSql
 		}
