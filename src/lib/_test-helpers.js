@@ -91,6 +91,5 @@ const withDBs = async fn => {
 export const withESDB = (fn, models = testModels) =>
 	withDBs((db, queue) => {
 		const eSDB = new ESDB({queue, models, name: 'E'})
-		eSDB.__STOP_ON_ERROR = true
 		return fn(eSDB, queue)
 	})

@@ -528,7 +528,11 @@ class ESDB extends EventEmitter {
 
 			this._triggerEventListeners(resultEvent)
 
-			if (this._reallyStop || (errorCount && this.__STOP_ON_ERROR)) {
+			if (
+				this._reallyStop ||
+				(errorCount &&
+					(this.__STOP_ON_ERROR || process.env.NODE_ENV === 'test'))
+			) {
 				this._reallyStop = false
 				return
 			}
