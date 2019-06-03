@@ -33,6 +33,7 @@
 
 - [ ] manage indexes, using PRAGMA index_list. Drop unused indexes with \_strato prefix
 - [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
+- [ ] support better-sqlite if it's ok for the main thread to hang
 
 ### Someday
 
@@ -82,6 +83,7 @@
   - it's probably better to always create same object from columns and then assign json if not null
 - Test for `uniqueSlugId`
 - Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
+- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
 
 ## Queue
 
@@ -106,3 +108,4 @@
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
 - [ ] split up into more files, move tests
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
+- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
