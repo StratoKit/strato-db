@@ -320,6 +320,22 @@ test('preprocessor', () => {
 	)
 })
 
+test('init', () =>
+	withESDB(
+		async eSDB => {
+			await eSDB.waitForQueue()
+			const {m} = eSDB.store
+			expect(await m.exists({id: 'yey'})).toBeTruthy()
+		},
+		{
+			m: {
+				init: true,
+				reducer: (model, event) =>
+					event.type === model.INIT ? {ins: [{id: 'yey'}]} : false,
+			},
+		}
+	))
+
 test('events', () =>
 	withESDB(
 		async (eSDB, queue) => {

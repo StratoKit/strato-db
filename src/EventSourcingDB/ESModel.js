@@ -69,13 +69,21 @@ class ESModel extends JsonModel {
 	static SAVE = 4
 	/* eslint-enable lines-between-class-members */
 
-	constructor({dispatch, ...options}) {
-		super(options)
+	constructor({dispatch, init, ...options}) {
+		super({
+			...options,
+			migrations: {
+				...options.migrations,
+				'0_init': init && (({queue}) => queue.add(this.INIT)),
+			},
+		})
 		this.dispatch = dispatch
 		this.writable = false
 	}
 
 	TYPE = `es/${this.name}`
+
+	INIT = `es/INIT:${this.name}`
 
 	setWritable(state) {
 		// Slight hack: use the writable state to fall back to JsonModel behavior

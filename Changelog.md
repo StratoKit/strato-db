@@ -20,6 +20,7 @@
   - make error handling more robust
   - simplify redux loop
   - retry failed events with increasing timeouts and exit program after an hour
+- ESModel will now emit a `${model.INIT}` event to allow setting up the table, if you pass `init: true`
 - DB, JsonModel, EventSourcingDB: Better debugging information for queries and errors
 - DB: limit WAL file size after transaction to 4MB
 - DB: run `PRAGMA optimize` every 2 hours
