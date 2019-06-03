@@ -516,13 +516,28 @@ class ESDB extends EventEmitter {
 
 			if (resultEvent.error) {
 				errorCount++
-				if (!this.__BE_QUIET)
+				if (!this.__BE_QUIET) {
+					let path, error
+					// find the deepest error
+					const walkEvents = (ev, p = ev.type) => {
+						if (ev.events) {
+							let i = 0
+							for (const sub of ev.events)
+								if (walkEvents(sub, `${p}.${i++}:${sub.type}`)) return true
+						}
+						if (ev.error) {
+							path = p
+							error = ev.error
+							return true
+						}
+						return false
+					}
+					walkEvents(resultEvent)
 					console.error(
-						`!!! ESDB: event ${
-							event.type
-						} processing failed (try #${errorCount})`,
-						resultEvent.error
+						`!!! ESDB: event ${path} processing failed (try #${errorCount})`,
+						error
 					)
+				}
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
