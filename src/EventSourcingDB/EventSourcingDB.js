@@ -728,7 +728,7 @@ class ESDB extends EventEmitter {
 						// TODO would this not better be the RO store?
 						store: this.rwStore,
 						event,
-						result,
+						result: result[model.name],
 						dispatch: this._subDispatch.bind(this, event),
 					})
 				)

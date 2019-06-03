@@ -62,7 +62,7 @@ export const testModels = {
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {
-			if (result !== event.result) {
+			if (result !== event.result[model.name]) {
 				throw new Error('Expecting event.result as separate input')
 			}
 			if (event.result.count) {
