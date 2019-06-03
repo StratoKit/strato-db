@@ -7,6 +7,7 @@
 
 import JsonModel from '../JsonModel'
 import {DEV} from '../lib/warning'
+import {isEqual} from 'lodash'
 
 export const undefToNull = data => {
 	if (data == null) return null
@@ -29,6 +30,34 @@ export const getId = async (model, data) => {
 	// This can only happen for integer ids
 	if (id == null) id = await model.getNextId()
 	return id
+}
+
+// Calculate the update given two objects that went
+// through JSON stringify+parse
+const calcUpd = (idCol, prev, obj, complete) => {
+	const out = {}
+	let changed = false
+	for (const [key, value] of Object.entries(obj)) {
+		const pVal = prev[key]
+		if (value == null && pVal != null) {
+			out[key] = null
+			changed = true
+		} else if (!isEqual(value, pVal)) {
+			out[key] = value
+			changed = true
+		}
+	}
+	if (complete)
+		for (const key of Object.keys(prev))
+			if (!(key in obj)) {
+				out[key] = null
+				changed = true
+			}
+	if (changed) {
+		out[idCol] = prev[idCol]
+		return out
+	}
+	return undefined
 }
 
 class ESModel extends JsonModel {
@@ -67,14 +96,11 @@ class ESModel extends JsonModel {
 		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
 		if (meta) d[3] = meta
 
-		const {
-			data,
-			// We know this is always present, our reducer always
-			result: {[this.name]: r},
-		} = await this.dispatch(this.TYPE, d)
+		const {data, result} = await this.dispatch(this.TYPE, d)
 		const id = data[1]
 
-		if (r.esFail) throw new Error(`${this.name}.set ${id}: ${r.esFail}`)
+		const r = result[this.name]
+		if (r && r.esFail) throw new Error(`${this.name}.set ${id}: ${r.esFail}`)
 
 		// We have to get because we don't know what calculated values did
 		// Unfortunately, this might be the object after a later event
@@ -95,13 +121,11 @@ class ESModel extends JsonModel {
 		const d = [upsert ? ESModel.SAVE : ESModel.UPDATE, null, undefToNull(o)]
 		if (meta) d.push(meta)
 
-		const {
-			data,
-			result: {[this.name]: r},
-		} = await this.dispatch(this.TYPE, d)
+		const {data, result} = await this.dispatch(this.TYPE, d)
 		id = data[1]
 
-		if (r.esFail) throw new Error(`${this.name}.update ${id}: ${r.esFail}`)
+		const r = result[this.name]
+		if (r && r.esFail) throw new Error(`${this.name}.update ${id}: ${r.esFail}`)
 
 		// We have to get because we don't know what calculated values did
 		// Unfortunately, this might be the object after a later event
@@ -163,20 +187,15 @@ class ESModel extends JsonModel {
 
 		if (obj[model.idCol] == null) obj = {...obj, [model.idCol]: id}
 
-		const exists = await model.exists({[model.idCol]: id})
-
-		switch (action) {
-			case ESModel.SET:
-				return exists ? {rm: [obj.id], ins: [obj]} : {ins: [obj]}
-			case ESModel.INSERT:
-				return exists ? {esFail: 'EEXIST'} : {ins: [obj]}
-			case ESModel.UPDATE:
-				return exists ? {upd: [obj]} : {esFail: 'ENOENT'}
-			case ESModel.SAVE:
-				return exists ? {upd: [obj]} : {ins: [obj]}
-			default:
-				throw new TypeError('db action not found')
+		const prev = await model.get(id)
+		let update
+		if (prev) {
+			if (action === ESModel.INSERT) return {esFail: 'EEXIST'}
+			update = calcUpd(model.idCol, prev, obj, action === ESModel.SET)
+			return update ? {upd: [update]} : false
 		}
+		if (action === ESModel.UPDATE) return {esFail: 'ENOENT'}
+		return {ins: [obj]}
 	}
 }
 

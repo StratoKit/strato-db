@@ -206,7 +206,7 @@ test('update w/ undefined values', () =>
 			await eSDB.store.test.set(sampleObject)
 			expect(
 				await eSDB.store.test.update({id: sampleObject.id, top: undefined})
-			).toEqual({...sampleObject, top: null}) // we cannot pass undefined here
+			).toEqual({...sampleObject, top: undefined})
 		},
 		{test: {Model: ESModel}}
 	))
@@ -338,6 +338,38 @@ test('events', () =>
 			).toMatchSnapshot()
 		},
 		{m: {columns: {id: {type: 'INTEGER'}}}}
+	))
+
+test('events updates', () =>
+	withESDB(
+		async (eSDB, queue) => {
+			const {m} = eSDB.store
+			expect(await m.set({meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, beep: 'boop', a: [null, 3]})).toEqual({
+				v: 1,
+				beep: 'boop',
+				a: [null, 3],
+			})
+			expect(await m.update({v: 1, beep: 'boop'})).toEqual({
+				v: 1,
+				beep: 'boop',
+				a: [null, 3],
+			})
+			expect(await m.update({v: 1, beep: 'foop', a: [null, 3]})).toEqual({
+				v: 1,
+				beep: 'foop',
+				a: [null, 3],
+			})
+			const events = await queue.all()
+			expect(
+				events.map(e => {
+					e.ts = 0
+					return e
+				})
+			).toMatchSnapshot()
+		},
+		{m: {idCol: 'v', columns: {v: {type: 'INTEGER'}}}}
 	))
 
 test('metadata in event', () =>

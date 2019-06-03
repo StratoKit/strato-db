@@ -670,9 +670,15 @@ class JsonModel {
 			if (!upsert) throw new Error('Can only update object with id')
 			return this.set(obj, false, noReturn)
 		}
-		const prev = await this.get(id)
+		let prev = await this.get(id)
 		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
-		return this.set({...prev, ...obj}, false, noReturn)
+		if (prev)
+			for (const [key, value] of Object.entries(obj)) {
+				if (value == null) delete prev[key]
+				else prev[key] = value
+			}
+		else prev = obj
+		return this.set(prev, false, noReturn)
 	}
 
 	update(...args) {
