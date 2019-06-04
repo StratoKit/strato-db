@@ -351,6 +351,7 @@ class ESDB extends EventEmitter {
 	_subDispatch(event, type, data) {
 		if (!event.events) event.events = []
 		event.events.push({type, data})
+		dbg(`${event.type}.${type} queued`)
 	}
 
 	getVersionP = null
@@ -664,6 +665,8 @@ class ESDB extends EventEmitter {
 				},
 			}
 		}
+		dbg(`handling ${origEvent.type}`)
+
 		event = await this._preprocessor(origEvent)
 		if (event.error) return event
 
@@ -677,6 +680,7 @@ class ESDB extends EventEmitter {
 		if (event.events) {
 			for (let i = 0; i < event.events.length; i++) {
 				const subEvent = event.events[i]
+				dbg(`handling ${event.type}.${subEvent.type}`)
 				// eslint-disable-next-line no-await-in-loop
 				const doneEvent = await this._handleEvent(
 					{...subEvent, v: event.v},
