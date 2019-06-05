@@ -163,14 +163,29 @@ class ESModel extends JsonModel {
 
 	_maxId = 0
 
+	_lastUV = 0
+
 	async getNextId() {
-		if (!this._maxId) this._maxId = await this.max(this.idCol)
+		let shouldGet
+		if (!this._lastUV) this._lastUV = await this.db.userVersion()
+
+		// eslint-disable-next-line no-negated-condition
+		if (!this._maxId) {
+			shouldGet = true
+		} else {
+			const uv = await this.db.userVersion()
+			if (uv !== this._lastUV) {
+				this._lastUV = uv
+				shouldGet = true
+			}
+		}
+		if (shouldGet) this._maxId = await this.max(this.idCol)
 		return ++this._maxId
 	}
 
 	async applyChanges(result) {
-		if (result.esFail) return
 		this._maxId = 0
+		if (result.esFail) return
 		return super.applyChanges({...result, esFail: undefined})
 	}
 
