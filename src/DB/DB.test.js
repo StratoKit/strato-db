@@ -301,6 +301,13 @@ test('dataVersion', () =>
 		{unsafeCleanup: true}
 	))
 
+test('userVersion', async () => {
+	const db = new DB()
+	await expect(db.userVersion()).resolves.toBe(0)
+	await expect(db.userVersion(5)).resolves.toBe()
+	await expect(db.userVersion()).resolves.toBe(5)
+})
+
 test('open: errors with filename', async () => {
 	const db = new DB({file: '/oienu/ieoienien'})
 	await expect(db._openDB()).rejects.toThrow('/oienu/ieoienien')

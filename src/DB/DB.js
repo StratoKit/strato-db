@@ -326,12 +326,26 @@ class DB {
 
 	async dataVersion() {
 		if (!this._sqlite) await this._hold('dataVersion')
-		return new Promise((resolve, reject) =>
-			this._sqlite.get('PRAGMA data_version', (err, o) => {
-				if (err) reject(err)
-				else resolve(o.data_version)
-			})
-		)
+		if (!this._dataVSql)
+			this._dataVSql = this.prepare('PRAGMA data_version', 'dataV')
+		const {data_version: v} = await this._dataVSql.get()
+		return v
+	}
+
+	async userVersion(newV) {
+		if (!this._sqlite) await this._hold('userVersion')
+		// Can't prepare or use pragma with parameter
+		if (newV)
+			return this._call(
+				'exec',
+				[`PRAGMA user_version=${Number(newV)}`],
+				this._sqlite,
+				this.name
+			)
+		if (!this._userVSql)
+			this._userVSql = this.prepare('PRAGMA user_version', 'userV')
+		const {user_version: v} = await this._userVSql.get()
+		return v
 	}
 
 	async withTransaction(fn) {

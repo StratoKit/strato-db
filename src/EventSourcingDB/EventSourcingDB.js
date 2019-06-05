@@ -146,7 +146,7 @@ class ESDB extends EventEmitter {
 		this.rwDb.registerMigrations('ESDB', {
 			// Move v2 metadata version to DB user_version
 			userVersion: async db => {
-				const {user_version: uv} = await db.get('PRAGMA user_version')
+				const uv = await db.userVersion()
 				if (uv) return // Somehow we already have a version
 				const hasMetadata = await db.get(
 					'SELECT 1 FROM sqlite_master WHERE name="metadata"'
@@ -157,7 +157,7 @@ class ESDB extends EventEmitter {
 				)
 				const v = vObj && Number(vObj.v)
 				if (!v) return
-				await db.run(`PRAGMA user_version=${v}`)
+				await db.userVersion(v)
 				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
 				if (count === 1) {
 					await db.exec(
@@ -358,12 +358,9 @@ class ESDB extends EventEmitter {
 
 	getVersion() {
 		if (!this.getVersionP) {
-			this.getVersionP = this.db
-				.get('PRAGMA user_version')
-				.then(u => u.user_version)
-				.finally(() => {
-					this.getVersionP = null
-				})
+			this.getVersionP = this.db.userVersion().finally(() => {
+				this.getVersionP = null
+			})
 		}
 		return this.getVersionP
 	}
@@ -720,7 +717,7 @@ class ESDB extends EventEmitter {
 
 			if (updateVersion) {
 				phase = 'version'
-				await rwDb.run(`PRAGMA user_version=${event.v}`)
+				await rwDb.userVersion(event.v)
 			}
 
 			// Apply derivers
