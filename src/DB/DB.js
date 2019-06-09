@@ -212,15 +212,16 @@ class DB {
 	}
 
 	async close() {
-		dbg('closing', this._isChild ? 'child' : this.file)
+		dbg(`closing ${this.name}`)
+
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
-		// eslint-disable-next-line no-await-in-loop
-		for (const stmt of Object.values(this.statements)) await stmt.finalize()
 		if (this._isChild) return
 		const {_sqlite} = this
 		this._sqlite = null
+		// eslint-disable-next-line no-await-in-loop
+		for (const stmt of Object.values(this.statements)) await stmt.finalize()
 		clearInterval(this._optimizerToken)
 		if (this._dbP) await this._dbP
 		if (_sqlite) await this._call('close', [], _sqlite, this.name)

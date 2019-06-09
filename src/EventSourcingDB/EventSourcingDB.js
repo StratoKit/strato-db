@@ -273,7 +273,8 @@ class ESDB extends EventEmitter {
 	}
 
 	// TODO openDB
-	close() {
+	async close() {
+		await this.stopPolling()
 		return Promise.all([
 			this.rwDb && this.rwDb.close(),
 			this.db !== this.rwDb && this.db.close(),
@@ -455,9 +456,11 @@ class ESDB extends EventEmitter {
 				if (errorCount > this.MAX_RETRY)
 					throw new Error(`Giving up on processing event ${lastV + 1}`)
 				// These will reopen automatically
-				if (this.db.file !== ':memory:') this.db.close()
-				if (this.rwDb.file !== ':memory:') this.rwDb.close()
-				if (this.queue.db.file !== ':memory:') this.queue.db.close()
+				await Promise.all([
+					this.db.file !== ':memory:' && this.db.close(),
+					this.rwDb.file !== ':memory:' && this.rwDb.close(),
+					this.queue.db.file !== ':memory:' && this.queue.db.close(),
+				])
 				await wait(5000 * errorCount)
 			}
 			let event
