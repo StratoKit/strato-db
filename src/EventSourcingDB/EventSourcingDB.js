@@ -272,6 +272,7 @@ class ESDB extends EventEmitter {
 		}
 	}
 
+	// TODO openDB
 	close() {
 		return Promise.all([
 			this.rwDb && this.rwDb.close(),
@@ -366,6 +367,9 @@ class ESDB extends EventEmitter {
 	}
 
 	async waitForQueue() {
+		// give migrations a chance to queue things
+		// TODO write test, dispatch in migration vs dispatch after waitForQ
+		await this.rwDb.openDB()
 		const v = await this.queue._getLatestVersion()
 		return this.handledVersion(v)
 	}
