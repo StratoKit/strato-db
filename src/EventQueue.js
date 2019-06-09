@@ -189,6 +189,7 @@ class EventQueue extends JsonModel {
 		// set the sqlite autoincrement value
 		// Try changing current value, and insert if there was no change
 		// This doesn't need a transaction, either one or the other runs
+		// TODO alsoLower flag and only update where seq < v
 		await this.db.exec(
 			`
 				UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};

@@ -139,6 +139,8 @@ class DB {
 				else resolve()
 			})
 		}).catch(error => {
+			// TODO {code: 'SQLITE_CANTOPEN'} => retry
+			console.log(Object.entries(error))
 			throw new Error(`${file}: ${error.message}`)
 		})
 
@@ -154,28 +156,27 @@ class DB {
 			_migrations: this.options.migrations,
 		})
 
-		// Journaling mode WAL
-		if (this.file !== ':memory:' && !this.readOnly) {
-			const {journal_mode: journalMode} = await childDb.get(
-				'PRAGMA journal_mode = wal'
-			)
-			if (journalMode !== 'wal') {
-				console.error(
-					`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
-				)
+		if (!this.readOnly) {
+			// Journaling mode WAL
+			if (this.file !== ':memory:') {
+				await childDb.get('PRAGMA journal_mode')
+				const {journal_mode: journalMode} = await childDb
+					.get('PRAGMA journal_mode = wal')
+					.catch(err => {
+						if (!err.message.startsWith('SQLITE_BUSY')) throw err
+					})
+				if (journalMode !== 'wal') {
+					console.error(
+						`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
+					)
+				}
 			}
-		}
-		// Some sane settings
-		await childDb.exec(`
-			PRAGMA foreign_keys = ON;
-			PRAGMA recursive_triggers = ON;
-			PRAGMA journal_size_limit = 4000000
-		`)
-		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
-			// 50% of the time, return unordered selects in reverse order (chosen once per open)
-			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
-
-		if (!readOnly) {
+			// Some sane settings
+			await childDb.exec(`
+					PRAGMA foreign_keys = ON;
+					PRAGMA recursive_triggers = ON;
+					PRAGMA journal_size_limit = 4000000
+				`)
 			this._optimizerToken = setInterval(
 				() => this.exec(`PRAGMA optimize`),
 				2 * 3600 * 1000
@@ -185,6 +186,10 @@ class DB {
 			await childDb.close()
 			this.migrationsRan = true
 		}
+
+		// in dev mode, 50% of the time, return unordered selects in reverse order (chosen once per open)
+		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
+			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
 
 		this._sqlite = _sqlite
 
