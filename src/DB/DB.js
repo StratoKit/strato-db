@@ -217,11 +217,15 @@ class DB {
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
-		if (this._isChild) return
 		const {_sqlite} = this
 		this._sqlite = null
+
 		// eslint-disable-next-line no-await-in-loop
 		for (const stmt of Object.values(this.statements)) await stmt.finalize()
+
+		// We only want to close our own statements, not the db
+		if (this._isChild) return
+
 		clearInterval(this._optimizerToken)
 		if (this._dbP) await this._dbP
 		if (_sqlite) await this._call('close', [], _sqlite, this.name)
