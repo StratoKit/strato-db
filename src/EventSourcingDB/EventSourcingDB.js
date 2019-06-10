@@ -178,12 +178,12 @@ class ESDB extends EventEmitter {
 		this.store = {}
 		this.rwStore = {}
 
-		this.reducerNames = []
-		this.deriverModels = []
-		this.preprocModels = []
-		this.readWriters = []
+		this._reducerNames = []
+		this._deriverModels = []
+		this._preprocModels = []
+		this._readWriters = []
 		const reducers = {}
-		this.reducerModels = {}
+		this._reducerModels = {}
 		const migrationOptions = {queue: this.queue}
 
 		const dispatch = this.dispatch.bind(this)
@@ -229,9 +229,9 @@ class ESDB extends EventEmitter {
 				rwModel.deriver = deriver || RWModel.deriver
 				this.rwStore[name] = rwModel
 				if (typeof rwModel.setWritable === 'function')
-					this.readWriters.push(rwModel)
+					this._readWriters.push(rwModel)
 				if (rwModel.deriver) {
-					this.deriverModels.push(rwModel)
+					this._deriverModels.push(rwModel)
 					hasOne = true
 				}
 
@@ -245,12 +245,12 @@ class ESDB extends EventEmitter {
 				model.reducer = reducer || Model.reducer
 				this.store[name] = model
 				if (model.preprocessor) {
-					this.preprocModels.push(model)
+					this._preprocModels.push(model)
 					hasOne = true
 				}
 				if (model.reducer) {
-					this.reducerNames.push(name)
-					this.reducerModels[name] = model
+					this._reducerNames.push(name)
+					this._reducerModels[name] = model
 					reducers[name] = model.reducer
 					hasOne = true
 				}
@@ -361,15 +361,15 @@ class ESDB extends EventEmitter {
 		dbg(`${event.type}.${type} queued`)
 	}
 
-	getVersionP = null
+	_getVersionP = null
 
 	getVersion() {
-		if (!this.getVersionP) {
-			this.getVersionP = this.db.userVersion().finally(() => {
-				this.getVersionP = null
+		if (!this._getVersionP) {
+			this._getVersionP = this.db.userVersion().finally(() => {
+				this._getVersionP = null
 			})
 		}
-		return this.getVersionP
+		return this._getVersionP
 	}
 
 	async waitForQueue() {
@@ -566,7 +566,7 @@ class ESDB extends EventEmitter {
 	}
 
 	async _preprocessor(event) {
-		for (const model of this.preprocModels) {
+		for (const model of this._preprocModels) {
 			const {name} = model
 			const {store} = this
 			const {v, type} = event
@@ -616,8 +616,8 @@ class ESDB extends EventEmitter {
 			event,
 		}
 		await Promise.all(
-			this.reducerNames.map(async key => {
-				const model = this.reducerModels[key]
+			this._reducerNames.map(async key => {
+				const model = this._reducerModels[key]
 				let out
 				try {
 					out = await model.reducer(model, event, helpers)
@@ -643,9 +643,9 @@ class ESDB extends EventEmitter {
 			})
 		)
 
-		if (this.reducerNames.some(n => result[n] && result[n].error)) {
+		if (this._reducerNames.some(n => result[n] && result[n].error)) {
 			const error = {}
-			for (const name of this.reducerNames) {
+			for (const name of this._reducerNames) {
 				const r = result[name]
 				if (r && r.error) {
 					error[`reduce_${name}`] = r.error
@@ -711,7 +711,7 @@ class ESDB extends EventEmitter {
 	}
 
 	async _applyEvent(event, updateVersion) {
-		const {rwStore, rwDb, readWriters} = this
+		const {rwStore, rwDb, _readWriters: readWriters} = this
 		let phase = '???'
 		try {
 			for (const model of readWriters) model.setWritable(true)
@@ -732,9 +732,9 @@ class ESDB extends EventEmitter {
 			}
 
 			// Apply derivers
-			if (!event.error && this.deriverModels.length) {
+			if (!event.error && this._deriverModels.length) {
 				phase = 'derive'
-				await settleAll(this.deriverModels, async model =>
+				await settleAll(this._deriverModels, async model =>
 					model.deriver({
 						model,
 						// TODO would this not better be the RO store?

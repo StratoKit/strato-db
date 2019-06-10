@@ -140,7 +140,6 @@ class DB {
 			})
 		}).catch(error => {
 			// TODO {code: 'SQLITE_CANTOPEN'} => retry
-			console.log(Object.entries(error))
 			throw new Error(`${file}: ${error.message}`)
 		})
 
