@@ -137,5 +137,7 @@ test(`getNextId should work across main and subevents`, async () => {
 		{id: 12},
 	])
 })
-// TODO 10 simulteneous opens of existing db file
-// TODO 10 simulteneous opens of new db file/new queue file with >1 version
+
+// TODO 10 simultaneous opens of existing db file
+// TODO 10 simultaneous opens of new db file/new queue file with >1 version
+// TODO 10 simultaneous worker connections on 100 events

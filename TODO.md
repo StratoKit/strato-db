@@ -2,20 +2,18 @@
 
 ## General
 
-- [ ] Get started on documentation
-- [ ] Try to clean up the API, make it consistent between classes. Ideas:
-  - DB and ESDB to have same API surface (.addModel)
-  - join JsonModel and ESModel code, switch behavior based on `dispatch` option
+- Clean up the API more, to make it consistent between classes. Ideas:
+  - DB and ESDB to have same API for registering models (.addModel)
+  - split DB into pure sqlite wrapper and another wrapper for migrations
 - Optimize:
   - [ ] create benchmark
-  - [ ] use prepared statements in JsonModel
   - [ ] API to get prepared statements from JM .search
 
 ## node-sqlite3
 
 ### Someday
 
-- [ ] sync interface for e.g. pragma data_version and BEGIN IMMEDIATE. Already did some work on it but it segfaults
+- [ ] sync interface for e.g. pragma data_version and BEGIN IMMEDIATE. Already did some work on it but it segfaults. Alternatively, use better-sqlite in a worker
 
 ## DB
 
@@ -34,6 +32,7 @@
 - [ ] manage indexes, using PRAGMA index_list. Drop unused indexes with \_strato prefix
 - [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
 - [ ] support better-sqlite if it's ok for the main thread to hang
+- [ ] create a worker thread version that uses better-sqlite. Benchmark.
 
 ### Someday
 
@@ -60,7 +59,6 @@
 ### Nice to have
 
 - [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
-- [ ] also do stringify on paths, e.g. to stringify objects
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
   - do not change extra columns, that is what migrations are for
 - [ ] recreate index if expression changes
@@ -75,7 +73,7 @@
 - [ ] prepared statements
   - `q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort`
   - However, `whereVal` values should be allowed to change
-  - But `where` should stay the same and should not be recalculated, best if it is not a function. Most of the time this can be done
+  - But `where` should stay the same and should not be recalculated, so best if it is not a function. Most of the time this can be done.
   - Probably `.makeSelect()` would need to return an intermediate query object
   - Note: When using prepared statements, replace `IN (?,?,?)` clauses with `IN (SELECT value FROM json_each(?))` and pass the array as a JSON string. That way the prepared statement can handle any array length
 - Benchmark test that warns if runtime increases on current system
@@ -83,7 +81,8 @@
   - it's probably better to always create same object from columns and then assign json if not null
 - Test for `uniqueSlugId`
 - Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
-- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
+- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers that can't have native code
+- FTS5 support for text searching
 
 ## Queue
 
@@ -96,7 +95,6 @@
 ### Nice to have
 
 - [ ] split DB into multiple files, per 1GB, automatically attach for queries. (make sure it's multi-process safe - lock the db, make sure new writes are not possible in old files)
-- [ ] cancellable getNext Promise
 - [ ] test multi-process changes
 
 ## ESDB
@@ -106,6 +104,5 @@
 - [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
-- [ ] split up into more files, move tests
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
