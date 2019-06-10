@@ -20,24 +20,15 @@ import {DEV, deprecated, unknown} from '../lib/warning'
 
 const dbg = debug('stratokit/JSON')
 
-// ItemClass: Object-like class that can be assigned to like Object
-// columns: object with column names each having an object with
-// * value: function getting object and returning the value for the column; this creates a real column
-//   * right now the column value is not regenerated for existing rows
-// * slugValue: same as value, but the result is used to generate a unique slug
-// * parse: process the value after getting from DB
-// * jsonPath: path to a JSON value. Useful for indexing
-// * sql: any sql expression
-// * type: sql column type.
-// * autoIncrement: INTEGER id column only: apply AUTOINCREMENT on the column
-// * textSearch: perform searches as substring search with LIKE
-// * get: boolean, should the column be included in find results? This also removes the value from JSON (only if name is a root-level key)
-// * index: boolean, should it be indexed? If `unique` is false, NULLs are never indexed
-// * unique: boolean, should the index enforce uniqueness?
-// * ignoreNull: boolean, are null values ignored when enforcing uniqueness?
-//   default: false if unique, else true
-// migrationOptions: object with extra data passed to the migrations
+/**
+ * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
+ * per object (document). Each object must have a unique ID, normally at `obj.id`.
+ */
 class JsonModel {
+	/**
+	 * Creates a new JsonModel instance
+	 * @param	{JMOptions} options - the model declaration
+	 */
 	constructor(options) {
 		verifyOptions(options)
 		const {
@@ -130,6 +121,12 @@ class JsonModel {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
+	/**
+	 * parses a row as returned by sqlite
+	 * @param {object} row - result from sqlite
+	 * @param {object} options - an object possibly containing the `cols` array with the desired column names
+	 * @returns {object} - the resulting object (document)
+	 */
 	parseRow = (row, options) => {
 		const mapCols =
 			options && options.cols
@@ -264,15 +261,26 @@ class JsonModel {
 		return this.parseRow(thing, options)
 	}
 
-	// Override this function to implement search behaviors
-	// attrs: literal value search, for convenience
-	// where: sql expressions as keys with arrays of applicable parameters as values
-	// join: arbitrary join clause. Not processed at all
-	// joinVals: values needed by the join clause
-	// sort: object with sql expressions as keys and 1/-1 for direction
-	// limit: max number of rows to return
-	// offset: number of rows to skip
-	// cols: override the columns to select
+	/**
+	 * @typedef SearchOptions
+	 * @type {Object}
+	 * @property {object} [attrs]: literal value search, for convenience
+	 * @property {object<array<*>>} [where]: sql expressions as keys with arrays of applicable parameters as values
+	 * @property {string} [join]: arbitrary join clause. Not processed at all
+	 * @property {array<*>} [joinVals]: values needed by the join clause
+	 * @property {object} [sort]: object with sql expressions as keys and 1/-1 for direction
+	 * @property {number} [limit]: max number of rows to return
+	 * @property {number} [offset]: number of rows to skip
+	 * @property {array<string>} [cols]: override the columns to select
+	 * @property {string} [cursor]: opaque value telling from where to continue
+	 * @property {boolean} [noCursor]: do not calculate cursor
+	 * @property {boolean} [noTotal]: do not calculate totals
+	 */
+
+	/**
+	 * Parses query options into query parts. Override this function to implement search behaviors.
+	 * @param {SearchOptions} options - the query options
+	 */
 	// eslint-disable-next-line complexity
 	makeSelect(options) {
 		if (process.env.NODE_ENV !== 'production') {
@@ -454,6 +462,12 @@ class JsonModel {
 		return [q, allVals, cursorColNames, totalQ, vals]
 	}
 
+	/**
+	 * Search the first matching object
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} options - search options
+	 * @returns {Promise<(object|null)>} - the result or null if no match
+	 */
 	searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -464,8 +478,13 @@ class JsonModel {
 		return this.db.get(q, vals).then(this.toObj)
 	}
 
-	// returns {items[], cursor}. If no cursor, you got all the results
-	// cursor: pass previous cursor to get the next page
+	/**
+	 * Search the all matching objects
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @param {boolean} [options.itemsOnly] - return only the items array
+	 * @returns {Promise<(object|array)>} - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.
+	 */
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
 	async search(attrs, {itemsOnly, ...options} = {}) {
 		const [q, vals, cursorKeys, totalQ, totalVals] = this.makeSelect({
@@ -496,10 +515,22 @@ class JsonModel {
 		return out
 	}
 
+	/**
+	 * A shortcut for setting `itemsOnly: true` on {@link search}
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<array<object>>} - the search results
+	 */
 	searchAll(attrs, options) {
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
 
+	/**
+	 * Check for existence of objects
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<boolean>} - `true` if the search would have results
+	 */
 	exists(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -513,6 +544,12 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => !!row)
 	}
 
+	/**
+	 * Count of search results
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the count
+	 */
 	count(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -526,6 +563,14 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.c)
 	}
 
+	/**
+	 * Numeric Aggregate Operation
+	 * @param {string} op - the SQL function, e.g. MAX
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	numAggOp(op, colName, attrs, options) {
 		const col = this.columns[colName]
 		const sql = (col && col.sql) || colName
@@ -546,22 +591,54 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.val)
 	}
 
+	/**
+	 * Maximum value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	max(colName, attrs, options) {
 		return this.numAggOp('MAX', colName, attrs, options)
 	}
 
+	/**
+	 * Minimum value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	min(colName, attrs, options) {
 		return this.numAggOp('MIN', colName, attrs, options)
 	}
 
+	/**
+	 * Sum values
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	sum(colName, attrs, options) {
 		return this.numAggOp('SUM', colName, attrs, options)
 	}
 
+	/**
+	 * Average value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	avg(colName, attrs, options) {
 		return this.numAggOp('AVG', colName, attrs, options)
 	}
 
+	/**
+	 * Get all objects
+	 * @returns {Promise<array<object>>} - the table contents
+	 */
 	all() {
 		if (!this._allSql)
 			this._allSql = this.db.prepare(
@@ -571,6 +648,12 @@ class JsonModel {
 		return this._allSql.all().then(this.toObj)
 	}
 
+	/**
+	 * Get an object by a unique value, like its ID
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<(object|null)>} - the object if it exists
+	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
 			return Promise.reject(
@@ -589,6 +672,12 @@ class JsonModel {
 		return this.columns[colName]._getSql.get([id]).then(this.toObj)
 	}
 
+	/**
+	 * Get several objects by their unique value, like their ID
+	 * @param  {array<*>} ids - the values for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<array<(object|null)>>} - the objects, or null where they don't exist, in order of their requested ID
+	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
 		if (!_getAllSql) {
@@ -610,6 +699,15 @@ class JsonModel {
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
+	/**
+	 * Get an object by a unique value, like its ID, using a cache.
+	 * This also coalesces multiple calls in the same tick into a single query,
+	 * courtesy of DataLoader.
+	 * @param  {object} cache - the lookup cache. It is managed with DataLoader
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<(object|null)>} - the object if it exists
+	 */
 	getCached(cache, id, colName = this.idCol) {
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
