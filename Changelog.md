@@ -12,6 +12,7 @@
 - DB connections now set `PRAGMA recursive_triggers`
 - In NODE_ENV=development, the order of unordered query results will sometimes be reversed to show where ordering is not consistent. In test this is not done since the ordering is always the same and used in snapshots etc.
 - The `meta` argument in ESModel `.set` and `.update` moved to 4th position to make room for `noResult`
+- EventSourcingDB no longer checks for pending events when instantiated. You have to do this yourself with `.checkForEvents()` or simply `.startPolling()`
 
 ### Changes
 

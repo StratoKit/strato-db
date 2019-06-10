@@ -85,6 +85,12 @@ const errorToString = error => {
 	return String(msg).replace(/\s+/g, ' ')
 }
 
+/**
+ * EventSourcingDB maintains a DB where all data is
+ * atomically updated based on {@link Event events (free-form messages)}.
+ * This is very similar to how Redux works in React.
+ * @extends EventEmitter
+ */
 class ESDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
@@ -265,10 +271,6 @@ class ESDB extends EventEmitter {
 					error.stack = `ESDB: while configuring model ${name}: ${error.stack}`
 				throw error
 			}
-		}
-
-		if (!readOnly) {
-			this.checkForEvents()
 		}
 	}
 
