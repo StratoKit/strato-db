@@ -31,12 +31,12 @@ test('add invalid event', async () => {
 
 test('setKnownV', async () => {
 	const m = getModel()
-	expect(await m._getLatestVersion()).toBe(0)
+	expect(await m.latestVersion()).toBe(0)
 	// internal API
 	await m.setKnownV(20)
-	expect(await m._getLatestVersion()).toBe(20)
+	expect(await m.latestVersion()).toBe(20)
 	await m.set({v: 500, type: 'fooo'})
-	expect(await m._getLatestVersion()).toBe(500)
+	expect(await m.latestVersion()).toBe(500)
 })
 
 test('add event', async () => {
@@ -104,4 +104,11 @@ test('type query uses index', async () => {
 			`EXPLAIN QUERY PLAN SELECT type FROM history where type='foo'`
 		)
 	).toHaveProperty('detail', expect.stringContaining('USING COVERING INDEX'))
+})
+
+test('cancelNext', async () => {
+	const m = getModel()
+	const P = m.getNext(100, false)
+	m.cancelNext()
+	await expect(P).resolves.toBe()
 })

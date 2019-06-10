@@ -371,7 +371,7 @@ class ESDB extends EventEmitter {
 		// give migrations a chance to queue things
 		// TODO write test, dispatch in migration vs dispatch after waitForQ
 		await this.rwDb.openDB()
-		const v = await this.queue._getLatestVersion()
+		const v = await this.queue.latestVersion()
 		return this.handledVersion(v)
 	}
 
