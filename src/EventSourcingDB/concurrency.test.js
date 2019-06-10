@@ -59,6 +59,7 @@ let dir
 let db1
 let db2
 beforeAll(async () => {
+	// eslint-disable-next-line require-atomic-updates
 	dir = await tmp.dir({unsafeCleanup: true, prefix: 'esdb-concurrent-'})
 	const {path} = dir
 	const file = sysPath.join(path, 'db')
