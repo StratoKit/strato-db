@@ -1,4 +1,4 @@
-const {concurrent, rimraf, getBin} = require('nps-utils')
+const {concurrent, rimraf, getBin, series} = require('nps-utils')
 const {version} = require('./package.json')
 
 let jestBin
@@ -11,11 +11,16 @@ try {
 const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__snapshots__' -d dist/`
 const scripts = {
 	build: {
-		default: `nps build.clean build.babel`,
+		default: `nps build.clean build.babel build.doc`,
 		clean: rimraf('dist/'),
 		babel: `${runBabel} src/`,
 		watch: `${runBabel} --watch src/`,
 		git: `sh build-git.sh v${version.split('.')[0]}`,
+		doc: series(
+			`echo '# API' > API.md`,
+			`echo >> API.md`,
+			`jsdoc2md -f src/*.js src/**/*js >> API.md`
+		),
 	},
 	test: {
 		default: concurrent.nps('test.lint', 'test.full'),
