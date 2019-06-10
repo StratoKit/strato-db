@@ -272,7 +272,6 @@ class ESDB extends EventEmitter {
 		}
 	}
 
-	// TODO openDB
 	async close() {
 		await this.stopPolling()
 		return Promise.all([
@@ -282,8 +281,12 @@ class ESDB extends EventEmitter {
 		])
 	}
 
-	checkForEvents() {
-		this.startPolling(1)
+	async checkForEvents() {
+		const [v, qV] = await Promise.all([
+			this.getVersion(),
+			this.queue.latestVersion(),
+		])
+		if (v < qV) return this.startPolling(qV)
 	}
 
 	_waitingP = null
@@ -330,8 +333,8 @@ class ESDB extends EventEmitter {
 
 	stopPolling() {
 		this._isPolling = false
-		// here we should cancel the getNext
 		this._reallyStop = true
+		this.queue.cancelNext()
 		return this._waitingP || Promise.resolve()
 	}
 
@@ -369,7 +372,6 @@ class ESDB extends EventEmitter {
 
 	async waitForQueue() {
 		// give migrations a chance to queue things
-		// TODO write test, dispatch in migration vs dispatch after waitForQ
 		await this.rwDb.openDB()
 		const v = await this.queue.latestVersion()
 		return this.handledVersion(v)
