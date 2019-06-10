@@ -183,7 +183,6 @@ class ESDB extends EventEmitter {
 		this._preprocModels = []
 		this._readWriters = []
 		const reducers = {}
-		this._reducerModels = {}
 		const migrationOptions = {queue: this.queue}
 
 		const dispatch = this.dispatch.bind(this)
@@ -250,7 +249,6 @@ class ESDB extends EventEmitter {
 				}
 				if (model.reducer) {
 					this._reducerNames.push(name)
-					this._reducerModels[name] = model
 					reducers[name] = model.reducer
 					hasOne = true
 				}
@@ -565,18 +563,18 @@ class ESDB extends EventEmitter {
 		/* eslint-enable no-await-in-loop */
 	}
 
-	async _preprocessor(event) {
+	async _preprocessor(event, isMainEvent) {
 		for (const model of this._preprocModels) {
 			const {name} = model
-			const {store} = this
 			const {v, type} = event
 			let newEvent
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
 					event,
-					model,
-					store,
+					model: isMainEvent ? model : this.rwStore[name],
+					// subevents must see intermediate state
+					store: isMainEvent ? this.store : this.rwStore,
 					dispatch: this._subDispatch.bind(this, event),
 				})
 			} catch (error) {
@@ -607,20 +605,25 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async _reducer(event) {
+	async _reducer(event, isMainEvent) {
 		const result = {}
 		const events = event.events || []
 		const helpers = {
-			store: this.store,
+			// subevents must see intermediate state
+			store: isMainEvent ? this.store : this.rwStore,
 			dispatch: this._subDispatch.bind(this, event),
 			event,
 		}
 		await Promise.all(
 			this._reducerNames.map(async key => {
-				const model = this._reducerModels[key]
+				const model = this.store[key]
 				let out
 				try {
-					out = await model.reducer(model, event, helpers)
+					out = await model.reducer(
+						isMainEvent ? model : this.rwStore[key],
+						event,
+						helpers
+					)
 				} catch (error) {
 					out = {
 						error: errorToString(error),
@@ -663,25 +666,25 @@ class ESDB extends EventEmitter {
 	}
 
 	async _handleEvent(origEvent, depth = 0) {
+		const isMainEvent = depth === 0
 		let event
 		if (depth > 100) {
 			return {
 				...origEvent,
 				error: {
-					...origEvent.error,
-					_handle: 'events recursing too deep',
+					_handle: `.${origEvent.type}: events recursing too deep`,
 				},
 			}
 		}
 		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
 
-		event = await this._preprocessor(origEvent)
+		event = await this._preprocessor(origEvent, isMainEvent)
 		if (event.error) return event
 
-		event = await this._reducer(origEvent)
+		event = await this._reducer(origEvent, isMainEvent)
 		if (event.error) return event
 
-		event = await this._applyEvent(event, depth === 0)
+		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event
 
 		// handle sub-events in order
@@ -713,7 +716,7 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async _applyEvent(event, updateVersion) {
+	async _applyEvent(event, isMainEvent) {
 		const {rwStore, rwDb, _readWriters: readWriters} = this
 		let phase = '???'
 		try {
@@ -729,7 +732,7 @@ class ESDB extends EventEmitter {
 				)
 			}
 
-			if (updateVersion) {
+			if (isMainEvent) {
 				phase = 'version'
 				await rwDb.userVersion(event.v)
 			}
@@ -740,7 +743,7 @@ class ESDB extends EventEmitter {
 				await settleAll(this._deriverModels, async model =>
 					model.deriver({
 						model,
-						// TODO would this not better be the RO store?
+						// derivers can write anywhere (carefully)
 						store: this.rwStore,
 						event,
 						result: result[model.name],

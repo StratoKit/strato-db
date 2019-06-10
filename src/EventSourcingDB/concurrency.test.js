@@ -1,7 +1,27 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'
-import {testModels} from '../lib/_test-helpers'
+
+const testModels = {
+	subber: {
+		preprocessor: async ({model, store, event}) => {
+			expect(model).toBe(store.subber)
+			if (event.type === 'sub') expect(await model.get('hey')).toBeTruthy()
+		},
+		reducer: async (model, {type}, {dispatch, store}) => {
+			expect(model).toBe(store.subber)
+			switch (type) {
+				case 'main':
+					dispatch('sub')
+					return {ins: [{id: 'hey'}]}
+				case 'sub':
+					expect(await model.get('hey')).toBeTruthy()
+					break
+				default:
+			}
+		},
+	},
+}
 
 let dir
 let db1
@@ -32,14 +52,15 @@ afterAll(async () => {
 	await db2.close()
 })
 
-// finding 1: journal = wal should be in a transaction
 test('multiple ESDB', async () => {
 	expect(await db2.getVersion()).toBe(0)
 	await db1.dispatch('foo')
 	expect(await db2.getVersion()).toBe(1)
 })
 
-// TODO subevent handlers must see intermediate state => use rwDb
+test('subevent handlers see intermediate state', async () => {
+	await db1._dispatchWithError('main')
+})
 // TODO verify that db doesn't see transaction changes in rwDb (use await in reducer)
 // TODO getNextId should only work during transaction, should be separate concept, per-transaction state
 // TODO 10 simulteneous opens of existing db file
