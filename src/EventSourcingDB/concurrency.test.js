@@ -38,6 +38,21 @@ const testModels = {
 			}
 		},
 	},
+	nexter: {
+		columns: {id: {type: 'INTEGER'}},
+		reducer: async (model, {type, data}, {dispatch}) => {
+			if (type !== 'nexter') return
+			const id = await model.getNextId()
+			await model.getNextId() // skip an id
+			const id2 = await model.getNextId()
+			// skip an id, shouldn't matter
+			await model.getNextId()
+			if (data) {
+				dispatch('nexter', data - 1)
+			}
+			return {ins: [{id}, {id: id2}]}
+		},
+	},
 }
 
 let dir
@@ -100,6 +115,27 @@ test(`RO and other DB don't see transaction`, async () => {
 	expect(await db2.store.waiter.get('w')).toBeTruthy()
 	await expect(v2).toBeGreaterThan(v)
 })
-// TODO getNextId should only work during transaction, should be separate concept, per-transaction state
+
+test(`getNextId should work across main and subevents`, async () => {
+	await db1.dispatch('nexter', 1)
+	await db1.dispatch('nexter', 1)
+	expect(await db1.store.nexter.all()).toEqual([
+		{id: 1},
+		// skipped
+		{id: 3},
+		// skipped but recovered within transaction
+		{id: 4},
+		// skipped
+		{id: 6},
+		// skipped but recovered outside transaction
+		{id: 7},
+		// skipped
+		{id: 9},
+		// skipped but recovered within transaction
+		{id: 10},
+		// skipped
+		{id: 12},
+	])
+})
 // TODO 10 simulteneous opens of existing db file
 // TODO 10 simulteneous opens of new db file/new queue file with >1 version
