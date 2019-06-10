@@ -1,5 +1,12 @@
-const {concurrent, rimraf} = require('nps-utils')
+const {concurrent, rimraf, getBin} = require('nps-utils')
 const {version} = require('./package.json')
+
+let jestBin
+try {
+	jestBin = getBin('jest-cli', 'jest')
+} catch (err) {
+	jestBin = 'pleaseInstallJest'
+}
 
 const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__snapshots__' -d dist/`
 const scripts = {
@@ -20,10 +27,7 @@ const scripts = {
 		},
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
-		inspect: `NODE_ENV=test node --inspect ${
-			// ok, a little bit of a hack
-			require.resolve('jest-cli').replace('build', 'bin')
-		} --runInBand --watch`,
+		inspect: `NODE_ENV=test pnpx ndb ${jestBin} --runInBand --watch`,
 	},
 	publish: `npm publish --access public`,
 }
