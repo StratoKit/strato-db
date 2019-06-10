@@ -67,10 +67,9 @@ test('no infinite recursion', () => {
 		const doNotCall = jest.fn()
 		const event = await eSDB._dispatchWithError('hi').then(doNotCall, e => e)
 		expect(doNotCall).toHaveBeenCalledTimes(0)
-		expect(event).toHaveProperty('error._handle', 'subevent 0 failed')
 		expect(event).toHaveProperty(
-			'events.0.events.0.events.0.events.0.error._handle',
-			'subevent 0 failed'
+			'error._handle',
+			expect.stringMatching(/(\.hi)+:.*deep/)
 		)
 	}, models)
 })

@@ -673,7 +673,7 @@ class ESDB extends EventEmitter {
 				},
 			}
 		}
-		dbg(`handling ${origEvent.type}`)
+		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
 
 		event = await this._preprocessor(origEvent)
 		if (event.error) return event
@@ -688,7 +688,6 @@ class ESDB extends EventEmitter {
 		if (event.events) {
 			for (let i = 0; i < event.events.length; i++) {
 				const subEvent = event.events[i]
-				dbg(`handling ${event.type}.${subEvent.type}`)
 				// eslint-disable-next-line no-await-in-loop
 				const doneEvent = await this._handleEvent(
 					{...subEvent, v: event.v},
@@ -696,12 +695,16 @@ class ESDB extends EventEmitter {
 				)
 				delete doneEvent.v
 				event.events[i] = doneEvent
-				if (doneEvent.error) {
-					if (doneEvent.result) {
-						doneEvent.failedResult = doneEvent.result
-						delete doneEvent.result
+				const {error} = doneEvent
+				if (error) {
+					if (depth && error._handle)
+						// pass the error upwards but leave on bottom-most
+						delete doneEvent.error
+					event.error = {
+						_handle: `.${subEvent.type}${
+							error._handle ? error._handle : ` failed`
+						}`,
 					}
-					event.error = {_handle: `subevent ${i} failed`}
 					return event
 				}
 			}
