@@ -2,7 +2,7 @@
 // Caveats:
 // * `.update()` returns the current object at the time of returning, not the one that was updated
 //
-// Events all type `es/name` and data `[actionEnum, id, obj]`
+// Events all type `es/name` and data `[actionEnum, id, obj, meta]`
 // The id is assigned by the preprocessor except for RM
 
 import JsonModel from '../JsonModel'
@@ -60,6 +60,19 @@ const calcUpd = (idCol, prev, obj, complete) => {
 	return undefined
 }
 
+/**
+ * ESModel is a drop-in wrapper around JsonModel to turn changes into events.
+ *
+ * Use it to convert your database to be event sourcing
+ *
+ * Event data is encoded as an array: `[subtype, id, data, meta]`
+ * Subtype is one of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`.
+ * `id` is filled in by the preprocessor at the time of the event.
+ * `meta` is free-form data about the event. It is just stored in the history table.
+ *
+ * For example: `model.set({foo: true})` would result in the event
+ * `[1, 1, {foo: true}]`
+ */
 class ESModel extends JsonModel {
 	/* eslint-disable lines-between-class-members */
 	static REMOVE = 0
@@ -69,6 +82,13 @@ class ESModel extends JsonModel {
 	static SAVE = 4
 	/* eslint-enable lines-between-class-members */
 
+	/**
+	 * Creates a new ESModel model, called by DB
+	 * @constructor
+	 * @param  {function} dispatch - the {@link ESDB} dispatch function
+	 * @param  {boolean} [init] - emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers
+	 * @param  {Object} [...options] - other params are passed to JsonModel
+	 */
 	constructor({dispatch, init, ...options}) {
 		super({
 			...options,
@@ -85,13 +105,25 @@ class ESModel extends JsonModel {
 
 	INIT = `es/INIT:${this.name}`
 
+	/**
+	 * Slight hack: use the writable state to fall back to JsonModel behavior.
+	 * This makes deriver and migrations work without changes.
+	 * Note: while writable, no events are created. Be careful.
+	 * @param {boolean} state - writeable or not
+	 */
 	setWritable(state) {
-		// Slight hack: use the writable state to fall back to JsonModel behavior
-		// This makes deriver and migrations work without changes
-		// Note: during writable, no events are created. Be careful.
 		this.writable = state
 	}
 
+	/**
+	 * Insert or replace the given object into the database
+	 *
+	 * @param  {object} obj - the object to store. If there is no `id` value (or whatever the `id` column is named), one is assigned automatically.
+	 * @param  {boolean} [insertOnly] - don't allow replacing existing objects
+	 * @param  {boolean} [noReturn] - do not return the stored object; an optimization
+	 * @param  {*} [meta] - extra metadata to store in the event but not in the object
+	 * @returns {Promise<Object>} - if `noReturn` is false, the stored object is fetched from the DB
+	 */
 	async set(obj, insertOnly, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
@@ -115,6 +147,14 @@ class ESModel extends JsonModel {
 		return noReturn ? undefined : this.get(id)
 	}
 
+	/**
+	 * update an existing object
+	 * @param  {Object} o - the data to store
+	 * @param  {boolean} [upsert] - if `true`, allow inserting if the object doesn't exist
+	 * @param  {boolean} [noReturn] - do not return the stored object; an optimization
+	 * @param  {*} [meta] - extra metadata to store in the event at `data[3]` but not in the object
+	 * @returns {Promise<Object>} - if `noReturn` is false, the stored object is fetched from the DB
+	 */
 	async update(o, upsert, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
@@ -145,6 +185,12 @@ class ESModel extends JsonModel {
 		throw new Error('Non-transactional changes are not possible with ESModel')
 	}
 
+	/**
+	 * Remove an object
+	 * @param  {(Object|string|integer)} idOrObj - the id or the object itself
+	 * @param  {*} meta - metadata, attached to the event only, at `data[3]`
+	 * @returns {Promise<boolean>} - always returns true
+	 */
 	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
@@ -157,7 +203,9 @@ class ESModel extends JsonModel {
 		return true
 	}
 
+	/** changeId: not implemented yet, had no need so far */
 	changeId() {
+		// TODO implement
 		throw new Error(`ESModel doesn't support changeId yet`)
 	}
 
@@ -165,6 +213,13 @@ class ESModel extends JsonModel {
 
 	_lastUV = 0
 
+	/**
+	 * Returns the next available integer ID for the model.
+	 * Calling this multiple times during a redux cycle will give increasing numbers
+	 * even though the database table doesn't change.
+	 * Use this from the redux functions to assign unique ids to new objects.
+	 * @returns {Promise<number>} - the next usable ID
+	 */
 	async getNextId() {
 		let shouldGet
 		if (!this._lastUV) this._lastUV = await this.db.userVersion()
@@ -183,12 +238,21 @@ class ESModel extends JsonModel {
 		return ++this._maxId
 	}
 
+	/**
+	 * Applies the result from the reducer
+	 * @param {Object} result - free-form change descriptor
+	 * @returns {Promise<void>} - Promise for completion
+	 */
 	async applyChanges(result) {
 		this._maxId = 0
 		if (result.esFail) return
 		return super.applyChanges({...result, esFail: undefined})
 	}
 
+	/**
+	 * Assigns the object id to the event at the start of the cycle.
+	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+	 */
 	static async preprocessor({model, event}) {
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
@@ -198,7 +262,13 @@ class ESModel extends JsonModel {
 		}
 	}
 
-	// ESModel will only emit rm, ins, upd and esFail
+	/**
+	 * Calculates the desired change
+	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`
+	 * @param {object} model - the model
+	 * @param {Event} event - the event
+	 * @returns {Promise<Object>} - the result object in the format JsonModel likes
+	 */
 	static async reducer(model, {type, data}) {
 		if (!model || type !== model.TYPE) return false
 
