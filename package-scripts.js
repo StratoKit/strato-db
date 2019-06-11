@@ -19,7 +19,9 @@ const scripts = {
 		doc: series(
 			`echo '# API' > API.md`,
 			`echo >> API.md`,
-			`jsdoc2md -f src/*.js src/**/*js >> API.md`
+			`jsdoc2md -f src/*.js src/**/*js >> API.md`,
+			`echo >> API.md`,
+			`git log -n1 --format=format:"_Generated from %H, %cI_" >> API.md`
 		),
 	},
 	test: {

@@ -64,6 +64,13 @@ let connId = 1
 // This class lazily creates the db
 // TODO event emitter proxying the sqlite3 events
 // TODO split in sqlite wrapper and migrationable with onDidOpen handler
+/**
+ * DB is a wrapper around a single SQLite connection (via node-sqlite3).
+ * It provides a Promise API, lazy opening, auto-cleaning prepared statements
+ * and migrations.
+ * The migration state is kept in the table "_migrations".
+ * @extends SQLite
+ */
 class DB {
 	constructor({
 		file,
@@ -100,6 +107,13 @@ class DB {
 		return this.store
 	}
 
+	/**
+	 * Add a model to the DB, which will manage one or more tables in the SQLite database.
+	 * The model should use the given `db` instance at creation time.
+	 * @param {class} Model - a class
+	 * @param {DBOptions} options - options passed during Model creation
+	 * @returns {object} - the created Model instance
+	 */
 	addModel(Model, options) {
 		const model = new Model({
 			...options,
@@ -197,6 +211,10 @@ class DB {
 		return this
 	}
 
+	/**
+	 * Force opening the database instead of doing it lazily on first access
+	 * @returns {Promise<void>} - a promise for the DB being ready to use
+	 */
 	openDB() {
 		const {_resolveDbP} = this
 		if (_resolveDbP) {
@@ -210,6 +228,10 @@ class DB {
 		return this.dbP
 	}
 
+	/**
+	 * Close the database connection, including the prepared statements
+	 * @returns {Promise<void>} - a promise for the DB being closed
+	 */
 	async close() {
 		dbg(`closing ${this.name}`)
 
@@ -301,28 +323,67 @@ class DB {
 		return result
 	}
 
+	/**
+	 * Return all rows for the given query
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<array<object>>} - the results
+	 */
 	all(...args) {
 		return this._call('all', args, this._sqlite, this.name)
 	}
 
+	/**
+	 * Return the first row for the given query
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<(object|null)>} - the result or falsy if missing
+	 */
 	get(...args) {
 		return this._call('get', args, this._sqlite, this.name)
 	}
 
+	/**
+	 * Run the given query and return the metadata
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<object>} - an object with `lastID` and `changes`
+	 */
 	run(...args) {
 		return this._call('run', args, this._sqlite, this.name, true)
 	}
 
+	/**
+	 * Run the given query and return nothing. Slightly more efficient than {@link run}
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<void>} - a promise for execution completion
+	 */
 	async exec(...args) {
 		await this._call('exec', args, this._sqlite, this.name)
-		return this
 	}
 
+	/**
+	 * Register an SQL statement for repeated running. This will store the SQL
+	 * and will prepare the statement with SQLite whenever needed, as well as
+	 * finalize it when closing the connection.
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {string} [name] - a short name to use in debug logs
+	 * @returns {Statement} - the statement
+	 */
 	prepare(sql, name) {
 		if (this.statements[sql]) return this.statements[sql]
 		return new Statement(this, sql, name)
 	}
 
+	/**
+	 * Run the given query and call the function on each item.
+	 * Note that node-sqlite3 seems to just fetch all data in one go.
+	 * @param {string} sql - the SQL statement to be executed
+	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @param {function} cb(row) - the function to call on each row
+	 * @returns {Promise<void>} - a promise for execution completion
+	 */
 	each(...args) {
 		const lastIdx = args.length - 1
 		if (typeof args[lastIdx] === 'function') {
@@ -333,6 +394,11 @@ class DB {
 		return this._call('each', args, this._sqlite, this.name)
 	}
 
+	/**
+	 * Returns the data_version, which increases when other connections write
+	 * to the database.
+	 * @returns {Promise<number>} - the data version
+	 */
 	async dataVersion() {
 		if (!this._sqlite) await this._hold('dataVersion')
 		if (!this._dataVSql)
@@ -341,6 +407,12 @@ class DB {
 		return v
 	}
 
+	/**
+	 * Returns or sets the user_version, an arbitrary integer connected
+	 * to the database.
+	 * @param {number} [newV] - if given, sets the user version
+	 * @returns {Promise<(number|void)>} - the user version or nothing when setting
+	 */
 	async userVersion(newV) {
 		if (!this._sqlite) await this._hold('userVersion')
 		// Can't prepare or use pragma with parameter
@@ -357,6 +429,14 @@ class DB {
 		return v
 	}
 
+	/**
+	 * Run a function in an immediate transaction. Within a connection, the invocations
+	 * are serialized, and between connections it uses busy retry waiting. During a
+	 * transaction, the database can still be read.
+	 * @param {function} fn - the function to call. It doesn't get any parameters
+	 * @returns {Promise<void>} - a promise for transaction completion.
+	 * @throws - when the transaction fails or after too many retries
+	 */
 	async withTransaction(fn) {
 		if (this.readOnly) throw new Error(`${this.name}: DB is readonly`)
 		if (!this._sqlite) await this._hold('transaction')
@@ -368,6 +448,12 @@ class DB {
 		return this.transactionP
 	}
 
+	/**
+	 * Register an object with migrations
+	 * @param {string} name - the name under which to register these migrations
+	 * @param {object<object<function>>} migrations - the migrations object
+	 * @returns {void}
+	 */
 	registerMigrations(name, migrations) {
 		if (this.migrationsRan) {
 			throw new Error('migrations already done')
@@ -445,6 +531,10 @@ class DB {
 
 	transactionP = Promise.resolve()
 
+	/**
+	 * Runs the migrations in a transaction and waits for completion
+	 * @returns {Promise<void>} - promise for completed migrations
+	 */
 	async runMigrations() {
 		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		await this.withTransaction(async () => {

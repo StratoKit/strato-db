@@ -72,6 +72,7 @@ const calcUpd = (idCol, prev, obj, complete) => {
  *
  * For example: `model.set({foo: true})` would result in the event
  * `[1, 1, {foo: true}]`
+ * @extends JsonModel
  */
 class ESModel extends JsonModel {
 	/* eslint-disable lines-between-class-members */
