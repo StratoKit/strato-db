@@ -14,6 +14,8 @@
 - The `meta` argument in ESModel `.set` and `.update` moved to 4th position to make room for `noResult`
 - EventSourcingDB no longer checks for pending events when instantiated. You have to do this yourself with `.checkForEvents()` or simply `.startPolling()`
 - DB no longer returns itself on `.exec()`. There's no reason for having it and it saves some GC work.
+- `.open` was renamed to `.open`
+- the debug namespace was changed to `strato-db`
 
 ### Changes
 

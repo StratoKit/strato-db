@@ -4,7 +4,7 @@
 // Somewhat based on node-sqlite3 by Kriasoft, LLC
 
 import debug from 'debug'
-const dbg = debug('stratokit/DB:stmt')
+const dbg = debug('strato-db/DB:stmt')
 
 let id = 0
 class Statement {

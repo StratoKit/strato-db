@@ -45,7 +45,7 @@ import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 import {settleAll} from '../lib/settleAll'
 
-const dbg = debug('stratokit/ESDB')
+const dbg = debug('strato-db/ESDB')
 
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
@@ -118,8 +118,8 @@ class ESDB extends EventEmitter {
 						readOnly: true,
 						onWillOpen: async () => {
 							// Make sure migrations happened before opening
-							await this.queue.db.openDB()
-							await this.rwDb.openDB()
+							await this.queue.db.open()
+							await this.rwDb.open()
 						},
 				  })
 
@@ -362,7 +362,7 @@ class ESDB extends EventEmitter {
 
 	async waitForQueue() {
 		// give migrations a chance to queue things
-		await this.rwDb.openDB()
+		await this.rwDb.open()
 		const v = await this.queue.latestVersion()
 		return this.handledVersion(v)
 	}

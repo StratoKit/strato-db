@@ -2,7 +2,7 @@
 
 const path = require('path')
 const debug = require('debug')
-const dbg = debug('stratokit/babel')
+const dbg = debug('strato-db/babel')
 
 const isDev = process.env.NODE_ENV !== 'production'
 

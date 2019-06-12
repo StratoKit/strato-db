@@ -18,7 +18,7 @@ import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated, unknown} from '../lib/warning'
 
-const dbg = debug('stratokit/JSON')
+const dbg = debug('strato-db/JSON')
 
 /**
  * JsonModel is a simple document store. It stores its data in SQLite as a table, one row

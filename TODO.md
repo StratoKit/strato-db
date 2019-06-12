@@ -2,9 +2,7 @@
 
 ## General
 
-- Clean up the API more, to make it consistent between classes. Ideas:
-  - DB and ESDB to have same API for registering models (.addModel)
-  - split DB into pure sqlite wrapper and another wrapper for migrations
+- Give DB and ESDB the same API for registering models (.addModel)
 - Optimize:
   - [ ] create benchmark
   - [ ] API to get prepared statements from JM .search

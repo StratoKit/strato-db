@@ -3,7 +3,7 @@
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
-const dbg = debug('queue')
+const dbg = debug('strato-db/queue')
 
 /**
  * An event queue, including history

@@ -1,7 +1,7 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
-/* eslint-disable import/no-named-as-default-member */
-import DB, {sql, valToSql} from './DB'
+import {sql, valToSql} from './SQLite'
+import DB, {_getRanMigrations} from './DB'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -123,7 +123,7 @@ test('has migration', async () => {
 test('refuses late migrations', async () => {
 	const db = new DB()
 	db.registerMigrations('whee', {0: {up: () => {}}})
-	await db.openDB()
+	await db.open()
 	expect(() => db.registerMigrations('whee', {1: {up: () => {}}})).toThrow()
 	await db.close()
 })
@@ -144,7 +144,7 @@ test('runs migrations in writable mode', async () => {
 			}
 		}
 	)
-	await db.openDB()
+	await db.open()
 	expect(f).toBe(3)
 	await db.close()
 })
@@ -173,7 +173,7 @@ test('sorts migrations', async () => {
 			},
 		},
 	})
-	await db.openDB()
+	await db.open()
 	expect(arr).toEqual(['a', 'b', 'c'])
 	await db.close()
 })
@@ -195,8 +195,8 @@ test('marks migrations as ran', async () => {
 			},
 		},
 	})
-	await db.openDB()
-	const ran = await db._getRanMigrations()
+	await db.open()
+	const ran = await _getRanMigrations(db)
 	expect(ran).toEqual({'a whee': true, 'b whee': true})
 	await db.close()
 })
@@ -247,7 +247,7 @@ test('onWillOpen', async () => {
 			},
 		},
 	})
-	await db.openDB()
+	await db.open()
 	expect(t).toBe(2)
 	await db.close()
 })
