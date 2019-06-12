@@ -133,7 +133,6 @@ class SQLite {
 				else resolve()
 			})
 		}).catch(error => {
-			// TODO {code: 'SQLITE_CANTOPEN'} => retry
 			throw new Error(`${file}: ${error.message}`)
 		})
 

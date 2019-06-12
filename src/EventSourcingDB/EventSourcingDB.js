@@ -481,7 +481,7 @@ class ESDB extends EventEmitter {
 				continue
 			}
 			if (!event) return lastV
-			// TODO watchdog with timeout alerts/abort
+
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
 					lastV = event.v

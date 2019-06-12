@@ -13,11 +13,16 @@
 
 - [ ] sync interface for e.g. pragma data_version and BEGIN IMMEDIATE. Already did some work on it but it segfaults. Alternatively, use better-sqlite in a worker
 
-## DB
+## SQLite
+
+### Important
+
+- [ ] when opening, handle the error `{code: 'SQLITE_CANTOPEN'}` by retrying later
 
 ### Nice to have
 
-- [ ] accept column def and create/add if needed, using pragma table_info
+- [ ] event emitter proxying the sqlite3 events
+- [ ] `ensureTable(columns)`: accept column defs and create/add if needed, using pragma table_info
 
   ```text
   > pragma table_info("_migrations");
@@ -27,15 +32,21 @@
   2|up|BOOLEAN|0||0
   ```
 
-- [ ] manage indexes, using PRAGMA index_list. Drop unused indexes with \_strato prefix
-- [ ] if migration is `{undo:fn}` it will run the `undo` only if the migration ran before. We never needed `down` migrations so far.
-- [ ] support better-sqlite if it's ok for the main thread to hang
+- [ ] `ensureIndexes(indexes, dropUnused)` manage indexes, using PRAGMA index*list. Drop unused indexes with `\_sdb*` prefix
 - [ ] create a worker thread version that uses better-sqlite. Benchmark.
+- [ ] support better-sqlite if it's ok for the main thread to hang
 
 ### Someday
 
 - [ ] with sqlite 3.22, use the btree info extension to provide index sizes at startup if debug enabled
-- When async iterators are here, make one for db.each
+- When async iterators are here, make one for db.each. Although it seems that node-sqlite3 actually slurps the entire table into an array.
+
+## DB
+
+### Nice to have
+
+- [ ] if migration is `{undo:fn}` run the `undo` only if the migration ran before. We never needed `down` migrations so far.
+  - to run something only on existing databases, first deploy a `()=>{}` migration and then change it to an `undo`
 
 ## JsonModel
 
@@ -94,6 +105,12 @@
 
 - [ ] split DB into multiple files, per 1GB, automatically attach for queries. (make sure it's multi-process safe - lock the db, make sure new writes are not possible in old files)
 - [ ] test multi-process changes
+
+## ESModel
+
+### Nice to have
+
+- [ ] implement `.changeID`. It requires applyEvent to support `mv`
 
 ## ESDB
 
