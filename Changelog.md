@@ -16,6 +16,7 @@
 - DB no longer returns itself on `.exec()`. There's no reason for having it and it saves some GC work.
 - `.open` was renamed to `.open`
 - the debug namespace was changed to `strato-db`
+- `applyChanges` was moved from JsonModel to a separate helper function `applyResult(model, result)`
 
 ### Changes
 

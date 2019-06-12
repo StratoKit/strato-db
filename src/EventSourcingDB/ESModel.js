@@ -8,6 +8,7 @@
 import JsonModel from '../JsonModel'
 import {DEV} from '../lib/warning'
 import {isEqual} from 'lodash'
+import applyResult from './applyResult'
 
 export const undefToNull = data => {
 	if (data == null) return null
@@ -243,10 +244,10 @@ class ESModel extends JsonModel {
 	 * @param {Object} result - free-form change descriptor
 	 * @returns {Promise<void>} - Promise for completion
 	 */
-	async applyChanges(result) {
+	async applyResult(result) {
 		this._maxId = 0
 		if (result.esFail) return
-		return super.applyChanges({...result, esFail: undefined})
+		return applyResult(this, {...result, esFail: undefined})
 	}
 
 	/**

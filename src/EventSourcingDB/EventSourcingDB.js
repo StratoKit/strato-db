@@ -724,7 +724,7 @@ class ESDB extends EventEmitter {
 				// Apply reducer results, wait for all to settle
 				await settleAll(
 					Object.entries(result),
-					async ([name, r]) => r && rwStore[name].applyChanges(r)
+					async ([name, r]) => r && rwStore[name].applyResult(r)
 				)
 			}
 

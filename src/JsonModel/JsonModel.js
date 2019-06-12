@@ -16,7 +16,7 @@ import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
-import {DEV, deprecated, unknown} from '../lib/warning'
+import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/JSON')
 
@@ -813,21 +813,6 @@ class JsonModel {
 			if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
 			return undefined
 		})
-	}
-
-	async applyChanges(result) {
-		const {rm, set, ins, upd, sav} = result
-		if (DEV) {
-			const {rm, set, ins, upd, sav, ...rest} = result
-			Object.keys(rest).forEach(
-				k => typeof rest[k] !== 'undefined' && unknown(k, `key ${k} in result`)
-			)
-		}
-		if (rm) await settleAll(rm, item => this.remove(item))
-		if (ins) await settleAll(ins, obj => this.set(obj, true, true))
-		if (set) await settleAll(set, obj => this.set(obj, false, true))
-		if (upd) await settleAll(upd, obj => this.updateNoTrans(obj, true, true))
-		if (sav) await settleAll(sav, obj => this.updateNoTrans(obj, false, true))
 	}
 }
 
