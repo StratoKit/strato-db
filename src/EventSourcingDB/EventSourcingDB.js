@@ -343,16 +343,6 @@ class ESDB extends EventEmitter {
 		return this.handledVersion(event.v)
 	}
 
-	// Only use this for testing
-	async _dispatchWithError(type, data, ts) {
-		const event = await this.queue.add(type, data, ts)
-		this.__STOP_ON_ERROR = true
-		await this.startPolling(event.v)
-		const result = await this.queue.get(event.v)
-		if (result.error) throw result
-		return result
-	}
-
 	_subDispatch(event, type, data) {
 		if (!event.events) event.events = []
 		event.events.push({type, data})
@@ -430,6 +420,16 @@ class ESDB extends EventEmitter {
 				} catch (error) {
 					console.error('!!! "error" event handler threw, ignoring', error)
 				}
+			}
+			if (o && process.env.NODE_ENV === 'test') {
+				if (!this.__BE_QUIET)
+					console.error(
+						`!!! rejecting the dispatch for event ${event.v} ${
+							event.type
+						} - this does NOT happen outside test mode, NEVER rely on this.
+						Set eSDB.__BE_QUIET to not show this message`
+					)
+				o.reject(event)
 			}
 		} else {
 			try {
@@ -550,11 +550,7 @@ class ESDB extends EventEmitter {
 
 			this._triggerEventListeners(resultEvent)
 
-			if (
-				this._reallyStop ||
-				(errorCount &&
-					(this.__STOP_ON_ERROR || process.env.NODE_ENV === 'test'))
-			) {
+			if (this._reallyStop || (errorCount && process.env.NODE_ENV === 'test')) {
 				this._reallyStop = false
 				return
 			}

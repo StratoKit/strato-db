@@ -92,7 +92,7 @@ test('multiple ESDB', async () => {
 })
 
 test('subevent handlers see intermediate state', async () => {
-	await db1._dispatchWithError('main')
+	await db1.dispatch('main')
 })
 
 test(`RO and other DB don't see transaction`, async () => {
