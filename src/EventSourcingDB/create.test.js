@@ -107,6 +107,24 @@ test('reducer', () => {
 	})
 })
 
+test('preprocess => reduce', () => {
+	const models = {
+		foo: {
+			preprocessor: ({event}) => {
+				if (event.type !== 'meep') return
+				return {...event, step: 1}
+			},
+			reducer: (model, event) => {
+				if (event.type !== 'meep') return
+				expect(event).toHaveProperty('step', 1)
+			},
+		},
+	}
+	return withESDB(async eSDB => {
+		await eSDB.dispatch('meep')
+	}, models)
+})
+
 test('reducer migration support', async () => {
 	let step = 0
 	return withESDB(

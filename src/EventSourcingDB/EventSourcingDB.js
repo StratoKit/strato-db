@@ -490,10 +490,6 @@ class ESDB extends EventEmitter {
 					const nowV = await this.getVersion()
 					if (event.v <= nowV) return
 
-					// Clear previous result/error, if any
-					delete event.error
-					delete event.result
-
 					await rwDb.run('SAVEPOINT handle')
 					const result = await this._handleEvent(event)
 					if (result.error) {
@@ -673,11 +669,17 @@ class ESDB extends EventEmitter {
 			}
 		}
 		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
+		event = {
+			...origEvent,
+			result: undefined,
+			events: undefined,
+			error: undefined,
+		}
 
-		event = await this._preprocessor(origEvent, isMainEvent)
+		event = await this._preprocessor(event, isMainEvent)
 		if (event.error) return event
 
-		event = await this._reducer(origEvent, isMainEvent)
+		event = await this._reducer(event, isMainEvent)
 		if (event.error) return event
 
 		event = await this._applyEvent(event, isMainEvent)

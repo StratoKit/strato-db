@@ -73,3 +73,20 @@ test('no infinite recursion', () => {
 		)
 	}, models)
 })
+
+test('replay clears subevents', () => {
+	const models = {
+		foo: {
+			deriver: async ({event, dispatch}) => {
+				if (event.type === 'hi') dispatch('ho')
+			},
+		},
+	}
+	return withESDB(async eSDB => {
+		await eSDB.queue.set({v: 5, type: 'hi', events: [{type: 'deleteme'}]})
+		const event = await eSDB.handledVersion(5)
+		expect(event).toHaveProperty('events', [
+			expect.objectContaining({type: 'ho'}),
+		])
+	}, models)
+})
