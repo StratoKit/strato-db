@@ -568,6 +568,7 @@ class ESDB extends EventEmitter {
 					// subevents must see intermediate state
 					store: isMainEvent ? this.store : this.rwStore,
 					dispatch: this._subDispatch.bind(this, event),
+					isMainEvent,
 				})
 			} catch (error) {
 				newEvent = {error}
@@ -605,6 +606,7 @@ class ESDB extends EventEmitter {
 			store: isMainEvent ? this.store : this.rwStore,
 			dispatch: this._subDispatch.bind(this, event),
 			event,
+			isMainEvent,
 		}
 		await Promise.all(
 			this._reducerNames.map(async key => {
@@ -746,6 +748,7 @@ class ESDB extends EventEmitter {
 						event,
 						result: result[model.name],
 						dispatch: this._subDispatch.bind(this, event),
+						isMainEvent,
 					})
 				)
 			}

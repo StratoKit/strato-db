@@ -222,20 +222,7 @@ class ESModel extends JsonModel {
 	 * @returns {Promise<number>} - the next usable ID
 	 */
 	async getNextId() {
-		let shouldGet
-		if (!this._lastUV) this._lastUV = await this.db.userVersion()
-
-		// eslint-disable-next-line no-negated-condition
-		if (!this._maxId) {
-			shouldGet = true
-		} else {
-			const uv = await this.db.userVersion()
-			if (uv !== this._lastUV) {
-				this._lastUV = uv
-				shouldGet = true
-			}
-		}
-		if (shouldGet) this._maxId = await this.max(this.idCol)
+		if (!this._maxId) this._maxId = await this.max(this.idCol)
 		return ++this._maxId
 	}
 
@@ -254,7 +241,8 @@ class ESModel extends JsonModel {
 	 * Assigns the object id to the event at the start of the cycle.
 	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
 	 */
-	static async preprocessor({model, event}) {
+	static async preprocessor({model, event, isMainEvent}) {
+		if (isMainEvent) this._maxId = 0
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
 			// Always overwrite, so repeat events get correct ids

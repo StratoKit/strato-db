@@ -3,14 +3,17 @@ import {withESDB} from '../lib/_test-helpers'
 test('work', () => {
 	const models = {
 		foo: {
-			preprocessor: ({event, dispatch}) => {
+			preprocessor: ({event, dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBe()
 				if (event.type === 'hi') dispatch('hello')
 			},
-			reducer: (model, event, {dispatch}) => {
+			reducer: (model, event, {dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBe()
 				if (event.type === 'hi') dispatch('everybody')
 				return {set: [{id: event.type}]}
 			},
-			deriver: ({event, dispatch}) => {
+			deriver: ({event, dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBe()
 				if (event.type === 'hi') dispatch('there')
 			},
 		},
