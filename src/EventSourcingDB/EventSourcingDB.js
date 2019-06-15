@@ -91,7 +91,7 @@ const errorToString = error => {
  * This is very similar to how Redux works in React.
  * @extends EventEmitter
  */
-class ESDB extends EventEmitter {
+class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
 	// eslint-disable-next-line complexity
@@ -768,4 +768,4 @@ class ESDB extends EventEmitter {
 	}
 }
 
-export default ESDB
+export default EventSourcingDB
