@@ -286,7 +286,7 @@ class SQLite {
 					if (returnFn) o = fnResult
 					const d = getDuration(now)
 					const out =
-						method !== 'exec' && method !== 'run' && method !== 'prepare'
+						method !== 'exec' && method !== 'prepare'
 							? `-> ${objToString(o)}`
 							: ''
 					return dbgQ(`${what} ${q} ${v} ${d}ms ${out}`)
