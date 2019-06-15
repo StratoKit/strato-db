@@ -119,6 +119,31 @@ test('preprocessors', async () => {
 	)
 })
 
+test('reducer, deriver data immutable', async () => {
+	return withESDB(
+		async eSDB => {
+			eSDB.__BE_QUIET = true
+			await expect(eSDB.dispatch('reduce', {})).rejects.toHaveProperty(
+				'error._reduce_meep'
+			)
+			await eSDB.rwDb.userVersion((await eSDB.rwDb.userVersion()) + 1)
+			await expect(eSDB.dispatch('derive', {})).rejects.toHaveProperty(
+				'error._apply_derive'
+			)
+		},
+		{
+			meep: {
+				reducer: (model, event) => {
+					if (event.type === 'reduce') event.data.foo = 'bar'
+				},
+				deriver: ({event}) => {
+					if (event.type === 'derive') event.data.foo = 'bar'
+				},
+			},
+		}
+	)
+})
+
 test('preprocessor/reducer for ESModel', async () =>
 	withESDB(
 		async eSDB => {

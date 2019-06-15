@@ -608,6 +608,9 @@ class EventSourcingDB extends EventEmitter {
 			event,
 			isMainEvent,
 		}
+		if (process.env.NODE_ENV !== 'production') {
+			Object.freeze(event.data)
+		}
 		await Promise.all(
 			this._reducerNames.map(async key => {
 				const model = this.store[key]
@@ -645,7 +648,7 @@ class EventSourcingDB extends EventEmitter {
 			for (const name of this._reducerNames) {
 				const r = result[name]
 				if (r && r.error) {
-					error[`reduce_${name}`] = r.error
+					error[`_reduce_${name}`] = r.error
 				}
 			}
 			return {...event, error}
@@ -758,8 +761,7 @@ class EventSourcingDB extends EventEmitter {
 				delete event.result
 			}
 			if (!event.error) event.error = {}
-			// TODO test apply errors
-			event.error[`_apply-${phase}`] = errorToString(error)
+			event.error[`_apply_${phase}`] = errorToString(error)
 		} finally {
 			for (const model of readWriters) model.setWritable(false)
 		}

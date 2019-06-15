@@ -18,7 +18,7 @@ test('event error in reducer', () =>
 		await expect(
 			eSDB._handleEvent({type: 'error_reduce'})
 		).resolves.toHaveProperty(
-			'error.reduce_count',
+			'error._reduce_count',
 			expect.stringContaining('error for you')
 		)
 	}))
@@ -35,7 +35,7 @@ test('event error in apply', () => {
 				},
 			})
 		).resolves.toHaveProperty(
-			'error._apply-apply',
+			'error._apply_apply',
 			expect.stringContaining('.map is not a function')
 		)
 	})
@@ -46,7 +46,7 @@ test('event error in deriver', () =>
 		await expect(
 			eSDB._handleEvent({v: 1, type: 'error_derive'})
 		).resolves.toHaveProperty(
-			'error._apply-derive',
+			'error._apply_derive',
 			expect.stringContaining('error for you')
 		)
 	}))
