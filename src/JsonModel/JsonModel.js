@@ -703,12 +703,13 @@ class JsonModel {
 	 * Get an object by a unique value, like its ID, using a cache.
 	 * This also coalesces multiple calls in the same tick into a single query,
 	 * courtesy of DataLoader.
-	 * @param  {object} cache - the lookup cache. It is managed with DataLoader
+	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
 	 * @param  {*} id - the value for the column
 	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
 	 * @returns {Promise<(object|null)>} - the object if it exists
 	 */
 	getCached(cache, id, colName = this.idCol) {
+		if (!cache) return this.get(id, colName)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
 			dbg(`creating DataLoader for ${this.name}.${colName}`)
