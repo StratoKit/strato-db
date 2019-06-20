@@ -721,6 +721,23 @@ class JsonModel {
 		return cache[key].load(id)
 	}
 
+	/**
+	 * Lets you clear all the cache or just a key. Useful for when you
+	 * change only some items
+	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {DataLoader} - the actual cache, you can call `.prime(key, value)` on it to insert a value
+	 */
+	clearCache(cache, id, colName = this.idCol) {
+		if (!cache) return
+		const key = `_DL_${this.name}_${colName}`
+		const c = cache[key]
+		if (!c) return
+		if (id) return c.clear(id)
+		return c.clearAll()
+	}
+
 	async each(attrs, options, fn) {
 		if (!fn) {
 			if (options) {
