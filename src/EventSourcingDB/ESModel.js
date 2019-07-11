@@ -91,7 +91,7 @@ class ESModel extends JsonModel {
 	 * @param  {boolean} [init] - emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers
 	 * @param  {Object} [...options] - other params are passed to JsonModel
 	 */
-	constructor({dispatch, init, ...options}) {
+	constructor({dispatch, init, emitter, ...options}) {
 		super({
 			...options,
 			migrations: {
@@ -101,6 +101,12 @@ class ESModel extends JsonModel {
 		})
 		this.dispatch = dispatch
 		this.writable = false
+		const clearMax = () => {
+			this._maxId = 0
+		}
+		options.db.on('begin', clearMax)
+		emitter.on('result', clearMax)
+		emitter.on('error', clearMax)
 	}
 
 	TYPE = `es/${this.name}`
