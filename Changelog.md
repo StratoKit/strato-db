@@ -17,6 +17,7 @@
 - `.open` was renamed to `.open`
 - the debug namespace was changed to `strato-db`
 - `applyChanges` was moved from JsonModel to a separate helper function `applyResult(model, result)`
+- EventSourcingDB now passes `emitter` as an option to models, so they can subscribe to events. You have to take it out before passing the options to `JsonModel`.
 
 ### Changes
 

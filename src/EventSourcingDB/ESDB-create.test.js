@@ -64,6 +64,10 @@ test('create with Model', () => {
 						if (typeof options.dispatch !== 'function') {
 							throw new TypeError('Dispatch expected')
 						}
+						if (typeof options.emitter !== 'object') {
+							throw new TypeError('emitter expected')
+						}
+						delete options.emitter
 						super(options)
 					}
 
@@ -155,7 +159,7 @@ test('reducer migration support', async () => {
 
 test('metadata migration', async () => {
 	class M extends JsonModel {
-		constructor(props) {
+		constructor({emitter, ...props}) {
 			super({
 				...props,
 				migrations: {
@@ -183,7 +187,7 @@ test('metadata migration', async () => {
 
 test('metadata migration with existing data', async () => {
 	class M extends JsonModel {
-		constructor(props) {
+		constructor({emitter, ...props}) {
 			super({
 				...props,
 				migrations: {

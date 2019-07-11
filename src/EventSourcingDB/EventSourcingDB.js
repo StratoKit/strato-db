@@ -224,6 +224,7 @@ class EventSourcingDB extends EventEmitter {
 					...rest,
 					migrationOptions,
 					dispatch,
+					emitter: this,
 				})
 				rwModel.deriver = deriver || RWModel.deriver
 				this.rwStore[name] = rwModel
@@ -238,7 +239,12 @@ class EventSourcingDB extends EventEmitter {
 				if (this.db === this.rwDb) {
 					model = rwModel
 				} else {
-					model = this.db.addModel(Model, {name, ...rest, dispatch})
+					model = this.db.addModel(Model, {
+						name,
+						...rest,
+						dispatch,
+						emitter: this,
+					})
 				}
 				model.preprocessor = preprocessor || Model.preprocessor
 				model.reducer = reducer || Model.reducer
