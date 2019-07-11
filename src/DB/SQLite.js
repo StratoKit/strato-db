@@ -5,6 +5,7 @@ import {performance} from 'perf_hooks'
 import {inspect} from 'util'
 import sqlite3 from 'sqlite3'
 import Statement from './Statement'
+import {EventEmitter} from 'events'
 
 const dbg = debug('strato-db/sqlite')
 const dbgQ = dbg.extend('query')
@@ -76,8 +77,9 @@ let connId = 1
  * SQLite is a wrapper around a single SQLite connection (via node-sqlite3).
  * It provides a Promise API, lazy opening, auto-cleaning prepared statements
  * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
+ * @extends EventEmitter
  */
-class SQLite {
+class SQLite extends EventEmitter {
 	constructor({
 		file,
 		readOnly,
@@ -90,6 +92,8 @@ class SQLite {
 		_statements = {},
 		...rest
 	} = {}) {
+		super()
+
 		if (Object.keys(rest).length)
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
@@ -430,6 +434,7 @@ class SQLite {
 	async __withTransaction(fn, count = RETRY_COUNT) {
 		try {
 			await this.exec(`BEGIN IMMEDIATE`)
+			this.emit('begin')
 		} catch (error) {
 			if (error.code === 'SQLITE_BUSY' && count) {
 				// Transaction already running
@@ -446,9 +451,13 @@ class SQLite {
 			if (process.env.NODE_ENV !== 'test')
 				console.error('transaction failure, rolling back', error)
 			await this.exec(`ROLLBACK`)
+			this.emit('rollback')
+			this.emit('finally')
 			throw error
 		}
 		await this.exec(`END`)
+		this.emit('end')
+		this.emit('finally')
 		return result
 	}
 }
