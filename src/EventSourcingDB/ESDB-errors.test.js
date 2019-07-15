@@ -67,6 +67,7 @@ test('event emitter', async () => {
 		})
 		await eSDB.dispatch('foo')
 		await eSDB.dispatch('bar')
+		// eslint-disable-next-line require-atomic-updates
 		eSDB.__BE_QUIET = true
 		await expect(eSDB.dispatch('error_reduce')).rejects.toHaveProperty('error')
 		expect(errored).toBe(1)
