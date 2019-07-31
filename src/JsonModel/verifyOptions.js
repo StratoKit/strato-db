@@ -125,7 +125,9 @@ const jmPropTypes =
 					),
 					ItemClass: PropTypes.func,
 					idCol: PropTypes.string,
+					// Harmless props passed by ESDB
 					dispatch: PropTypes.any,
+					emitter: PropTypes.any,
 				}),
 		  }
 
