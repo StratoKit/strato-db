@@ -94,7 +94,14 @@ class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
 	// eslint-disable-next-line complexity
-	constructor({queue, models, queueFile, withViews = true, ...dbOptions}) {
+	constructor({
+		queue,
+		models,
+		queueFile,
+		withViews = true,
+		onWillOpen: prevOWO,
+		...dbOptions
+	}) {
 		super()
 		if (dbOptions.db)
 			throw new TypeError(
@@ -104,7 +111,13 @@ class EventSourcingDB extends EventEmitter {
 		if (queueFile && queue)
 			throw new TypeError('Either pass queue or queueFile')
 
-		this.rwDb = new DB(dbOptions)
+		this.rwDb = new DB({
+			...dbOptions,
+			onWillOpen: async () => {
+				await this.queue.db.open()
+				if (prevOWO) await prevOWO()
+			},
+		})
 		const {readOnly} = this.rwDb
 
 		// The RO DB needs to be the same for :memory: or it won't see anything
@@ -117,7 +130,6 @@ class EventSourcingDB extends EventEmitter {
 						readOnly: true,
 						onWillOpen: async () => {
 							// Make sure migrations happened before opening
-							await this.queue.db.open()
 							await this.rwDb.open()
 						},
 				  })
@@ -261,16 +273,12 @@ class EventSourcingDB extends EventEmitter {
 
 				if (!hasOne)
 					throw new TypeError(
-						`${
-							this.name
-						}: At least one reducer, deriver or preprocessor required`
+						`${this.name}: At least one reducer, deriver or preprocessor required`
 					)
 			} catch (error) {
 				// TODO write test
 				if (error.message)
-					error.message = `ESDB: while configuring model ${name}: ${
-						error.message
-					}`
+					error.message = `ESDB: while configuring model ${name}: ${error.message}`
 				if (error.stack)
 					error.stack = `ESDB: while configuring model ${name}: ${error.stack}`
 				throw error
@@ -430,9 +438,7 @@ class EventSourcingDB extends EventEmitter {
 			if (o && process.env.NODE_ENV === 'test') {
 				if (!this.__BE_QUIET)
 					console.error(
-						`!!! rejecting the dispatch for event ${event.v} ${
-							event.type
-						} - this does NOT happen outside test mode, NEVER rely on this.
+						`!!! rejecting the dispatch for event ${event.v} ${event.type} - this does NOT happen outside test mode, NEVER rely on this.
 						Set eSDB.__BE_QUIET to not show this message`
 					)
 				o.reject(event)
