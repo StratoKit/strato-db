@@ -71,6 +71,7 @@ const registerHistoryMigration = (rwDb, queue) => {
 				})
 				await allDone
 				// not dropping table, you can do that yourself :)
+				// eslint-disable-next-line no-console
 				console.error(`!!! history table in ${rwDb.file} is no longer needed`)
 			},
 		},
@@ -324,6 +325,7 @@ class EventSourcingDB extends EventEmitter {
 		if (!this._waitingP) {
 			this._waitingP = this._waitForEvent()
 				.catch(error => {
+					// eslint-disable-next-line no-console
 					console.error(
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						error
@@ -435,11 +437,13 @@ class EventSourcingDB extends EventEmitter {
 				try {
 					this.emit('error', event)
 				} catch (error) {
+					// eslint-disable-next-line no-console
 					console.error('!!! "error" event handler threw, ignoring', error)
 				}
 			}
 			if (o && process.env.NODE_ENV === 'test') {
 				if (!this.__BE_QUIET)
+					// eslint-disable-next-line no-console
 					console.error(
 						`!!! rejecting the dispatch for event ${event.v} ${event.type} - this does NOT happen outside test mode, NEVER rely on this.
 						Set eSDB.__BE_QUIET to not show this message`
@@ -450,6 +454,7 @@ class EventSourcingDB extends EventEmitter {
 			try {
 				this.emit('result', event)
 			} catch (error) {
+				// eslint-disable-next-line no-console
 				console.error('!!! "result" event handler threw, ignoring', error)
 			}
 			if (o) o.resolve(event)
@@ -488,6 +493,7 @@ class EventSourcingDB extends EventEmitter {
 				)
 			} catch (error) {
 				errorCount++
+				// eslint-disable-next-line no-console
 				console.error(
 					`!!! ESDB: queue.getNext failed - this should not happen`,
 					error
@@ -520,6 +526,7 @@ class EventSourcingDB extends EventEmitter {
 				})
 				.catch(error => {
 					if (!this.__BE_QUIET)
+						// eslint-disable-next-line no-console
 						console.error(
 							'!!! ESDB: an error occured outside of the normal error handlers',
 							error
@@ -550,6 +557,7 @@ class EventSourcingDB extends EventEmitter {
 						return false
 					}
 					walkEvents(resultEvent)
+					// eslint-disable-next-line no-console
 					console.error(
 						`!!! ESDB: event ${path} processing failed (try #${errorCount})`,
 						error

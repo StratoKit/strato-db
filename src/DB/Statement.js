@@ -1,3 +1,4 @@
+// @ts-check
 // Implements prepared statements that auto-close and recreate
 // Only a single preparation per sql string
 // No parameter binding at creation for now
@@ -25,6 +26,15 @@ class Statement {
 
 	P = Promise.resolve()
 
+	/**
+	 * @callback voidFn
+	 * @returns {Promise<*>|*}
+	 */
+	/**
+	 * wrap the function with a refresh call
+	 * @param {voidFn} fn the function to wrap
+	 * @returns {Promise<*>} the result of the function
+	 */
 	_wrap(fn) {
 		if (!this._stmt) this.P = this.P.then(this._refresh)
 		this.P = this.P.then(fn, fn)
@@ -65,13 +75,23 @@ class Statement {
 		)
 	}
 
-	async run(args) {
-		return this._wrap(() => this._db._call('run', args, this, this.name, true))
+	/**
+	 * Run the statement and return the metadata
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<object>} - an object with `lastID` and `changes`
+	 */
+	async run(vars) {
+		return this._wrap(() => this._db._call('run', vars, this, this.name, true))
 	}
 
-	async get(args) {
+	/**
+	 * Return the first row for the statement result
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<(object|null)>} - the result or falsy if missing
+	 */
+	async get(vars) {
 		return this._wrap(() =>
-			this._db._call('get', args, this, this.name).finally(
+			this._db._call('get', vars, this, this.name).finally(
 				() =>
 					this._stmt &&
 					new Promise(resolve => {
@@ -83,8 +103,13 @@ class Statement {
 		)
 	}
 
-	async all(args) {
-		return this._wrap(() => this._db._call('all', args, this, this.name))
+	/**
+	 * Return all result rows for the statement
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<Array<object>>} - the results
+	 */
+	async all(vars) {
+		return this._wrap(() => this._db._call('all', vars, this, this.name))
 	}
 
 	async each(args, onRow) {

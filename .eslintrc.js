@@ -25,6 +25,7 @@ module.exports = {
 		// our webpack nodeRequire trick is not a package
 		'import/no-unresolved': [2, {ignore: ['nodeRequire']}],
 		'no-const-assign': 1,
+		'no-console': 2,
 		'no-implicit-coercion': [2, {allow: ['!!']}],
 		'no-this-before-super': 1,
 		'no-unreachable': 1,

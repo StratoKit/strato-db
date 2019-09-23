@@ -1,19 +1,20 @@
+// @ts-check
 import {withESDB} from '../lib/_test-helpers'
 
 test('work', () => {
 	const models = {
 		foo: {
 			preprocessor: ({event, dispatch, isMainEvent}) => {
-				expect(isMainEvent).not.toBe()
+				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('hello')
 			},
 			reducer: (model, event, {dispatch, isMainEvent}) => {
-				expect(isMainEvent).not.toBe()
+				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('everybody')
 				return {set: [{id: event.type}]}
 			},
 			deriver: ({event, dispatch, isMainEvent}) => {
-				expect(isMainEvent).not.toBe()
+				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('there')
 			},
 		},

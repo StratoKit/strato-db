@@ -1,3 +1,4 @@
+// @ts-check
 /* eslint-disable no-console */
 import {sortBy} from 'lodash'
 import debug from 'debug'
@@ -63,8 +64,8 @@ class DB extends SQLite {
 	/**
 	 * Add a model to the DB, which will manage one or more tables in the SQLite database.
 	 * The model should use the given `db` instance at creation time.
-	 * @param {class} Model - a class
-	 * @param {DBOptions} options - options passed during Model creation
+	 * @param {Object} Model - a class
+	 * @param {object} options - options passed during Model creation
 	 * @returns {object} - the created Model instance
 	 */
 	addModel(Model, options) {

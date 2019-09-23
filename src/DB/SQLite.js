@@ -1,3 +1,4 @@
+// @ts-check
 /* eslint-disable no-console */
 import path from 'path'
 import debug from 'debug'
@@ -15,9 +16,7 @@ const RETRY_COUNT = 3
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
 const getDuration = ts =>
-	(performance.now() - ts).toLocaleString({
-		maximumFractionDigits: 2,
-	})
+	(performance.now() - ts).toLocaleString(undefined, {maximumFractionDigits: 2})
 
 const objToString = o => {
 	const s = inspect(o, {compact: true, breakLength: Infinity})
@@ -42,7 +41,8 @@ export const valToSql = v => {
  * is converted to
  *   `db.all('select * from "foo" where t = ? and json = ?', [bar, JSON.stringify(obj)])`
  *
- * @param  {templatestring} ...args - the template
+ * @param  {Array<string>} template - the template
+ * @param  {...any} interpolations - the template interpolations
  * @returns {array} - [out, variables] for consumption by the call method
  */
 export const sql = (...args) => {
@@ -80,6 +80,19 @@ let connId = 1
  * @extends EventEmitter
  */
 class SQLite extends EventEmitter {
+	/**
+	 * @constructor
+	 * @param  {object} options -
+	 * @param  {string} [options.file] path to db file
+	 * @param  {boolean} [options.readOnly] open read-only
+	 * @param  {boolean} [options.verbose] verbose errors
+	 * @param  {function} [options.onWillOpen] called before opening
+	 * @param  {function} [options.onDidOpen] called after opened
+	 * @param  {string} [options.name] name for debugging
+	 * @param  {object} [options._sqlite] sqlite instance for child dbs
+	 * @param  {object} [options._store={}] models registry for child dbs
+	 * @param  {object} [options._statements={}] statements registry for child dbs
+	 */
 	constructor({
 		file,
 		readOnly,
@@ -141,6 +154,7 @@ class SQLite extends EventEmitter {
 		})
 
 		// Wait 15s for locks
+		// @ts-ignore
 		_sqlite.configure('busyTimeout', 15000)
 
 		const childDb = new SQLite({
@@ -231,8 +245,6 @@ class SQLite extends EventEmitter {
 		clearInterval(this._optimizerToken)
 		if (this._dbP) await this._dbP
 		if (_sqlite) await this._call('close', [], _sqlite, this.name)
-
-		return this
 	}
 
 	async _hold(method) {
@@ -307,8 +319,8 @@ class SQLite extends EventEmitter {
 	/**
 	 * Return all rows for the given query
 	 * @param {string} sql - the SQL statement to be executed
-	 * @param {array<*>} [vars] - the variables to be bound to the statement
-	 * @returns {Promise<array<object>>} - the results
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
+	 * @returns {Promise<Array<object>>} - the results
 	 */
 	all(...args) {
 		return this._call('all', args, this._sqlite, this.name)
@@ -317,7 +329,7 @@ class SQLite extends EventEmitter {
 	/**
 	 * Return the first row for the given query
 	 * @param {string} sql - the SQL statement to be executed
-	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
 	 * @returns {Promise<(object|null)>} - the result or falsy if missing
 	 */
 	get(...args) {
@@ -327,7 +339,7 @@ class SQLite extends EventEmitter {
 	/**
 	 * Run the given query and return the metadata
 	 * @param {string} sql - the SQL statement to be executed
-	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
 	 * @returns {Promise<object>} - an object with `lastID` and `changes`
 	 */
 	run(...args) {
@@ -337,7 +349,7 @@ class SQLite extends EventEmitter {
 	/**
 	 * Run the given query and return nothing. Slightly more efficient than {@link run}
 	 * @param {string} sql - the SQL statement to be executed
-	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
 	 * @returns {Promise<void>} - a promise for execution completion
 	 */
 	async exec(...args) {
@@ -361,7 +373,7 @@ class SQLite extends EventEmitter {
 	 * Run the given query and call the function on each item.
 	 * Note that node-sqlite3 seems to just fetch all data in one go.
 	 * @param {string} sql - the SQL statement to be executed
-	 * @param {array<*>} [vars] - the variables to be bound to the statement
+	 * @param {Array<*>} [vars] - the variables to be bound to the statement
 	 * @param {function} cb(row) - the function to call on each row
 	 * @returns {Promise<void>} - a promise for execution completion
 	 */
