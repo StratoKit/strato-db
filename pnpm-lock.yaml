@@ -14,6 +14,7 @@ devDependencies:
   '@babel/polyfill': 7.4.4
   '@babel/preset-env': 7.4.4_@babel+core@7.4.4
   '@babel/register': 7.4.4_@babel+core@7.4.4
+  '@types/jest': 24.0.18
   babel-core: 7.0.0-bridge.0_@babel+core@7.4.4
   babel-eslint: 10.0.2_eslint@6.0.1
   babel-jest: 24.8.0_@babel+core@7.4.4
@@ -1037,6 +1038,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UpYjBi8xefVChsCoBpKShdxTllC9pwISirfoZsUa2AAdQg/Jd2KQGtSbw+ya7GPo7x/wAPlH6JBhKhAsXUEZNA==
+  /@types/jest-diff/20.0.1:
+    dev: true
+    resolution:
+      integrity: sha512-yALhelO3i0hqZwhjtcr6dYyaLoCHbAMshwtj6cGxTvHZAKXHsYGdff6E8EPw3xLKY0ELUTQ69Q1rQiJENnccMA==
+  /@types/jest/24.0.18:
+    dependencies:
+      '@types/jest-diff': 20.0.1
+    dev: true
+    resolution:
+      integrity: sha512-jcDDXdjTcrQzdN06+TSVsPPqxvsZA/5QkYfIZlq1JMw7FdP5AZylbOc+6B/cuDurctRe+MziUMtQ3xQdrbjqyQ==
   /@types/stack-utils/1.0.1:
     dev: true
     resolution:
@@ -6285,6 +6296,7 @@ specifiers:
   '@babel/polyfill': ^7.0.0
   '@babel/preset-env': latest
   '@babel/register': latest
+  '@types/jest': ^24.0.18
   '@yaska-eu/jsurl2': ^2.1.0
   babel-core: bridge
   babel-eslint: 10.0.2
