@@ -133,7 +133,7 @@ class EventQueue extends JsonModel {
 			return this.currentV
 		}
 		this._dataV = dataV
-		if (!this._maxSql)
+		if (this._maxSql?.db !== this.db)
 			this._maxSql = this.db.prepare(
 				`SELECT MAX(v) AS v from ${this.quoted}`,
 				'maxV'
@@ -162,7 +162,7 @@ class EventQueue extends JsonModel {
 			// Store promise so latestVersion can get the most recent v
 			// Note that it replaces the promise for the previous add
 			// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID and v
-			if (!this._addSql)
+			if (this._addSql?.db !== this.db)
 				this._addSql = this.db.prepare(
 					`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
 					'add'
