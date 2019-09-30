@@ -24,6 +24,8 @@ test('slugifyString', () => {
 	cmp(2341234901283740987, '2341234901283741000')
 	cmp('1234567890!@#$`|&*()+-={}[];:\\\'"%^_~nice!', '1234567890!-*-nice')
 	cmp({meep: 'yoyo'}, 'yoyo')
+	cmp({a: true, meep: 'yoyo'}, 'yoyo')
+	cmp({a: '', meep: 'yoyo'}, 'yoyo')
 	cmp(0, '0')
 	expect(() => slugifyString()).toThrow()
 	expect(() => slugifyString('')).toThrow()

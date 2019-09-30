@@ -8,8 +8,16 @@
 - `waitForP` was removed from DB, use `onWillOpen` instead, if it returns a Promise that will be waited for.
 - The EventSourcingDB version is now stored in the SQLite `user_version` pragma, and the `metadata` model is no longer available by default. If you need it, add `metadata: {}` to the `models` passed to ESDB
 - `DB.models` was renamed to `DB.store` for consistency with ESDB and also to be different from the `models` option. `DB.models` still works but will output an error on first use in non-production.
+- The `result` argument passed to derivers is now the result of the deriver's model. All results are still available at `event.result`
 - DB connections now set `PRAGMA recursive_triggers`
 - In NODE_ENV=development, the order of unordered query results will sometimes be reversed to show where ordering is not consistent. In test this is not done since the ordering is always the same and used in snapshots etc.
+- The `meta` argument in ESModel `.set` and `.update` moved to 4th position to make room for `noResult`
+- EventSourcingDB no longer checks for pending events when instantiated. You have to do this yourself with `.checkForEvents()` or simply `.startPolling()`
+- DB no longer returns itself on `.exec()`. There's no reason for having it and it saves some GC work.
+- `.applyChanges(result)` was renamed to `.applyResult(result)`
+- the debug namespace was changed to `strato-db`
+- `applyChanges` was moved from JsonModel to a separate helper function `applyResult(model, result)`
+- EventSourcingDB now passes `emitter` as an option to models, so they can subscribe to events. You have to take it out before passing the options to `JsonModel`.
 
 ### Changes
 
@@ -18,9 +26,12 @@
   - make error handling more robust
   - simplify redux loop
   - retry failed events with increasing timeouts and exit program after an hour
+- ESModel will now emit a `${model.INIT}` event to allow setting up the table, if you pass `init: true`
 - DB, JsonModel, EventSourcingDB: Better debugging information for queries and errors
 - DB: limit WAL file size after transaction to 4MB
 - DB: run `PRAGMA optimize` every 2 hours
+- DB: emit `'begin'`, `'rollback'`, `'end'`, `'finally'` on transactions as EventEmitter
+- JsonModel: `.set` and `.update` take the `noReturn` boolean as their 3rd argument to indicate they don't have to return the value, as an optimization
 
 ## 2.3.3
 

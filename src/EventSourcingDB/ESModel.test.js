@@ -1,5 +1,5 @@
 import ESModel, {undefToNull, getId} from './ESModel'
-import {withESDB} from './lib/_test-helpers'
+import {withESDB} from '../lib/_test-helpers'
 
 class ESModelCustomId extends ESModel {
 	constructor(options) {
@@ -24,6 +24,7 @@ class ESModelIntId extends ESModel {
 					index: true,
 					type: 'INTEGER',
 				},
+				calc: {value: o => o.myId || 0},
 			},
 			idCol: 'myId',
 		})
@@ -128,7 +129,7 @@ test('set w/o id int', () =>
 	withESDB(
 		async eSDB => {
 			const sampleWithoutId = {
-				sampleObject,
+				...sampleObject,
 				id: undefined,
 			}
 			await Promise.all([
@@ -138,6 +139,23 @@ test('set w/o id int', () =>
 			])
 			expect(await getId(eSDB.store.test, {top: 'kek'})).toEqual(4)
 			expect(await eSDB.store.test.count()).toEqual(3)
+		},
+		{test: {Model: ESModelIntId}}
+	))
+
+test('set w/ calc value', () =>
+	withESDB(
+		async eSDB => {
+			const sampleWithoutId = {
+				...sampleObject,
+				id: undefined,
+			}
+			await expect(
+				eSDB.store.test.set(sampleWithoutId)
+			).resolves.toHaveProperty('calc', 1)
+			await expect(
+				eSDB.store.test.update({myId: 1, calc: 5})
+			).resolves.toHaveProperty('calc', 1)
 		},
 		{test: {Model: ESModelIntId}}
 	))
@@ -188,7 +206,7 @@ test('update w/ undefined values', () =>
 			await eSDB.store.test.set(sampleObject)
 			expect(
 				await eSDB.store.test.update({id: sampleObject.id, top: undefined})
-			).toEqual({...sampleObject, top: null}) // we cannot pass undefined here
+			).toEqual({...sampleObject, top: undefined})
 		},
 		{test: {Model: ESModel}}
 	))
@@ -219,6 +237,7 @@ test('update upsert w/o id', () =>
 			expect(await eSDB.store.test.update({top: 'kek'}, true)).toEqual({
 				myId: 1,
 				top: 'kek',
+				calc: 1,
 			})
 		},
 		{test: {Model: ESModelIntId}}
@@ -301,6 +320,22 @@ test('preprocessor', () => {
 	)
 })
 
+test('init', () =>
+	withESDB(
+		async eSDB => {
+			await eSDB.waitForQueue()
+			const {m} = eSDB.store
+			expect(await m.exists({id: 'yey'})).toBeTruthy()
+		},
+		{
+			m: {
+				init: true,
+				reducer: (model, event) =>
+					event.type === model.INIT ? {ins: [{id: 'yey'}]} : false,
+			},
+		}
+	))
+
 test('events', () =>
 	withESDB(
 		async (eSDB, queue) => {
@@ -321,14 +356,46 @@ test('events', () =>
 		{m: {columns: {id: {type: 'INTEGER'}}}}
 	))
 
+test('events updates', () =>
+	withESDB(
+		async (eSDB, queue) => {
+			const {m} = eSDB.store
+			expect(await m.set({meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, beep: 'boop', a: [null, 3]})).toEqual({
+				v: 1,
+				beep: 'boop',
+				a: [null, 3],
+			})
+			expect(await m.update({v: 1, beep: 'boop'})).toEqual({
+				v: 1,
+				beep: 'boop',
+				a: [null, 3],
+			})
+			expect(await m.update({v: 1, beep: 'foop', a: [null, 3]})).toEqual({
+				v: 1,
+				beep: 'foop',
+				a: [null, 3],
+			})
+			const events = await queue.all()
+			expect(
+				events.map(e => {
+					e.ts = 0
+					return e
+				})
+			).toMatchSnapshot()
+		},
+		{m: {idCol: 'v', columns: {v: {type: 'INTEGER'}}}}
+	))
+
 test('metadata in event', () =>
 	withESDB(
 		async (eSDB, queue) => {
 			const {m} = eSDB.store
-			await m.set({meep: 'moop'}, null, {meta: 1})
-			await m.update({id: 1, beep: 'boop'}, null, {meta: 2})
-			await m.set({meep: 'moop'}, true, {meta: 3})
-			await m.update({id: 3, beep: 'boop'}, true, 'hi')
+			await m.set({meep: 'moop'}, null, true, {meta: 1})
+			await m.update({id: 1, beep: 'boop'}, null, true, {meta: 2})
+			await m.set({meep: 'moop'}, true, true, {meta: 3})
+			await m.update({id: 3, beep: 'boop'}, true, true, 'hi')
 			await m.set({})
 			await m.remove(3, {meta: 4})
 			await m.remove(2)
@@ -349,13 +416,17 @@ test('metadata in event', () =>
 		{m: {columns: {id: {type: 'INTEGER'}}}}
 	))
 
-test('getNextId', () =>
-	withESDB(
-		async eSDB => {
-			const {m} = eSDB.store
-			await expect(m.getNextId()).resolves.toBe(1)
-			await m.set({id: 1})
-			await expect(m.getNextId()).resolves.toBe(2)
-		},
-		{m: {columns: {id: {type: 'INTEGER'}}}}
-	))
+describe('getNextId', () => {
+	test('works', () =>
+		withESDB(
+			async eSDB => {
+				const {m} = eSDB.store
+				await expect(m.getNextId()).resolves.toBe(1)
+				await m.set({id: 1})
+				await expect(m.getNextId()).resolves.toBe(2)
+				await eSDB.dispatch(m.TYPE, [ESModel.INSERT, 5, {id: 5}])
+				await expect(m.getNextId()).resolves.toBe(6)
+			},
+			{m: {columns: {id: {type: 'INTEGER'}}}}
+		))
+})

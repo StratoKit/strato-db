@@ -1,7 +1,7 @@
 import sysPath from 'path'
 import tmp from 'tmp-promise'
-/* eslint-disable import/no-named-as-default-member */
-import DB, {sql, valToSql} from './DB'
+import {sql, valToSql} from './SQLite'
+import DB, {_getRanMigrations} from './DB'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -123,7 +123,7 @@ test('has migration', async () => {
 test('refuses late migrations', async () => {
 	const db = new DB()
 	db.registerMigrations('whee', {0: {up: () => {}}})
-	await db.openDB()
+	await db.open()
 	expect(() => db.registerMigrations('whee', {1: {up: () => {}}})).toThrow()
 	await db.close()
 })
@@ -144,7 +144,7 @@ test('runs migrations in writable mode', async () => {
 			}
 		}
 	)
-	await db.openDB()
+	await db.open()
 	expect(f).toBe(3)
 	await db.close()
 })
@@ -173,7 +173,7 @@ test('sorts migrations', async () => {
 			},
 		},
 	})
-	await db.openDB()
+	await db.open()
 	expect(arr).toEqual(['a', 'b', 'c'])
 	await db.close()
 })
@@ -195,9 +195,9 @@ test('marks migrations as ran', async () => {
 			},
 		},
 	})
-	await db.openDB()
-	const ran = await db._getRanMigrations()
-	expect(ran).toEqual({'a whee': true, 'b whee': true}) // eslint-disable-line camelcase
+	await db.open()
+	const ran = await _getRanMigrations(db)
+	expect(ran).toEqual({'a whee': true, 'b whee': true})
 	await db.close()
 })
 
@@ -247,34 +247,75 @@ test('onWillOpen', async () => {
 			},
 		},
 	})
-	await db.openDB()
+	await db.open()
 	expect(t).toBe(2)
 	await db.close()
 })
 
-test('withTransaction', async () => {
-	const db = new DB()
-	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
-	db.withTransaction(async () => {
-		await wait(100)
-		await db.exec`INSERT INTO foo VALUES (43, 1);`
-	})
-	await db.withTransaction(() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`)
-	expect(await db.all`SELECT * from foo`).toEqual([{hi: 43, ho: 2}])
-	await db.close()
-})
-
-test('withTransaction rollback', async () => {
-	const db = new DB()
-	await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
-	await expect(
+describe('withTransaction', () => {
+	test('works', async () => {
+		const db = new DB()
+		await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
 		db.withTransaction(async () => {
+			await wait(100)
 			await db.exec`INSERT INTO foo VALUES (43, 1);`
-			throw new Error('ignoreme')
 		})
-	).rejects.toThrow('ignoreme')
-	expect(await db.all`SELECT * from foo`).toEqual([])
-	await db.close()
+		await db.withTransaction(
+			() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`
+		)
+		expect(await db.all`SELECT * from foo`).toEqual([{hi: 43, ho: 2}])
+		await db.close()
+	})
+
+	test('rollback works', async () => {
+		const db = new DB()
+		await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+		await expect(
+			db.withTransaction(async () => {
+				await db.exec`INSERT INTO foo VALUES (43, 1);`
+				throw new Error('ignoreme')
+			})
+		).rejects.toThrow('ignoreme')
+		expect(await db.all`SELECT * from foo`).toEqual([])
+		await db.close()
+	})
+
+	test('emits', async () => {
+		const db = new DB()
+		const begin = jest.fn()
+		const end = jest.fn()
+		const rollback = jest.fn()
+		const fnl = jest.fn()
+		db.on('begin', begin)
+		db.on('end', end)
+		db.on('rollback', rollback)
+		db.on('finally', fnl)
+		await db.withTransaction(() => {
+			expect(begin).toHaveBeenCalled()
+			expect(rollback).not.toHaveBeenCalled()
+			expect(end).not.toHaveBeenCalled()
+			expect(fnl).not.toHaveBeenCalled()
+		})
+		expect(begin).toHaveBeenCalledTimes(1)
+		expect(rollback).not.toHaveBeenCalled()
+		expect(end).toHaveBeenCalledTimes(1)
+		expect(fnl).toHaveBeenCalledTimes(1)
+		await db
+			.withTransaction(() => {
+				expect(begin).toHaveBeenCalledTimes(2)
+				expect(rollback).not.toHaveBeenCalled()
+				expect(end).toHaveBeenCalledTimes(1)
+				expect(fnl).toHaveBeenCalledTimes(1)
+				// eslint-disable-next-line no-throw-literal
+				throw 'foo'
+			})
+			.catch(e => {
+				if (e !== 'foo') throw e
+				expect(rollback).toHaveBeenCalledTimes(1)
+				expect(end).toHaveBeenCalledTimes(1)
+				expect(fnl).toHaveBeenCalledTimes(2)
+			})
+	})
 })
 
 test('dataVersion', () =>
@@ -301,6 +342,13 @@ test('dataVersion', () =>
 		{unsafeCleanup: true}
 	))
 
+test('userVersion', async () => {
+	const db = new DB()
+	await expect(db.userVersion()).resolves.toBe(0)
+	await expect(db.userVersion(5)).resolves.toBe()
+	await expect(db.userVersion()).resolves.toBe(5)
+})
+
 test('open: errors with filename', async () => {
 	const db = new DB({file: '/oienu/ieoienien'})
 	await expect(db._openDB()).rejects.toThrow('/oienu/ieoienien')
@@ -313,6 +361,6 @@ test('DB methods: errors with filename', async () => {
 	await expect(db.all('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.exec('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.each('bad sql haha')).rejects.toThrow(':memory:')
-	await expect(db.prepare('bad sql haha')).rejects.toThrow(':memory:')
+	await expect(db.prepare('bad sql haha').get()).rejects.toThrow(':memory:')
 	await db.close()
 })

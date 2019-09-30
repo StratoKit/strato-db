@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
@@ -40,12 +39,12 @@
 import debug from 'debug'
 import {isEmpty} from 'lodash'
 import DB from '../DB'
-import ESModel from '../ESModel'
+import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 import {settleAll} from '../lib/settleAll'
 
-const dbg = debug('stratokit/ESDB')
+const dbg = debug('strato-db/ESDB')
 
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
@@ -72,6 +71,7 @@ const registerHistoryMigration = (rwDb, queue) => {
 				})
 				await allDone
 				// not dropping table, you can do that yourself :)
+				// eslint-disable-next-line no-console
 				console.error(`!!! history table in ${rwDb.file} is no longer needed`)
 			},
 		},
@@ -85,12 +85,28 @@ const errorToString = error => {
 	return String(msg).replace(/\s+/g, ' ')
 }
 
-class ESDB extends EventEmitter {
+/**
+ * EventSourcingDB maintains a DB where all data is
+ * atomically updated based on {@link Event events (free-form messages)}.
+ * This is very similar to how Redux works in React.
+ * @extends EventEmitter
+ */
+class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
 	// eslint-disable-next-line complexity
-	constructor({queue, models, queueFile, withViews = true, ...dbOptions}) {
+	constructor({
+		queue,
+		models,
+		queueFile,
+		withViews = true,
+		onWillOpen: prevOWO,
+		...dbOptions
+	}) {
 		super()
+		// Prevent node warning about more than 11 listeners
+		// Each model has 2 instances that might listen
+		this.setMaxListeners(Object.keys(models).length * 2 + 20)
 		if (dbOptions.db)
 			throw new TypeError(
 				'db is no longer an option, pass the db options instead, e.g. file, verbose, readOnly'
@@ -99,7 +115,13 @@ class ESDB extends EventEmitter {
 		if (queueFile && queue)
 			throw new TypeError('Either pass queue or queueFile')
 
-		this.rwDb = new DB(dbOptions)
+		this.rwDb = new DB({
+			...dbOptions,
+			onWillOpen: async () => {
+				await this.queue.db.open()
+				if (prevOWO) await prevOWO()
+			},
+		})
 		const {readOnly} = this.rwDb
 
 		// The RO DB needs to be the same for :memory: or it won't see anything
@@ -112,8 +134,7 @@ class ESDB extends EventEmitter {
 						readOnly: true,
 						onWillOpen: async () => {
 							// Make sure migrations happened before opening
-							await this.queue.db.openDB()
-							await this.rwDb.openDB()
+							await this.rwDb.open()
 						},
 				  })
 
@@ -146,7 +167,7 @@ class ESDB extends EventEmitter {
 		this.rwDb.registerMigrations('ESDB', {
 			// Move v2 metadata version to DB user_version
 			userVersion: async db => {
-				const {user_version: uv} = await db.get('PRAGMA user_version')
+				const uv = await db.userVersion()
 				if (uv) return // Somehow we already have a version
 				const hasMetadata = await db.get(
 					'SELECT 1 FROM sqlite_master WHERE name="metadata"'
@@ -157,7 +178,7 @@ class ESDB extends EventEmitter {
 				)
 				const v = vObj && Number(vObj.v)
 				if (!v) return
-				await db.run(`PRAGMA user_version=${v}`)
+				await db.userVersion(v)
 				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
 				if (count === 1) {
 					await db.exec(
@@ -172,12 +193,11 @@ class ESDB extends EventEmitter {
 		this.store = {}
 		this.rwStore = {}
 
-		this.reducerNames = []
-		this.deriverModels = []
-		this.preprocModels = []
-		this.readWriters = []
+		this._reducerNames = []
+		this._deriverModels = []
+		this._preprocModels = []
+		this._readWriters = []
 		const reducers = {}
-		this.reducerModels = {}
 		const migrationOptions = {queue: this.queue}
 
 		const dispatch = this.dispatch.bind(this)
@@ -196,8 +216,8 @@ class ESDB extends EventEmitter {
 				if (RWModel === ESModel) {
 					if (reducer) {
 						const prev = reducer
-						reducer = async (model, event) => {
-							const result = await prev(model, event)
+						reducer = async (model, event, helpers) => {
+							const result = await prev(model, event, helpers)
 							if (!result && event.type === model.TYPE)
 								return ESModel.reducer(model, event)
 							return result
@@ -207,6 +227,7 @@ class ESDB extends EventEmitter {
 						const prev = preprocessor
 						preprocessor = async args => {
 							const e = await ESModel.preprocessor(args)
+							// eslint-disable-next-line require-atomic-updates
 							if (e) args.event = e
 							return prev(args)
 						}
@@ -219,13 +240,14 @@ class ESDB extends EventEmitter {
 					...rest,
 					migrationOptions,
 					dispatch,
+					emitter: this,
 				})
 				rwModel.deriver = deriver || RWModel.deriver
 				this.rwStore[name] = rwModel
 				if (typeof rwModel.setWritable === 'function')
-					this.readWriters.push(rwModel)
+					this._readWriters.push(rwModel)
 				if (rwModel.deriver) {
-					this.deriverModels.push(rwModel)
+					this._deriverModels.push(rwModel)
 					hasOne = true
 				}
 
@@ -233,46 +255,43 @@ class ESDB extends EventEmitter {
 				if (this.db === this.rwDb) {
 					model = rwModel
 				} else {
-					model = this.db.addModel(Model, {name, ...rest, dispatch})
+					model = this.db.addModel(Model, {
+						name,
+						...rest,
+						dispatch,
+						emitter: this,
+					})
 				}
 				model.preprocessor = preprocessor || Model.preprocessor
 				model.reducer = reducer || Model.reducer
 				this.store[name] = model
 				if (model.preprocessor) {
-					this.preprocModels.push(model)
+					this._preprocModels.push(model)
 					hasOne = true
 				}
 				if (model.reducer) {
-					this.reducerNames.push(name)
-					this.reducerModels[name] = model
+					this._reducerNames.push(name)
 					reducers[name] = model.reducer
 					hasOne = true
 				}
 
 				if (!hasOne)
 					throw new TypeError(
-						`${
-							this.name
-						}: At least one reducer, deriver or preprocessor required`
+						`${this.name}: At least one reducer, deriver or preprocessor required`
 					)
 			} catch (error) {
 				// TODO write test
 				if (error.message)
-					error.message = `ESDB: while configuring model ${name}: ${
-						error.message
-					}`
+					error.message = `ESDB: while configuring model ${name}: ${error.message}`
 				if (error.stack)
 					error.stack = `ESDB: while configuring model ${name}: ${error.stack}`
 				throw error
 			}
 		}
-
-		if (!readOnly) {
-			this.checkForEvents()
-		}
 	}
 
-	close() {
+	async close() {
+		await this.stopPolling()
 		return Promise.all([
 			this.rwDb && this.rwDb.close(),
 			this.db !== this.rwDb && this.db.close(),
@@ -280,8 +299,12 @@ class ESDB extends EventEmitter {
 		])
 	}
 
-	checkForEvents() {
-		this.startPolling(1)
+	async checkForEvents() {
+		const [v, qV] = await Promise.all([
+			this.getVersion(),
+			this.queue.latestVersion(),
+		])
+		if (v < qV) return this.startPolling(qV)
 	}
 
 	_waitingP = null
@@ -302,6 +325,7 @@ class ESDB extends EventEmitter {
 		if (!this._waitingP) {
 			this._waitingP = this._waitForEvent()
 				.catch(error => {
+					// eslint-disable-next-line no-console
 					console.error(
 						'!!! Error waiting for event! This should not happen! Please investigate!',
 						error
@@ -328,8 +352,8 @@ class ESDB extends EventEmitter {
 
 	stopPolling() {
 		this._isPolling = false
-		// here we should cancel the getNext
 		this._reallyStop = true
+		this.queue.cancelNext()
 		return this._waitingP || Promise.resolve()
 	}
 
@@ -338,37 +362,27 @@ class ESDB extends EventEmitter {
 		return this.handledVersion(event.v)
 	}
 
-	// Only use this for testing
-	async _dispatchWithError(type, data, ts) {
-		const event = await this.queue.add(type, data, ts)
-		this._stopPollingOnError = true
-		await this.startPolling(event.v)
-		const result = await this.queue.get(event.v)
-		if (result.error) throw result
-		return result
-	}
-
 	_subDispatch(event, type, data) {
 		if (!event.events) event.events = []
 		event.events.push({type, data})
+		dbg(`${event.type}.${type} queued`)
 	}
 
-	getVersionP = null
+	_getVersionP = null
 
 	getVersion() {
-		if (!this.getVersionP) {
-			this.getVersionP = this.db
-				.get('PRAGMA user_version')
-				.then(u => u.user_version)
-				.finally(() => {
-					this.getVersionP = null
-				})
+		if (!this._getVersionP) {
+			this._getVersionP = this.db.userVersion().finally(() => {
+				this._getVersionP = null
+			})
 		}
-		return this.getVersionP
+		return this._getVersionP
 	}
 
 	async waitForQueue() {
-		const v = await this.queue._getLatestVersion()
+		// give migrations a chance to queue things
+		await this.rwDb.open()
+		const v = await this.queue.latestVersion()
 		return this.handledVersion(v)
 	}
 
@@ -423,13 +437,24 @@ class ESDB extends EventEmitter {
 				try {
 					this.emit('error', event)
 				} catch (error) {
+					// eslint-disable-next-line no-console
 					console.error('!!! "error" event handler threw, ignoring', error)
 				}
+			}
+			if (o && process.env.NODE_ENV === 'test') {
+				if (!this.__BE_QUIET)
+					// eslint-disable-next-line no-console
+					console.error(
+						`!!! rejecting the dispatch for event ${event.v} ${event.type} - this does NOT happen outside test mode, NEVER rely on this.
+						Set eSDB.__BE_QUIET to not show this message`
+					)
+				o.reject(event)
 			}
 		} else {
 			try {
 				this.emit('result', event)
 			} catch (error) {
+				// eslint-disable-next-line no-console
 				console.error('!!! "result" event handler threw, ignoring', error)
 			}
 			if (o) o.resolve(event)
@@ -453,20 +478,22 @@ class ESDB extends EventEmitter {
 				if (errorCount > this.MAX_RETRY)
 					throw new Error(`Giving up on processing event ${lastV + 1}`)
 				// These will reopen automatically
-				if (this.db.file !== ':memory:') this.db.close()
-				if (this.rwDb.file !== ':memory:') this.rwDb.close()
-				if (this.queue.db.file !== ':memory:') this.queue.db.close()
+				await Promise.all([
+					this.db.file !== ':memory:' && this.db.close(),
+					this.rwDb.file !== ':memory:' && this.rwDb.close(),
+					this.queue.db.file !== ':memory:' && this.queue.db.close(),
+				])
 				await wait(5000 * errorCount)
 			}
 			let event
 			try {
-				// eslint-disable-next-line require-atomic-updates
 				event = await this.queue.getNext(
 					await this.getVersion(),
 					!(this._isPolling || this._minVersion)
 				)
 			} catch (error) {
 				errorCount++
+				// eslint-disable-next-line no-console
 				console.error(
 					`!!! ESDB: queue.getNext failed - this should not happen`,
 					error
@@ -474,7 +501,7 @@ class ESDB extends EventEmitter {
 				continue
 			}
 			if (!event) return lastV
-			// TODO watchdog with timeout alerts/abort
+
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
 					lastV = event.v
@@ -482,10 +509,6 @@ class ESDB extends EventEmitter {
 					// It could be that it was processed elsewhere due to racing
 					const nowV = await this.getVersion()
 					if (event.v <= nowV) return
-
-					// Clear previous result/error, if any
-					delete event.error
-					delete event.result
 
 					await rwDb.run('SAVEPOINT handle')
 					const result = await this._handleEvent(event)
@@ -503,6 +526,7 @@ class ESDB extends EventEmitter {
 				})
 				.catch(error => {
 					if (!this.__BE_QUIET)
+						// eslint-disable-next-line no-console
 						console.error(
 							'!!! ESDB: an error occured outside of the normal error handlers',
 							error
@@ -515,18 +539,37 @@ class ESDB extends EventEmitter {
 			if (!resultEvent) continue // Another process handled the event
 
 			if (resultEvent.error) {
-				if (!this.__BE_QUIET)
-					console.error(
-						`!!! ESDB: event ${event.type} processing failed`,
-						resultEvent.error
-					)
 				errorCount++
+				if (!this.__BE_QUIET) {
+					let path, error
+					// find the deepest error
+					const walkEvents = (ev, p = ev.type) => {
+						if (ev.events) {
+							let i = 0
+							for (const sub of ev.events)
+								if (walkEvents(sub, `${p}.${i++}:${sub.type}`)) return true
+						}
+						if (ev.error) {
+							path = p
+							error = ev.error
+							return true
+						}
+						return false
+					}
+					walkEvents(resultEvent)
+					// eslint-disable-next-line no-console
+					console.error(
+						`!!! ESDB: event ${path} processing failed (try #${errorCount})`,
+						error
+					)
+				}
+				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
 			this._triggerEventListeners(resultEvent)
 
-			if (this._reallyStop || (errorCount && this._stopPollingOnError)) {
+			if (this._reallyStop || (errorCount && process.env.NODE_ENV === 'test')) {
 				this._reallyStop = false
 				return
 			}
@@ -535,19 +578,20 @@ class ESDB extends EventEmitter {
 		/* eslint-enable no-await-in-loop */
 	}
 
-	async _preprocessor(event) {
-		for (const model of this.preprocModels) {
+	async _preprocessor(event, isMainEvent) {
+		for (const model of this._preprocModels) {
 			const {name} = model
-			const {store} = this
 			const {v, type} = event
 			let newEvent
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
 					event,
-					model,
-					store,
+					model: isMainEvent ? model : this.rwStore[name],
+					// subevents must see intermediate state
+					store: isMainEvent ? this.store : this.rwStore,
 					dispatch: this._subDispatch.bind(this, event),
+					isMainEvent,
 				})
 			} catch (error) {
 				newEvent = {error}
@@ -577,15 +621,29 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async _reducer(event) {
+	async _reducer(event, isMainEvent) {
 		const result = {}
 		const events = event.events || []
+		const helpers = {
+			// subevents must see intermediate state
+			store: isMainEvent ? this.store : this.rwStore,
+			dispatch: this._subDispatch.bind(this, event),
+			event,
+			isMainEvent,
+		}
+		if (process.env.NODE_ENV !== 'production') {
+			Object.freeze(event.data)
+		}
 		await Promise.all(
-			this.reducerNames.map(async key => {
-				const model = this.reducerModels[key]
+			this._reducerNames.map(async key => {
+				const model = this.store[key]
 				let out
 				try {
-					out = await model.reducer(model, event)
+					out = await model.reducer(
+						isMainEvent ? model : this.rwStore[key],
+						event,
+						helpers
+					)
 				} catch (error) {
 					out = {
 						error: errorToString(error),
@@ -608,12 +666,12 @@ class ESDB extends EventEmitter {
 			})
 		)
 
-		if (this.reducerNames.some(n => result[n] && result[n].error)) {
+		if (this._reducerNames.some(n => result[n] && result[n].error)) {
 			const error = {}
-			for (const name of this.reducerNames) {
+			for (const name of this._reducerNames) {
 				const r = result[name]
 				if (r && r.error) {
-					error[`reduce_${name}`] = r.error
+					error[`_reduce_${name}`] = r.error
 				}
 			}
 			return {...event, error}
@@ -628,23 +686,31 @@ class ESDB extends EventEmitter {
 	}
 
 	async _handleEvent(origEvent, depth = 0) {
+		const isMainEvent = depth === 0
 		let event
 		if (depth > 100) {
 			return {
 				...origEvent,
 				error: {
-					...origEvent.error,
-					_handle: 'events recursing too deep',
+					_handle: `.${origEvent.type}: events recursing too deep`,
 				},
 			}
 		}
-		event = await this._preprocessor(origEvent)
+		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
+		event = {
+			...origEvent,
+			result: undefined,
+			events: undefined,
+			error: undefined,
+		}
+
+		event = await this._preprocessor(event, isMainEvent)
 		if (event.error) return event
 
-		event = await this._reducer(origEvent)
+		event = await this._reducer(event, isMainEvent)
 		if (event.error) return event
 
-		event = await this._applyEvent(event, depth === 0)
+		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event
 
 		// handle sub-events in order
@@ -658,12 +724,16 @@ class ESDB extends EventEmitter {
 				)
 				delete doneEvent.v
 				event.events[i] = doneEvent
-				if (doneEvent.error) {
-					if (doneEvent.result) {
-						doneEvent.failedResult = doneEvent.result
-						delete doneEvent.result
+				const {error} = doneEvent
+				if (error) {
+					if (depth && error._handle)
+						// pass the error upwards but leave on bottom-most
+						delete doneEvent.error
+					event.error = {
+						_handle: `.${subEvent.type}${
+							error._handle ? error._handle : ` failed`
+						}`,
 					}
-					event.error = {_handle: `subevent ${i} failed`}
 					return event
 				}
 			}
@@ -672,8 +742,8 @@ class ESDB extends EventEmitter {
 		return event
 	}
 
-	async _applyEvent(event, updateVersion) {
-		const {rwStore, rwDb, readWriters} = this
+	async _applyEvent(event, isMainEvent) {
+		const {rwStore, rwDb, _readWriters: readWriters} = this
 		let phase = '???'
 		try {
 			for (const model of readWriters) model.setWritable(true)
@@ -684,37 +754,40 @@ class ESDB extends EventEmitter {
 				// Apply reducer results, wait for all to settle
 				await settleAll(
 					Object.entries(result),
-					async ([name, r]) => r && rwStore[name].applyChanges(r)
+					async ([name, r]) => r && rwStore[name].applyResult(r)
 				)
 			}
 
-			if (updateVersion) {
+			if (isMainEvent) {
 				phase = 'version'
-				await rwDb.run(`PRAGMA user_version=${event.v}`)
+				await rwDb.userVersion(event.v)
 			}
 
 			// Apply derivers
-			if (!event.error && this.deriverModels.length) {
+			if (!event.error && this._deriverModels.length) {
 				phase = 'derive'
-				await settleAll(this.deriverModels, async model =>
+				await settleAll(this._deriverModels, async model =>
 					model.deriver({
 						model,
-						// TODO would this not better be the RO store?
+						// derivers can write anywhere (carefully)
 						store: this.rwStore,
 						event,
-						result,
+						result: result[model.name],
 						dispatch: this._subDispatch.bind(this, event),
+						isMainEvent,
 					})
 				)
 			}
 		} catch (error) {
 			if (event.result) {
+				// eslint-disable-next-line require-atomic-updates
 				event.failedResult = event.result
 				delete event.result
 			}
+			// eslint-disable-next-line require-atomic-updates
 			if (!event.error) event.error = {}
-			// TODO test apply errors
-			event.error[`_apply-${phase}`] = errorToString(error)
+			// eslint-disable-next-line require-atomic-updates
+			event.error[`_apply_${phase}`] = errorToString(error)
 		} finally {
 			for (const model of readWriters) model.setWritable(false)
 		}
@@ -723,4 +796,4 @@ class ESDB extends EventEmitter {
 	}
 }
 
-export default ESDB
+export default EventSourcingDB

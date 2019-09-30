@@ -3,9 +3,31 @@
 import debug from 'debug'
 import JsonModel from './JsonModel'
 
-const dbg = debug('queue')
+const dbg = debug('strato-db/queue')
 
+/**
+ * An event queue, including history
+ * @extends JsonModel
+ */
 class EventQueue extends JsonModel {
+	/**
+	 * @typedef Event
+	 * @type {Object}
+	 * @property {Number} v - the version
+	 * @property {String} type - event type
+	 * @property {Number} ts - ms since epoch of event
+	 * @property {*} [data] - event data
+	 * @property {Object} [result] - event processing result
+	 */
+
+	/**
+	 * Creates a new EventQueue model, called by DB
+	 * @constructor
+	 * @param  {string} [name='history'] - the table name
+	 * @param  {boolean} [forever] - should getNext poll forever?
+	 * @param  {boolean} [withViews] - add views to the database to assist with inspecting the data
+	 * @param  {Object} [...rest] - other params are passed to JsonModel
+	 */
 	constructor({name = 'history', forever, withViews, ...rest}) {
 		const columns = {
 			v: {
@@ -85,15 +107,24 @@ class EventQueue extends JsonModel {
 		this.forever = !!forever
 	}
 
-	set(obj) {
-		if (!obj.v) {
+	/**
+	 * Replace existing event data
+	 * @param  {Event} event - the new event
+	 * @returns {Promise<void>} - Promise for set completion
+	 */
+	set(event) {
+		if (!event.v) {
 			throw new Error('cannot use set without v')
 		}
 		this.currentV = -1
-		return super.set(obj)
+		return super.set(event)
 	}
 
-	async _getLatestVersion() {
+	/**
+	 * Get the highest version stored in the queue
+	 * @returns {Promise<number>} - the version
+	 */
+	async latestVersion() {
 		if (this._addP) await this._addP
 
 		const dataV = await this.db.dataVersion()
@@ -102,13 +133,25 @@ class EventQueue extends JsonModel {
 			return this.currentV
 		}
 		this._dataV = dataV
-		const lastRow = await this.db.get(`SELECT MAX(v) AS v from ${this.quoted}`)
+		if (!this._maxSql)
+			this._maxSql = this.db.prepare(
+				`SELECT MAX(v) AS v from ${this.quoted}`,
+				'maxV'
+			)
+		const lastRow = await this._maxSql.get()
 		this.currentV = Math.max(this.knownV, lastRow.v || 0)
 		return this.currentV
 	}
 
 	_addP = null
 
+	/**
+	 * Atomically add an event to the queue
+	 * @param  {string} type - event type
+	 * @param  {*} [data] - event data
+	 * @param  {Number} [ts=Date.now()] - event timestamp, ms since epoch
+	 * @returns {Promise<Event>} - Promise for the added event
+	 */
 	add(type, data, ts) {
 		if (!type || typeof type !== 'string')
 			return Promise.reject(new Error('type should be a non-empty string'))
@@ -116,79 +159,107 @@ class EventQueue extends JsonModel {
 
 		// We need to guarantee same-process in-order insertion, the sqlite3 lib doesn't do it :(
 		this._addP = (this._addP || Promise.resolve()).then(async () => {
-			// Store promise so _getLatestVersion can get the most recent v
+			// Store promise so latestVersion can get the most recent v
 			// Note that it replaces the promise for the previous add
 			// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID and v
-			const {lastID: v} = await this.db.run(
-				`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
-				[type, ts, JSON.stringify(data)]
-			)
+			if (!this._addSql)
+				this._addSql = this.db.prepare(
+					`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
+					'add'
+				)
+			const {lastID: v} = await this._addSql.run([
+				type,
+				ts,
+				JSON.stringify(data),
+			])
 
 			this.currentV = v
 
 			const event = {v, type, ts, data}
 			dbg(`queued`, v, type)
-			if (this.nextAddedResolve) {
-				this.nextAddedResolve(event)
+			if (this._nextAddedResolve) {
+				this._nextAddedResolve(event)
 			}
 			return event
 		})
 		return this._addP
 	}
 
-	nextAddedP = null
+	_nextAddedP = null
 
-	nextAddedResolve = null
+	_nextAddedResolve = event => {
+		if (!this._resolveNAP) return
+		clearTimeout(this._addTimer)
+		this._NAPresolved = true
+		this._resolveNAP(event)
+	}
 
-	async getNext(v, once) {
-		const currentV = await this._getLatestVersion()
+	// promise to wait for next event with timeout
+	_makeNAP() {
+		if (this._nextAddedP && !this._NAPresolved) return
+		this._nextAddedP = new Promise(resolve => {
+			this._resolveNAP = resolve
+			this._NAPresolved = false
+			// Timeout after 10s so we can also get events from other processes
+			this._addTimer = setTimeout(this._nextAddedResolve, 10000)
+			// if possible, mark the timer as non-blocking for process exit
+			// some mocking libraries might forget to add unref()
+			if (!this.forever && this._addTimer && this._addTimer.unref)
+				this._addTimer.unref()
+		})
+	}
+
+	/**
+	 Get the next event after v (gaps are ok).
+	 The wait can be cancelled by `.cancelNext()`.
+	 * @param  {number} [v=0] the version
+	 * @param  {boolean} [noWait] do not wait for the next event
+	 * @returns {Promise<Event>} the event if found
+	 */
+	async getNext(v = 0, noWait) {
 		let event
-		event =
-			v == null || v < currentV
-				? await this.searchOne(null, {
-						where: {'v > ?': [Number(v) || 0]},
-						sort: {v: 1},
-				  })
-				: null
-		if (once) return event
-		while (!event) {
-			// Wait for next one from this process
-			if (!this.nextAddedP) {
-				this.nextAddedP = new Promise(resolve => {
-					this.nextAddedResolve = event => {
-						clearTimeout(this.addTimer)
-						this.nextAddedResolve = null
-						this.nextAddedP = null
-						resolve(event)
-					}
-				})
-				// Wait no more than 10s at a time so we can also get events from other processes
-				this.addTimer = setTimeout(
-					() => this.nextAddedResolve && this.nextAddedResolve(),
-					10000
-				)
-				// if possible, mark the timer as non-blocking for process exit
-				// some mocking libraries might forget to add unref()
-				if (!this.forever && this.addTimer && this.addTimer.unref)
-					this.addTimer.unref()
-			}
+		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
+		do {
+			this._makeNAP()
 			// eslint-disable-next-line no-await-in-loop
-			event = await this.nextAddedP
-			if (event) {
-				if (v && event.v < v) {
-					event = null
-				}
-			} else {
-				return this.getNext(v)
-			}
-		}
+			const currentV = await this.latestVersion()
+			event =
+				v < currentV
+					? // eslint-disable-next-line no-await-in-loop
+					  await this.searchOne(null, {
+							where: {'v > ?': [Number(v)]},
+							sort: {v: 1},
+					  })
+					: null
+			if (event || noWait) break
+			// Wait for next one from this process
+			// eslint-disable-next-line no-await-in-loop
+			event = await this._nextAddedP
+			if (event === 'CANCEL') return
+			// Ignore previous events
+			if (v && event && event.v < v) event = null
+		} while (!event)
 		return event
 	}
 
+	/**
+	 * Cancel any pending `.getNext()` calls
+	 */
+	cancelNext() {
+		if (!this._resolveNAP) return
+		this._resolveNAP('CANCEL')
+	}
+
+	/**
+	 * Set the latest known version.
+	 * New events will have higher versions.
+	 * @param  {number} v - the last known version
+	 */
 	async setKnownV(v) {
 		// set the sqlite autoincrement value
 		// Try changing current value, and insert if there was no change
 		// This doesn't need a transaction, either one or the other runs
+		// TODO alsoLower flag and only update where seq < v
 		await this.db.exec(
 			`
 				UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};

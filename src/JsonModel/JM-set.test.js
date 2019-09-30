@@ -135,8 +135,10 @@ test('.changeId(missing, newId)', async () => {
 })
 test('.changeId(missing, newId) race', async () => {
 	const m = getModel()
-	expect(m.changeId('a', 'b')).rejects.toThrow('id a not found')
-	await m.set({id: 'a'})
+	await Promise.all([
+		expect(m.changeId('a', 'b')).rejects.toThrow('id a not found'),
+		m.set({id: 'a'}),
+	])
 	expect(await m.all()).toEqual([{id: 'a'}])
 })
 test('.changeId(oldId, invalid)', async () => {
