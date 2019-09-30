@@ -64,3 +64,18 @@ test('concurrent migrations', async () => {
 	})
 	await a.searchOne()
 })
+
+test('migration clones writeable', async () => {
+	const m = getModel({
+		name: 'test',
+		migrations: {
+			foo1: ({model}) => {
+				model.__temp = 123
+			},
+			foo2: ({db}) => {
+				expect(db.store.test).toHaveProperty('__temp', 123)
+			},
+		},
+	})
+	await expect(m.db.store.test).not.toHaveProperty('__temp')
+})

@@ -103,7 +103,6 @@ class JsonModel {
 		this.db.registerMigrations(
 			name,
 			makeMigrations({
-				db: this.db,
 				name: this.name,
 				columns: this.columns,
 				idCol,
