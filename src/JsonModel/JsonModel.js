@@ -194,12 +194,18 @@ class JsonModel {
 		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
 			.map(() => '?')
 			.join()})`
-		const insertSql = this.db.prepare(`INSERT ${setSql}`, `ins ${this.name}`)
-		const updateSql = this.db.prepare(
-			`INSERT OR REPLACE ${setSql}`,
-			`set ${this.name}`
-		)
 		return async (o, insertOnly, noReturn) => {
+			if (this._insertSql?.db !== this.db) {
+				this._insertSql = this.db.prepare(
+					`INSERT ${setSql}`,
+					`ins ${this.name}`
+				)
+				this._updateSql = this.db.prepare(
+					`INSERT OR REPLACE ${setSql}`,
+					`set ${this.name}`
+				)
+			}
+			const {_insertSql, _updateSql} = this
 			const obj = cloneObj(o)
 			const results = await Promise.all(
 				valueCols.map(col =>
@@ -225,7 +231,7 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			const P = (insertOnly ? insertSql : updateSql).run(colVals)
+			const P = (insertOnly ? _insertSql : _updateSql).run(colVals)
 			return noReturn
 				? P
 				: P.then(result => {
@@ -640,7 +646,7 @@ class JsonModel {
 	 * @returns {Promise<array<object>>} - the table contents
 	 */
 	all() {
-		if (!this._allSql)
+		if (this._allSql?.db !== this.db)
 			this._allSql = this.db.prepare(
 				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`,
 				`all ${this.name}`
@@ -660,12 +666,10 @@ class JsonModel {
 				new Error(`No "${colName}" given for "${this.name}"`)
 			)
 		}
-		if (!this.columns[colName]._getSql) {
+		if (this.columns[colName]._getSql?.db !== this.db) {
 			const where = this.columns[colName].sql
 			this.columns[colName]._getSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${
-					this.quoted
-				} tbl WHERE ${where} = ?`,
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} = ?`,
 				`get ${this.name}.${colName}`
 			)
 		}
@@ -680,16 +684,14 @@ class JsonModel {
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
-		if (!_getAllSql) {
+		if (_getAllSql?.db !== this.db) {
 			const {sql: where, real, get: isSelected} = this.columns[colName]
 			if (real && !isSelected)
 				throw new Error(
 					`JsonModel: Cannot getAll on get:false column ${colName}`
 				)
 			_getAllSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${
-					this.quoted
-				} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
 				`get ${this.name}.${colName}`
 			)
 			this.columns[colName]._getAllSql = _getAllSql
@@ -803,7 +805,7 @@ class JsonModel {
 
 	remove(idOrObj) {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		if (!this._deleteSql)
+		if (this._deleteSql?.db !== this.db)
 			this._deleteSql = this.db.prepare(
 				`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
 				`del ${this.name}`
@@ -819,7 +821,7 @@ class JsonModel {
 	changeId(oldId, newId) {
 		if (newId == null) throw new TypeError('newId must be a valid id')
 		let {_changeIdSql} = this.columns[this.idCol]
-		if (!_changeIdSql) {
+		if (_changeIdSql?.db !== this.db) {
 			const {quoted} = this.columns[this.idCol]
 			_changeIdSql = this.db.prepare(
 				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`,

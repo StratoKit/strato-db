@@ -133,7 +133,10 @@ class SQLite extends EventEmitter {
 			_isChild,
 			options: {verbose, onWillOpen},
 		} = this
-		if (_isChild) throw new Error(`Child dbs cannot be opened`)
+		if (_isChild)
+			throw new Error(
+				`Child dbs cannot be opened. Perhaps you kept a prepared statement from a child db?`
+			)
 
 		if (onWillOpen) await onWillOpen()
 

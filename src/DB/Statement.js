@@ -12,7 +12,7 @@ class Statement {
 	constructor(db, sql, name) {
 		db.statements[sql] = this
 		this._sql = sql
-		this._db = db
+		this.db = db
 		this.name = `${db.name}{${id++}${name ? ` ${name}` : ''}}}`
 	}
 
@@ -43,20 +43,20 @@ class Statement {
 
 	_refresh = async () => {
 		if (this._stmt) return
-		this._stmt = await this._db._call(
+		this._stmt = await this.db._call(
 			'prepare',
 			[this._sql],
-			this._db._sqlite,
+			this.db._sqlite,
 			this.name,
 			false,
 			true
 		)
 
-		this._db.statements[this._sql] = this
+		this.db.statements[this._sql] = this
 	}
 
 	finalize() {
-		delete this._db.statements[this._sql]
+		delete this.db.statements[this._sql]
 		const {_stmt} = this
 		if (!_stmt) return Promise.resolve()
 		return this._wrap(
@@ -81,7 +81,7 @@ class Statement {
 	 * @returns {Promise<object>} - an object with `lastID` and `changes`
 	 */
 	async run(vars) {
-		return this._wrap(() => this._db._call('run', vars, this, this.name, true))
+		return this._wrap(() => this.db._call('run', vars, this, this.name, true))
 	}
 
 	/**
@@ -91,7 +91,7 @@ class Statement {
 	 */
 	async get(vars) {
 		return this._wrap(() =>
-			this._db._call('get', vars, this, this.name).finally(
+			this.db._call('get', vars, this, this.name).finally(
 				() =>
 					this._stmt &&
 					new Promise(resolve => {
@@ -109,7 +109,7 @@ class Statement {
 	 * @returns {Promise<Array<object>>} - the results
 	 */
 	async all(vars) {
-		return this._wrap(() => this._db._call('all', vars, this, this.name))
+		return this._wrap(() => this.db._call('all', vars, this, this.name))
 	}
 
 	async each(args, onRow) {
@@ -117,7 +117,7 @@ class Statement {
 			throw new Error(`signature is .each(args Array, cb Function)`)
 		// err is always null, no reason to have it
 		return this._wrap(() =>
-			this._db._call('each', [args, (_, row) => onRow(row)], this, this.name)
+			this.db._call('each', [args, (_, row) => onRow(row)], this, this.name)
 		)
 	}
 }
