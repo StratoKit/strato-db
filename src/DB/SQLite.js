@@ -142,22 +142,18 @@ class SQLite extends EventEmitter {
 
 		dbg(`${this.name} opening ${this.file}`)
 
-		let _sqlite
-		await new Promise((resolve, reject) => {
+		const _sqlite = await new Promise((resolve, reject) => {
 			if (verbose) sqlite3.verbose()
 			const mode = readOnly
 				? sqlite3.OPEN_READONLY
 				: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
-			_sqlite = new sqlite3.Database(file, mode, err => {
-				if (err) reject(err)
-				else resolve()
+			const db = new sqlite3.Database(file, mode, err => {
+				if (err) reject(new Error(`${file}: ${err.message}`))
+				else resolve(db)
 			})
-		}).catch(error => {
-			throw new Error(`${file}: ${error.message}`)
 		})
 
 		// Wait 15s for locks
-		// @ts-ignore
 		_sqlite.configure('busyTimeout', 15000)
 
 		const childDb = new SQLite({
