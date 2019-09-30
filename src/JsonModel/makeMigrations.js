@@ -8,7 +8,6 @@ export const cloneModelWithDb = (m, db) => {
 }
 
 export const makeMigrations = ({
-	db,
 	name: tableName,
 	idCol,
 	columns,
@@ -61,9 +60,10 @@ export const makeMigrations = ({
 			fn &&
 			(writeableDb => {
 				if (!writeableDb.store.__madeWriteable) {
-					writeableDb.store.__madeWriteable = true
+					const {store} = writeableDb
+					writeableDb.store = {__madeWriteable: true}
 					// Create a patched version of all models that uses the migration db
-					Object.values(db.store).forEach(m => {
+					Object.values(store).forEach(m => {
 						if (typeof m !== 'object') return
 						writeableDb.store[m.name] = cloneModelWithDb(m, writeableDb)
 					})

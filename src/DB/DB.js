@@ -113,10 +113,11 @@ class DB extends SQLite {
 	 * @returns {Promise<void>} - promise for completed migrations
 	 */
 	async runMigrations(db) {
+		const {store} = this
 		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
 		await db.withTransaction(async () => {
 			const didRun = await _getRanMigrations(db)
-			for (const model of Object.values(this.store))
+			for (const model of Object.values(store))
 				if (model.setWritable) model.setWritable(true)
 			for (const {runKey, up} of migrations) {
 				if (!didRun[runKey]) {
@@ -126,10 +127,13 @@ class DB extends SQLite {
 					await _markMigration(db, runKey, 1) // eslint-disable-line no-await-in-loop
 				}
 			}
-			for (const model of Object.values(this.store))
+			for (const model of Object.values(store))
 				if (model.setWritable) model.setWritable(false)
 		})
 		this.migrationsRan = true
+
+		// Protect against store updates during migrations
+		this.store = store
 	}
 }
 
