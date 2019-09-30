@@ -164,6 +164,10 @@ class SQLite extends EventEmitter {
 			_store: this.store,
 		})
 
+		// in dev mode, 50% of the time, return unordered selects in reverse order (chosen once per open)
+		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
+			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
+
 		if (!this.readOnly) {
 			// Journaling mode WAL
 			if (this.file !== ':memory:') {
@@ -190,13 +194,10 @@ class SQLite extends EventEmitter {
 				2 * 3600 * 1000
 			)
 			this._optimizerToken.unref()
+
 			if (this.options.onDidOpen) await this.options.onDidOpen(childDb)
 			await childDb.close()
 		}
-
-		// in dev mode, 50% of the time, return unordered selects in reverse order (chosen once per open)
-		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
-			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
 
 		this._sqlite = _sqlite
 
