@@ -16,40 +16,19 @@ import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
+import {DEV, deprecated} from '../lib/warning'
 
-const dbg = debug('stratokit/JSON')
-const DEV = process.env.NODE_ENV !== 'production'
-let deprecated, unknown
-if (DEV) {
-	const warned = {}
-	const warner = type => (tag, msg) => {
-		if (warned[tag]) return
-		warned[tag] = true
-		// eslint-disable-next-line no-console
-		console.error(new Error(`!!! ${type} ${msg}`))
-	}
-	deprecated = warner('DEPRECATED')
-	unknown = warner('UNKNOWN')
-}
+const dbg = debug('strato-db/JSON')
 
-// ItemClass: Object-like class that can be assigned to like Object
-// columns: object with column names each having an object with
-// * value: function getting object and returning the value for the column; this creates a real column
-//   * right now the column value is not regenerated for existing rows
-// * slugValue: same as value, but the result is used to generate a unique slug
-// * parse: process the value after getting from DB
-// * jsonPath: path to a JSON value. Useful for indexing
-// * sql: any sql expression
-// * type: sql column type.
-// * autoIncrement: INTEGER id column only: apply AUTOINCREMENT on the column
-// * textSearch: perform searches as substring search with LIKE
-// * get: boolean, should the column be included in find results? This also removes the value from JSON (only if name is a root-level key)
-// * index: boolean, should it be indexed? If `unique` is false, NULLs are never indexed
-// * unique: boolean, should the index enforce uniqueness?
-// * ignoreNull: boolean, are null values ignored when enforcing uniqueness?
-//   default: false if unique, else true
-// migrationOptions: object with extra data passed to the migrations
+/**
+ * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
+ * per object (document). Each object must have a unique ID, normally at `obj.id`.
+ */
 class JsonModel {
+	/**
+	 * Creates a new JsonModel instance
+	 * @param	{JMOptions} options - the model declaration
+	 */
 	constructor(options) {
 		verifyOptions(options)
 		const {
@@ -142,6 +121,12 @@ class JsonModel {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
+	/**
+	 * parses a row as returned by sqlite
+	 * @param {object} row - result from sqlite
+	 * @param {object} options - an object possibly containing the `cols` array with the desired column names
+	 * @returns {object} - the resulting object (document)
+	 */
 	parseRow = (row, options) => {
 		const mapCols =
 			options && options.cols
@@ -209,9 +194,18 @@ class JsonModel {
 		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
 			.map(() => '?')
 			.join()})`
-		const insertSql = `INSERT ${setSql}`
-		const updateSql = `INSERT OR REPLACE ${setSql}`
-		return async (o, insertOnly) => {
+		return async (o, insertOnly, noReturn) => {
+			if (this._insertSql?.db !== this.db) {
+				this._insertSql = this.db.prepare(
+					`INSERT ${setSql}`,
+					`ins ${this.name}`
+				)
+				this._updateSql = this.db.prepare(
+					`INSERT OR REPLACE ${setSql}`,
+					`set ${this.name}`
+				)
+			}
+			const {_insertSql, _updateSql} = this
 			const obj = cloneObj(o)
 			const results = await Promise.all(
 				valueCols.map(col =>
@@ -237,23 +231,24 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			return this.db
-				.run(insertOnly ? insertSql : updateSql, colVals)
-				.then(result => {
-					// Return what get(id) would return
-					const newObj = Item ? new Item() : {}
-					setCols.forEach(col => {
-						const val = colVals[col.i]
-						const v = col.parse ? col.parse(val) : val
-						if (col.path === '') Object.assign(newObj, v)
-						else set(newObj, col.path, v)
-					})
-					if (newObj[this.idCol] == null) {
-						// This can only happen for integer ids, so we use the last inserted rowid
-						newObj[this.idCol] = result.lastID
-					}
-					return newObj
-				})
+			const P = (insertOnly ? _insertSql : _updateSql).run(colVals)
+			return noReturn
+				? P
+				: P.then(result => {
+						// Return what get(id) would return
+						const newObj = Item ? new Item() : {}
+						setCols.forEach(col => {
+							const val = colVals[col.i]
+							const v = col.parse ? col.parse(val) : val
+							if (col.path === '') Object.assign(newObj, v)
+							else set(newObj, col.path, v)
+						})
+						if (newObj[this.idCol] == null) {
+							// This can only happen for integer ids, so we use the last inserted rowid
+							newObj[this.idCol] = result.lastID
+						}
+						return newObj
+				  })
 		}
 	}
 
@@ -272,15 +267,26 @@ class JsonModel {
 		return this.parseRow(thing, options)
 	}
 
-	// Override this function to implement search behaviors
-	// attrs: literal value search, for convenience
-	// where: sql expressions as keys with arrays of applicable parameters as values
-	// join: arbitrary join clause. Not processed at all
-	// joinVals: values needed by the join clause
-	// sort: object with sql expressions as keys and 1/-1 for direction
-	// limit: max number of rows to return
-	// offset: number of rows to skip
-	// cols: override the columns to select
+	/**
+	 * @typedef SearchOptions
+	 * @type {Object}
+	 * @property {object} [attrs]: literal value search, for convenience
+	 * @property {object<array<*>>} [where]: sql expressions as keys with arrays of applicable parameters as values
+	 * @property {string} [join]: arbitrary join clause. Not processed at all
+	 * @property {array<*>} [joinVals]: values needed by the join clause
+	 * @property {object} [sort]: object with sql expressions as keys and 1/-1 for direction
+	 * @property {number} [limit]: max number of rows to return
+	 * @property {number} [offset]: number of rows to skip
+	 * @property {array<string>} [cols]: override the columns to select
+	 * @property {string} [cursor]: opaque value telling from where to continue
+	 * @property {boolean} [noCursor]: do not calculate cursor
+	 * @property {boolean} [noTotal]: do not calculate totals
+	 */
+
+	/**
+	 * Parses query options into query parts. Override this function to implement search behaviors.
+	 * @param {SearchOptions} options - the query options
+	 */
 	// eslint-disable-next-line complexity
 	makeSelect(options) {
 		if (process.env.NODE_ENV !== 'production') {
@@ -404,6 +410,7 @@ class JsonModel {
 					if (Array.isArray(val)) {
 						vals.push(...val)
 					} else {
+						// eslint-disable-next-line max-depth
 						if (val)
 							throw new Error(`whereVal for ${a} should return array or falsy`)
 						valid = false
@@ -461,6 +468,12 @@ class JsonModel {
 		return [q, allVals, cursorColNames, totalQ, vals]
 	}
 
+	/**
+	 * Search the first matching object
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} options - search options
+	 * @returns {Promise<(object|null)>} - the result or null if no match
+	 */
 	searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -471,8 +484,13 @@ class JsonModel {
 		return this.db.get(q, vals).then(this.toObj)
 	}
 
-	// returns {items[], cursor}. If no cursor, you got all the results
-	// cursor: pass previous cursor to get the next page
+	/**
+	 * Search the all matching objects
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @param {boolean} [options.itemsOnly] - return only the items array
+	 * @returns {Promise<(object|array)>} - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.
+	 */
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
 	async search(attrs, {itemsOnly, ...options} = {}) {
 		const [q, vals, cursorKeys, totalQ, totalVals] = this.makeSelect({
@@ -503,10 +521,22 @@ class JsonModel {
 		return out
 	}
 
+	/**
+	 * A shortcut for setting `itemsOnly: true` on {@link search}
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<array<object>>} - the search results
+	 */
 	searchAll(attrs, options) {
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
 
+	/**
+	 * Check for existence of objects
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<boolean>} - `true` if the search would have results
+	 */
 	exists(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -520,6 +550,12 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => !!row)
 	}
 
+	/**
+	 * Count of search results
+	 * @param {object} attrs - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the count
+	 */
 	count(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
@@ -533,6 +569,14 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.c)
 	}
 
+	/**
+	 * Numeric Aggregate Operation
+	 * @param {string} op - the SQL function, e.g. MAX
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	numAggOp(op, colName, attrs, options) {
 		const col = this.columns[colName]
 		const sql = (col && col.sql) || colName
@@ -553,61 +597,121 @@ class JsonModel {
 		return this.db.get(q, vals).then(row => row.val)
 	}
 
+	/**
+	 * Maximum value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	max(colName, attrs, options) {
 		return this.numAggOp('MAX', colName, attrs, options)
 	}
 
+	/**
+	 * Minimum value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	min(colName, attrs, options) {
 		return this.numAggOp('MIN', colName, attrs, options)
 	}
 
+	/**
+	 * Sum values
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	sum(colName, attrs, options) {
 		return this.numAggOp('SUM', colName, attrs, options)
 	}
 
+	/**
+	 * Average value
+	 * @param {string} colName - column to aggregate
+	 * @param {object} [attrs] - simple value attributes
+	 * @param {SearchOptions} [options] - search options
+	 * @returns {Promise<number>} - the result
+	 */
 	avg(colName, attrs, options) {
 		return this.numAggOp('AVG', colName, attrs, options)
 	}
 
+	/**
+	 * Get all objects
+	 * @returns {Promise<array<object>>} - the table contents
+	 */
 	all() {
-		return this.db
-			.all(`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`)
-			.then(this.toObj)
+		if (this._allSql?.db !== this.db)
+			this._allSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`,
+				`all ${this.name}`
+			)
+		return this._allSql.all().then(this.toObj)
 	}
 
+	/**
+	 * Get an object by a unique value, like its ID
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<(object|null)>} - the object if it exists
+	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
 			return Promise.reject(
 				new Error(`No "${colName}" given for "${this.name}"`)
 			)
 		}
-		const where = this.columns[colName].sql
-		return this.db
-			.get(
-				`SELECT ${this.selectColsSql} FROM ${
-					this.quoted
-				} tbl WHERE ${where} = ?`,
-				[id]
+		if (this.columns[colName]._getSql?.db !== this.db) {
+			const where = this.columns[colName].sql
+			this.columns[colName]._getSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} = ?`,
+				`get ${this.name}.${colName}`
 			)
-			.then(this.toObj)
+		}
+		return this.columns[colName]._getSql.get([id]).then(this.toObj)
 	}
 
+	/**
+	 * Get several objects by their unique value, like their ID
+	 * @param  {array<*>} ids - the values for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<array<(object|null)>>} - the objects, or null where they don't exist, in order of their requested ID
+	 */
 	async getAll(ids, colName = this.idCol) {
-		const qs = ids.map(() => '?').join()
-		const {sql: where, path, real, get: isSelected} = this.columns[colName]
-		if (real && !isSelected)
-			throw new Error(`JsonModel: Cannot getAll on get:false column ${colName}`)
-		const rows = await this.db.all(
-			`SELECT ${this.selectColsSql} FROM ${
-				this.quoted
-			} tbl WHERE ${where} IN (${qs})`,
-			ids
-		)
+		let {path, _getAllSql} = this.columns[colName]
+		if (_getAllSql?.db !== this.db) {
+			const {sql: where, real, get: isSelected} = this.columns[colName]
+			if (real && !isSelected)
+				throw new Error(
+					`JsonModel: Cannot getAll on get:false column ${colName}`
+				)
+			_getAllSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
+				`get ${this.name}.${colName}`
+			)
+			this.columns[colName]._getAllSql = _getAllSql
+		}
+		const rows = await _getAllSql.all([JSON.stringify(ids)])
 		const objs = this.toObj(rows)
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
+	/**
+	 * Get an object by a unique value, like its ID, using a cache.
+	 * This also coalesces multiple calls in the same tick into a single query,
+	 * courtesy of DataLoader.
+	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<(object|null)>} - the object if it exists
+	 */
 	getCached(cache, id, colName = this.idCol) {
+		if (!cache) return this.get(id, colName)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
 			dbg(`creating DataLoader for ${this.name}.${colName}`)
@@ -617,6 +721,23 @@ class JsonModel {
 			})
 		}
 		return cache[key].load(id)
+	}
+
+	/**
+	 * Lets you clear all the cache or just a key. Useful for when you
+	 * change only some items
+	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
+	 * @param  {*} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {DataLoader} - the actual cache, you can call `.prime(key, value)` on it to insert a value
+	 */
+	clearCache(cache, id, colName = this.idCol) {
+		if (!cache) return
+		const key = `_DL_${this.name}_${colName}`
+		const c = cache[key]
+		if (!c) return
+		if (id) return c.clear(id)
+		return c.clearAll()
 	}
 
 	async each(attrs, options, fn) {
@@ -653,35 +774,43 @@ class JsonModel {
 	// --- Mutator methods below ---
 
 	// Contract: All subclasses use set() to store values
-	set(obj, insertOnly) {
+	set(...args) {
 		// we cannot store `set` directly on the instance because it would override subclass `set` functions
-		return this._set(obj, insertOnly)
+		return this._set(...args)
 	}
 
 	// Change only the given fields, shallowly
 	// upsert: also allow inserting
-	async updateNoTrans(obj, upsert) {
+	async updateNoTrans(obj, upsert, noReturn) {
 		if (!obj) throw new Error('update() called without object')
 		const id = obj[this.idCol]
 		if (id == null) {
 			if (!upsert) throw new Error('Can only update object with id')
-			return this.set(obj)
+			return this.set(obj, false, noReturn)
 		}
-		const prev = await this.get(id)
+		let prev = await this.get(id)
 		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
-		return this.set({...prev, ...obj})
+		if (prev)
+			for (const [key, value] of Object.entries(obj)) {
+				if (value == null) delete prev[key]
+				else prev[key] = value
+			}
+		else prev = obj
+		return this.set(prev, false, noReturn)
 	}
 
-	update(obj, upsert) {
-		return this.db.withTransaction(() => this.updateNoTrans(obj, upsert))
+	update(...args) {
+		return this.db.withTransaction(() => this.updateNoTrans(...args))
 	}
 
 	remove(idOrObj) {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		return this.db.run(
-			`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
-			id
-		)
+		if (this._deleteSql?.db !== this.db)
+			this._deleteSql = this.db.prepare(
+				`DELETE FROM ${this.quoted} WHERE ${this.idColQ} = ?`,
+				`del ${this.name}`
+			)
+		return this._deleteSql.run([id])
 	}
 
 	delete(idOrObj) {
@@ -691,29 +820,19 @@ class JsonModel {
 
 	changeId(oldId, newId) {
 		if (newId == null) throw new TypeError('newId must be a valid id')
-		const {quoted} = this.columns[this.idCol]
-		return this.db
-			.run(`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`, [
-				newId,
-				oldId,
-			])
-			.then(({changes}) => {
-				if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
-				return undefined
-			})
-	}
-
-	async applyChanges(result) {
-		const {rm, set, ins, upd, sav} = result
-		if (DEV) {
-			const {rm, set, ins, upd, sav, ...rest} = result
-			Object.keys(rest).forEach(k => unknown(k, `key ${k} in result`))
+		let {_changeIdSql} = this.columns[this.idCol]
+		if (_changeIdSql?.db !== this.db) {
+			const {quoted} = this.columns[this.idCol]
+			_changeIdSql = this.db.prepare(
+				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`,
+				`mv ${this.name}`
+			)
+			this.columns[this.idCol]._changeIdSql = _changeIdSql
 		}
-		if (rm) await settleAll(rm, item => this.remove(item))
-		if (ins) await settleAll(ins, obj => this.set(obj, true))
-		if (set) await settleAll(set, obj => this.set(obj))
-		if (upd) await settleAll(upd, obj => this.updateNoTrans(obj))
-		if (sav) await settleAll(sav, obj => this.updateNoTrans(obj, true))
+		return _changeIdSql.run([newId, oldId]).then(({changes}) => {
+			if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
+			return undefined
+		})
 	}
 }
 

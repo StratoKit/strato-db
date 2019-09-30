@@ -26,7 +26,7 @@ fi
 if ! nps build; then
 	die Could not build
 fi
-if ! git add -f $BUILDDIR; then
+if ! git add -f $BUILDDIR API.md; then
 	die Could not add to commit
 fi
 if ! git commit -m build; then

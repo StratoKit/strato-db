@@ -62,7 +62,7 @@ export const testModels = {
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {
-			if (result !== event.result) {
+			if (result !== event.result[model.name]) {
 				throw new Error('Expecting event.result as separate input')
 			}
 			if (event.result.count) {
@@ -84,12 +84,13 @@ const withDBs = async fn => {
 		columns: {events: {type: 'JSON'}},
 	})
 	const ret = await fn(db, queue)
-	await db.close()
-	await queue.db.close()
+	await Promise.all([db.close(), queue.db.close()])
 	return ret
 }
 export const withESDB = (fn, models = testModels) =>
-	withDBs((db, queue) => {
+	withDBs(async (db, queue) => {
 		const eSDB = new ESDB({queue, models, name: 'E'})
-		return fn(eSDB, queue)
+		const out = await fn(eSDB, queue)
+		await eSDB.close()
+		return out
 	})

@@ -73,3 +73,22 @@ test('open eSDB read-only same queue', () =>
 		},
 		{unsafeCleanup: true}
 	))
+
+test('RO db sees transaction as soon as completed', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const eSDB = new ESDB({
+				file: sysPath.join(dir, 'db'),
+				queueFile: sysPath.join(dir, 'q'),
+				name: 'E',
+				models: testModels,
+			})
+			for (let i = 1; i <= 100; i++) {
+				// eslint-disable-next-line no-await-in-loop
+				await eSDB.dispatch('foo')
+				// eslint-disable-next-line no-await-in-loop
+				expect(await eSDB.store.count.get('count')).toHaveProperty('total', i)
+			}
+		},
+		{unsafeCleanup: true}
+	))

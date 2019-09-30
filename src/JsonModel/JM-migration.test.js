@@ -25,6 +25,8 @@ test('migrations', async () => {
 				expect(hi).toBe(3)
 				const d = await model.set({foo: 1})
 				expect(d.foo).toBe(5)
+				// This creates a prepared statement which must not leak
+				expect(await model.get(d.id)).toHaveProperty('foo', 5)
 			},
 		},
 		migrationOptions: {
@@ -34,6 +36,8 @@ test('migrations', async () => {
 	})
 	const d = await m.searchOne()
 	expect(d.foo).toBe(5)
+	// This should create a new prepared statement
+	expect(await m.get(d.id)).toHaveProperty('foo', 5)
 })
 
 test('concurrent migrations', async () => {

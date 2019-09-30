@@ -1,18 +1,20 @@
+// @ts-check
 import {withESDB} from '../lib/_test-helpers'
 
 test('work', () => {
 	const models = {
 		foo: {
-			preprocessor: ({event, dispatch}) => {
+			preprocessor: ({event, dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('hello')
 			},
-			reducer: (model, event) => {
-				return {
-					set: [{id: event.type}],
-					events: event.type === 'hi' && [{type: 'everybody'}],
-				}
+			reducer: (model, event, {dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBeUndefined()
+				if (event.type === 'hi') dispatch('everybody')
+				return {set: [{id: event.type}]}
 			},
-			deriver: ({event, dispatch}) => {
+			deriver: ({event, dispatch, isMainEvent}) => {
+				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('there')
 			},
 		},
@@ -30,9 +32,9 @@ test('work', () => {
 test('depth first order', () => {
 	const models = {
 		foo: {
-			reducer: (model, event) => {
+			reducer: (model, event, {dispatch}) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
-				if (event.type === '3') return {events: [{type: '4'}]}
+				if (event.type === '3') dispatch('4')
 			},
 			deriver: async ({model, event, dispatch}) => {
 				if (event.type === 'hi') {
@@ -67,12 +69,28 @@ test('no infinite recursion', () => {
 	return withESDB(async eSDB => {
 		eSDB.__BE_QUIET = true
 		const doNotCall = jest.fn()
-		const event = await eSDB._dispatchWithError('hi').then(doNotCall, e => e)
+		const event = await eSDB.dispatch('hi').then(doNotCall, e => e)
 		expect(doNotCall).toHaveBeenCalledTimes(0)
-		expect(event).toHaveProperty('error._handle', 'subevent 0 failed')
 		expect(event).toHaveProperty(
-			'events.0.events.0.events.0.events.0.error._handle',
-			'subevent 0 failed'
+			'error._handle',
+			expect.stringMatching(/(\.hi)+:.*deep/)
 		)
+	}, models)
+})
+
+test('replay clears subevents', () => {
+	const models = {
+		foo: {
+			deriver: async ({event, dispatch}) => {
+				if (event.type === 'hi') dispatch('ho')
+			},
+		},
+	}
+	return withESDB(async eSDB => {
+		await eSDB.queue.set({v: 5, type: 'hi', events: [{type: 'deleteme'}]})
+		const event = await eSDB.handledVersion(5)
+		expect(event).toHaveProperty('events', [
+			expect.objectContaining({type: 'ho'}),
+		])
 	}, models)
 })
