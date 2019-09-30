@@ -23,6 +23,8 @@ module.exports = function(context, opts) {
 		require.resolve('@babel/plugin-proposal-class-properties'),
 		// { ...todo, completed: true }
 		require.resolve('@babel/plugin-proposal-object-rest-spread'),
+		// Accessing deeply nested properties: { obj?.foo?.bar?.baz }
+		require.resolve('@babel/plugin-proposal-optional-chaining'),
 	].filter(Boolean)
 
 	const presets = [
