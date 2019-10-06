@@ -1,3 +1,5 @@
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 import {DB, JsonModel, getModel} from '../lib/_test-helpers'
 
 test('falsy migration', async () => {
@@ -79,3 +81,25 @@ test('migration clones writeable', async () => {
 	})
 	await expect(m.db.store.test).not.toHaveProperty('__temp')
 })
+
+test('column add', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const m1 = new DB({file}).addModel(JsonModel, {name: 'testing'})
+			await m1.set({id: 'a', foo: {hi: true}})
+			expect(await m1.db.get(`select * from testing`)).not.toHaveProperty('foo')
+			await m1.db.close()
+			const m2 = new DB({file}).addModel(JsonModel, {
+				name: 'testing',
+				columns: {foo: {type: 'JSON'}},
+			})
+			expect(await m2.get('a')).toHaveProperty('foo.hi')
+			await m2.set({id: 'a', foo: {hello: true}})
+			const a = await m2.get('a')
+			expect(a).not.toHaveProperty('foo.hi')
+			expect(a).toHaveProperty('foo.hello')
+			expect(await m2.db.get(`select * from testing`)).toHaveProperty('foo')
+		},
+		{unsafeCleanup: true}
+	))
