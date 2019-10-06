@@ -148,8 +148,14 @@ class JsonModel {
 				val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
 			}
 			if (val != null) {
-				if (k.path) set(out, k.path, val)
-				else Object.assign(out, val) // json col
+				if (k.path) {
+					if (k.real) {
+						const prevVal = get(out, k.path)
+						// Prevent added columns from overwriting existing data
+						if (typeof prevVal !== 'undefined') continue
+					}
+					set(out, k.path, val)
+				} else Object.assign(out, val) // json col
 			}
 		}
 		return out
