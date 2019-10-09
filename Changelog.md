@@ -28,9 +28,11 @@
   - retry failed events with increasing timeouts and exit program after an hour
 - ESModel will now emit a `${model.INIT}` event to allow setting up the table, if you pass `init: true`
 - DB, JsonModel, EventSourcingDB: Better debugging information for queries and errors
-- DB: limit WAL file size after transaction to 4MB
-- DB: run `PRAGMA optimize` every 2 hours
-- DB: emit `'begin'`, `'rollback'`, `'end'`, `'finally'` on transactions as EventEmitter
+- DB: split into SQlite and the migrations-adding DB
+- SQlite: add `autoVacuum` option, sets up incremental vacuuming. If there are > 20x `vacuumPageCount` free pages, it will free `vacuumPageCount` pages every `vacuumInterval` seconds. Defaults to 1MB (of 4KB pages) and 30s.
+- SQlite: limit WAL file size after transaction to 4MB
+- SQlite: run `PRAGMA optimize` every 2 hours
+- SQlite: emit `'begin'`, `'rollback'`, `'end'`, `'finally'` on transactions as EventEmitter
 - JsonModel: `.set` and `.update` take the `noReturn` boolean as their 3rd argument to indicate they don't have to return the value, as an optimization
 
 ## 2.3.3

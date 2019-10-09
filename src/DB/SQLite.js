@@ -89,6 +89,9 @@ class SQLite extends EventEmitter {
 	 * @param  {function} [options.onWillOpen] called before opening
 	 * @param  {function} [options.onDidOpen] called after opened
 	 * @param  {string} [options.name] name for debugging
+	 * @param  {boolean} [options.autoVacuum] run incremental vacuum
+	 * @param  {number} [options.vacuumInterval] seconds between incremental vacuums
+	 * @param  {number} [options.vacuumPageCount] number of pages to clean per vacuum
 	 * @param  {object} [options._sqlite] sqlite instance for child dbs
 	 * @param  {object} [options._store={}] models registry for child dbs
 	 * @param  {object} [options._statements={}] statements registry for child dbs
@@ -99,6 +102,9 @@ class SQLite extends EventEmitter {
 		verbose,
 		onWillOpen,
 		onDidOpen,
+		autoVacuum = false,
+		vacuumInterval = 30, // seconds while vacuuming
+		vacuumPageCount = 1024 / 4, // 1MB in 4k pages
 		name,
 		_sqlite,
 		_store = {},
@@ -116,7 +122,14 @@ class SQLite extends EventEmitter {
 		this._sqlite = _sqlite
 		this.store = _store
 		this.statements = _statements
-		this.options = {onWillOpen, onDidOpen, verbose}
+		this.options = {
+			onWillOpen,
+			onDidOpen,
+			verbose,
+			autoVacuum,
+			vacuumInterval,
+			vacuumPageCount,
+		}
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
@@ -131,7 +144,7 @@ class SQLite extends EventEmitter {
 			file,
 			readOnly,
 			_isChild,
-			options: {verbose, onWillOpen},
+			options: {verbose, onWillOpen, autoVacuum},
 		} = this
 		if (_isChild)
 			throw new Error(
@@ -183,6 +196,18 @@ class SQLite extends EventEmitter {
 					)
 				}
 			}
+			if (autoVacuum) {
+				const {auto_vacuum: mode} = await childDb.get(`PRAGMA auto_vacuum`)
+				if (mode !== 2) {
+					await childDb.exec(`PRAGMA auto_vacuum=INCREMENTAL; VACUUM`)
+				}
+				const {vacuumInterval} = this.options
+				this._vacuumToken = setInterval(
+					() => this._vacuumStep(),
+					vacuumInterval * 10 * 1000
+				)
+				this._vacuumToken.unref()
+			}
 			// Some sane settings
 			await childDb.exec(`
 					PRAGMA foreign_keys = ON;
@@ -233,6 +258,14 @@ class SQLite extends EventEmitter {
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
+		if (this._optimizerToken) {
+			clearInterval(this._optimizerToken)
+			this._optimizerToken = null
+		}
+		if (this._vacuumToken) {
+			clearInterval(this._vacuumToken)
+			this._vacuumToken = null
+		}
 		const {_sqlite} = this
 		this._sqlite = null
 
@@ -471,6 +504,18 @@ class SQLite extends EventEmitter {
 		this.emit('end')
 		this.emit('finally')
 		return result
+	}
+
+	async _vacuumStep() {
+		if (!this._sqlite) return
+		const {vacuumInterval, vacuumPageCount} = this.options
+		const {freelist_count: left} = await this._sqlite.get(
+			'PRAGMA freelist_count'
+		)
+		// leave some free pages in there
+		if (left < vacuumPageCount * 20 || !this._sqlite) return
+		await this._sqlite.exec(`PRAGMA incremental_vacuum(${vacuumPageCount}`)
+		setTimeout(() => this._vacuumStep(), vacuumInterval * 1000)
 	}
 }
 
