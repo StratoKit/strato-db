@@ -14,7 +14,6 @@ const parseJsonObject = v => (v == null ? {} : JSON.parse(v))
 
 const arrayToJson = v => (v && v.length ? [JSON.stringify(v)] : false)
 
-// TODO if 2 columns refer to the same path, they should get the same column vs json location
 // Note: avoid where functions; that way, queries can be reused for different args
 // eslint-disable-next-line complexity
 export const prepareSqlCol = col => {
@@ -26,10 +25,6 @@ export const prepareSqlCol = col => {
 	} else if (col.alwaysObject)
 		throw new TypeError(`${name}: .alwaysObject only applies to JSON type`)
 	if (col.falsyBool && !col.where) {
-		// TODO: this doesn't need a where function but won't use a sparse index
-		// so maybe for sparse index falsybool only do 'is not null' and throw if false
-		// col.where = `(${col.sql} IS NULL)=?`
-		// col.whereVal = v => [!v]
 		col.where = (_, v) => (v ? `${col.sql} IS NOT NULL` : `${col.sql} IS NULL`)
 		col.whereVal = () => []
 	}
@@ -87,9 +82,7 @@ export const prepareSqlCol = col => {
 		!col.where.includes('?')
 	)
 		throw new Error(
-			`${col.name}: .where "${
-				col.where
-			}" should include a ? when not passing .whereVal`
+			`${col.name}: .where "${col.where}" should include a ? when not passing .whereVal`
 		)
 	if (!col.where) col.where = `${col.sql}=?`
 }
