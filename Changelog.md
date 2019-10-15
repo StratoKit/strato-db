@@ -18,6 +18,7 @@
 - the debug namespace was changed to `strato-db`
 - `applyChanges` was moved from JsonModel to a separate helper function `applyResult(model, result)`
 - EventSourcingDB now passes `emitter` as an option to models, so they can subscribe to events. You have to take it out before passing the options to `JsonModel`.
+- Migration metadata is now stored in the table `{sdb} migrations` instead of `_migrations`. There is a migration procedure, but don't open your DBs with previous versions of strato-db, since the old versions will try to run the migrations again (and fail, so the data is safe).
 
 ### Changes
 
