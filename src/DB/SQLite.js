@@ -513,13 +513,13 @@ class SQLite extends EventEmitter {
 	async _vacuumStep() {
 		if (!this._sqlite) return
 		const {vacuumInterval, vacuumPageCount} = this.options
-		const {freelist_count: left} = await this._sqlite.get(
-			'PRAGMA freelist_count'
-		)
+		// Sadly, you cannot prepare pragma statements
+		const {freelist_count: left} = await this.get('PRAGMA freelist_count')
 		// leave some free pages in there
 		if (left < vacuumPageCount * 20 || !this._sqlite) return
-		await this._sqlite.exec(`PRAGMA incremental_vacuum(${vacuumPageCount}`)
-		setTimeout(() => this._vacuumStep(), vacuumInterval * 1000)
+		await this.exec(`PRAGMA incremental_vacuum(${vacuumPageCount})`)
+		const t = setTimeout(() => this._vacuumStep(), vacuumInterval * 1000)
+		t.unref()
 	}
 }
 

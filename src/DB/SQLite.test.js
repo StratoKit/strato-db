@@ -240,3 +240,37 @@ test('vacuum', async () => {
 	await db2.open()
 	expect(await db2.get('PRAGMA auto_vacuum')).toHaveProperty('auto_vacuum', 0)
 })
+
+test('incrementally vacuum', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db = new SQLite({file, autoVacuum: true, vacuumPageCount: 1})
+			await db.exec(`
+				CREATE TABLE test(field1);
+
+				INSERT INTO test
+					WITH RECURSIVE
+						cte(x) AS (
+							SELECT random()
+							UNION ALL
+							SELECT random()
+								FROM cte
+								LIMIT 10000
+					)
+				SELECT x FROM cte;
+
+				DELETE FROM test;
+			`)
+			const getLeft = async () => {
+				const {freelist_count: left} = await db.get('PRAGMA freelist_count')
+				return left
+			}
+			const left1 = await getLeft()
+			expect(await getLeft()).toBeGreaterThan(20)
+			await db._vacuumStep()
+			expect(await getLeft()).toBeLessThan(left1)
+			await db.close()
+		},
+		{unsafeCleanup: true}
+	))
