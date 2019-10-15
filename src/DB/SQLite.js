@@ -226,7 +226,7 @@ class SQLite extends EventEmitter {
 
 		this._sqlite = _sqlite
 
-		dbg(`${this.name} ${file} opened`)
+		dbg(`${this.name} opened  ${file}`)
 
 		return this
 	}
@@ -253,7 +253,7 @@ class SQLite extends EventEmitter {
 	 * @returns {Promise<void>} - a promise for the DB being closed
 	 */
 	async close() {
-		dbg(`closing ${this.name}`)
+		if (!this._isChild) dbg(`${this.name} closing`)
 
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
@@ -273,11 +273,15 @@ class SQLite extends EventEmitter {
 		for (const stmt of Object.values(this.statements)) await stmt.finalize()
 
 		// We only want to close our own statements, not the db
-		if (this._isChild) return
+		if (this._isChild) {
+			dbg(`${this.name} child db closed`)
+			return
+		}
 
 		clearInterval(this._optimizerToken)
 		if (this._dbP) await this._dbP
 		if (_sqlite) await this._call('close', [], _sqlite, this.name)
+		dbg(`${this.name} closed`)
 	}
 
 	async _hold(method) {
