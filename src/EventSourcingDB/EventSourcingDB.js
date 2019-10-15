@@ -418,7 +418,6 @@ class EventSourcingDB extends EventEmitter {
 		return this._waitingFor[v].promise
 	}
 
-	// TODO handle DB errors while getting the events from history
 	_triggerEventListeners(event) {
 		const o = this._waitingFor[event.v]
 		if (o) delete this._waitingFor[event.v]
@@ -428,9 +427,9 @@ class EventSourcingDB extends EventEmitter {
 			for (const vStr of Object.keys(this._waitingFor)) {
 				const v = Number(vStr)
 				if (v > event.v) continue
+				// Note: if the DB fails for get(), the trigger won't run and it will retry later
 				// eslint-disable-next-line promise/catch-or-return
 				this.queue.get(v).then(event => this._triggerEventListeners(event))
-				delete this._waitingFor[v]
 			}
 		}
 
