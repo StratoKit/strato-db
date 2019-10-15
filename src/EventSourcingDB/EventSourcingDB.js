@@ -284,7 +284,6 @@ class EventSourcingDB extends EventEmitter {
 						`${this.name}: At least one reducer, deriver or preprocessor required`
 					)
 			} catch (error) {
-				// TODO write test
 				if (error.message)
 					error.message = `ESDB: while configuring model ${name}: ${error.message}`
 				if (error.stack)

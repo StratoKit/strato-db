@@ -6,6 +6,7 @@
 - Optimize:
   - [ ] create benchmark
   - [ ] API to get prepared statements from JM .search
+- Some mechanism to quit running processes when the schema changes. Maybe store a user-defined schema version in `PRAGMA application_id`? Isn't nice to have to check it every time data_version changes though :(
 
 ## node-sqlite3
 
@@ -45,6 +46,7 @@
 
 ### Nice to have
 
+- [ ] rename internal tables to `{sdb} tablename` so they sort last and are easy to ignore
 - [ ] if migration is `{undo:fn}` run the `undo` only if the migration ran before. We never needed `down` migrations so far.
   - to run something only on existing databases, first deploy a `()=>{}` migration and then change it to an `undo`
 
@@ -77,6 +79,8 @@
   - [ ] objectColumn() helper -> type=JSON, NULL === {}, stringify checks if object (char 0 is `{`)
   - [ ] boolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
   - [ ] falsyColumn() -> implement falsyBool
+    - note that `col.where = (${col.sql} IS NULL)=?` doesn't need a where function but won't use a sparse index.
+      So maybe, for sparse index falsybool, only do 'is not null' and throw if false
   - [ ] uuidColumn() -> use buffer stringify/parse to implement efficient UUID by default. See https://stackoverflow.com/questions/20342058/which-uuid-version-to-use
 - [ ] foreign key support
 - [ ] prepared statements
