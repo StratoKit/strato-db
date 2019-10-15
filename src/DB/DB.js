@@ -7,17 +7,20 @@ import SQLite, {sql} from './SQLite'
 const dbg = debug('strato-db/DB')
 
 export const _getRanMigrations = async db => {
-	await db.exec(`
-		CREATE TABLE IF NOT EXISTS _migrations(
+	if (await db.get(`SELECT 1 FROM sqlite_master WHERE name="_migrations"`))
+		await db.exec(`ALTER TABLE _migrations RENAME TO "{sdb} migrations"`)
+	if (
+		!(await db.get(`SELECT 1 FROM sqlite_master WHERE name="{sdb} migrations"`))
+	)
+		await db.exec(`CREATE TABLE "{sdb} migrations"(
 			runKey TEXT,
 			ts DATETIME,
 			up BOOLEAN
-		);
-	`)
+		);`)
 	const didRun = {}
 	await db.each(
 		`
-			SELECT runKey, max(ts) AS ts, up FROM _migrations
+			SELECT runKey, max(ts) AS ts, up FROM "{sdb} migrations"
 			GROUP BY runKey
 			HAVING up = 1
 		`,
@@ -31,12 +34,12 @@ export const _getRanMigrations = async db => {
 const _markMigration = async (db, runKey, up) => {
 	const ts = Math.round(Date.now() / 1000)
 	up = up ? 1 : 0
-	await db.run`INSERT INTO _migrations VALUES (${runKey}, ${ts}, ${up})`
+	await db.run`INSERT INTO "{sdb} migrations" VALUES (${runKey}, ${ts}, ${up})`
 }
 
 /**
  * DB adds model management and migrations to Wrapper.
- * The migration state is kept in the table "_migrations".
+ * The migration state is kept in the table ""{sdb} migrations"".
  * @extends SQLite
  */
 class DB extends SQLite {

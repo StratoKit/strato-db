@@ -181,9 +181,13 @@ class EventSourcingDB extends EventEmitter {
 				await db.userVersion(v)
 				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
 				if (count === 1) {
-					await db.exec(
-						`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
-					)
+					await db
+						.exec(
+							`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
+						)
+						.catch(() => {
+							/* shrug */
+						})
 				} else {
 					await db.run(`DELETE FROM metadata WHERE id="version"`)
 				}
