@@ -30,7 +30,7 @@ test('create', () =>
 				{id: 'count', total: 0, byType: {}},
 			])
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'esdb-create'}
 	))
 
 test('create in single file', async () => {

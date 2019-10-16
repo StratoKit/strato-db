@@ -38,7 +38,7 @@ test('open eSDB read-only separate queue', () =>
 			await expect(roDB.dispatch('foo')).rejects.toThrow('read')
 			await chmod(sysPath.dirname(file), 0o700)
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'esdb-ro-sep'}
 	))
 
 test('open eSDB read-only same queue', () =>
@@ -71,7 +71,7 @@ test('open eSDB read-only same queue', () =>
 			await expect(roDB.dispatch('foo')).rejects.toThrow('read')
 			await chmod(sysPath.dirname(file), 0o700)
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'esdb-ro-same'}
 	))
 
 test('RO db sees transaction as soon as completed', async () =>
@@ -90,5 +90,5 @@ test('RO db sees transaction as soon as completed', async () =>
 				expect(await eSDB.store.count.get('count')).toHaveProperty('total', i)
 			}
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'esdb-ro-see'}
 	))

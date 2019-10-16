@@ -25,7 +25,7 @@ test('queue in same db', async () =>
 			expect(history[1].result).toBeTruthy()
 			await eSDB.dispatch('YO')
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'esdb-queue'}
 	))
 
 test('waitForQueue', async () =>

@@ -101,5 +101,5 @@ test('column add', () =>
 			expect(a).toHaveProperty('foo.hello')
 			expect(await m2.db.get(`select * from testing`)).toHaveProperty('foo')
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'jm-coladd'}
 	))

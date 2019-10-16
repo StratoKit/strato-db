@@ -204,7 +204,7 @@ test('dataVersion', () =>
 			await db1.close()
 			await db2.close()
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'sq-data'}
 	))
 
 test('userVersion', async () => {
@@ -276,7 +276,7 @@ test('incrementally vacuum', async () =>
 			expect(await getLeft()).toBeLessThan(left1)
 			await db.close()
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'iv'}
 	))
 
 test('10 simultaneous opens', async () => {
@@ -299,6 +299,6 @@ test('10 simultaneous opens', async () => {
 			await Promise.all(Ps)
 			expect(await db.get('SELECT v from t')).toHaveProperty('v', 10)
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'sq-open'}
 	)
 })

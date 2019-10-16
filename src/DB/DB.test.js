@@ -192,5 +192,5 @@ test('10 simultaneous opens', async () =>
 			await Promise.all(Ps)
 			expect(await db.get('SELECT v from t')).toHaveProperty('v', 10)
 		},
-		{unsafeCleanup: true}
+		{unsafeCleanup: true, prefix: 'db-open'}
 	))
