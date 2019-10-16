@@ -1,3 +1,5 @@
+import sysPath from 'path'
+import tmp from 'tmp-promise'
 import DB, {_getRanMigrations} from './DB'
 
 test('can register model', () => {
@@ -163,3 +165,32 @@ test('onWillOpen', async () => {
 	expect(t).toBe(2)
 	await db.close()
 })
+
+test('10 simultaneous opens', async () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const migrations = {
+				0: async db => {
+					await db.exec('CREATE TABLE t(id, v); INSERT INTO t VALUES(1, 0);')
+				},
+			}
+			const db = new DB({file})
+			db.registerMigrations('foo', migrations)
+
+			const openClose = async () => {
+				const db = new DB({file})
+				db.registerMigrations('foo', migrations)
+				await db.open()
+				await db.exec('UPDATE t SET v=v+1 WHERE id=1')
+				await db.close()
+			}
+			const Ps = []
+			for (let i = 0; i < 10; i++) {
+				Ps.push(openClose())
+			}
+			await Promise.all(Ps)
+			expect(await db.get('SELECT v from t')).toHaveProperty('v', 10)
+		},
+		{unsafeCleanup: true}
+	))

@@ -1,5 +1,4 @@
 // @ts-check
-/* eslint-disable no-console */
 import path from 'path'
 import debug from 'debug'
 import {performance} from 'perf_hooks'
@@ -11,9 +10,10 @@ import {EventEmitter} from 'events'
 const dbg = debug('strato-db/sqlite')
 const dbgQ = dbg.extend('query')
 
-const RETRY_COUNT = 3
+const RETRY_COUNT = 10
 
 const wait = ms => new Promise(r => setTimeout(r, ms))
+const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
 const getDuration = ts =>
 	(performance.now() - ts).toLocaleString(undefined, {maximumFractionDigits: 2})
@@ -31,6 +31,8 @@ export const valToSql = v => {
 	if (v == null) return 'NULL'
 	return `'${v.toString().replace(/'/g, "''")}'`
 }
+
+const isBusyError = err => err.code === 'SQLITE_BUSY'
 
 /**
  * sql provides templating for SQL.
@@ -166,8 +168,13 @@ class SQLite extends EventEmitter {
 			})
 		})
 
-		// Wait 15s for locks
-		_sqlite.configure('busyTimeout', 15000)
+		// Wait for locks
+		_sqlite.configure(
+			'busyTimeout',
+			process.env.NODE_ENV === 'test'
+				? 10
+				: 1000 + Math.floor(Math.random() * 500)
+		)
 
 		const childDb = new SQLite({
 			file: this.file,
@@ -182,24 +189,33 @@ class SQLite extends EventEmitter {
 			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
 
 		if (!this.readOnly) {
-			// Journaling mode WAL
+			// Make sure we have WAL journaling - cannot be done in transaction
 			if (this.file !== ':memory:') {
-				await childDb.get('PRAGMA journal_mode')
-				const {journal_mode: journalMode} = await childDb
-					.get('PRAGMA journal_mode = wal')
-					.catch(err => {
-						if (!err.message.startsWith('SQLITE_BUSY')) throw err
-					})
-				if (journalMode !== 'wal') {
-					console.error(
-						`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
-					)
+				const {journal_mode: mode} = await childDb.get('PRAGMA journal_mode')
+				if (mode !== 'wal') {
+					const {journal_mode: journalMode} = await childDb
+						.get('PRAGMA journal_mode = wal')
+						.catch(err => {
+							if (!isBusyError(err)) throw err
+						})
+					if (journalMode !== 'wal') {
+						// eslint-disable-next-line no-console
+						console.error(
+							`!!! WARNING: journal_mode is ${journalMode}, not WAL. Locking issues might occur!`
+						)
+					}
 				}
 			}
+
 			if (autoVacuum) {
 				const {auto_vacuum: mode} = await childDb.get(`PRAGMA auto_vacuum`)
 				if (mode !== 2) {
-					await childDb.exec(`PRAGMA auto_vacuum=INCREMENTAL; VACUUM`)
+					await childDb
+						.exec(`PRAGMA auto_vacuum=INCREMENTAL; VACUUM`)
+						.catch(err => {
+							if (!isBusyError(err)) throw err
+							this.options.autoVacuum = false
+						})
 				}
 				const {vacuumInterval} = this.options
 				this._vacuumToken = setInterval(
@@ -309,10 +325,23 @@ class SQLite extends EventEmitter {
 		const now = dbgQ.enabled ? performance.now() : undefined
 		let fnResult
 		const result = new Promise((resolve, reject) => {
+			// eslint-disable-next-line prefer-const
+			let cb
+			const runQuery = () => {
+				fnResult = _sqlite[method](...(args || []), cb)
+			}
+			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
-			const cb = function(err, out) {
-				if (err) reject(new Error(`${name}: sqlite3: ${err.message}`))
-				else
+			cb = function(err, out) {
+				if (err) {
+					if (isBusyError(err) && busyRetry--) {
+						return busyWait().then(runQuery)
+					}
+					const error = new Error(`${name}: sqlite3: ${err.message}`)
+					// @ts-ignore
+					error.code = err.code
+					reject(error)
+				} else
 					resolve(
 						returnFn
 							? fnResult
@@ -346,7 +375,7 @@ class SQLite extends EventEmitter {
 				},
 				err => {
 					const d = getDuration(now)
-					dbgQ(`!!! FAILED ${err.message} ${what} ${q} ${v}${d}ms `)
+					dbgQ(`${what} SQLite error: ${err.message} ${q} ${v}${d}ms `)
 				}
 			)
 		}
@@ -480,16 +509,16 @@ class SQLite extends EventEmitter {
 		return this.transactionP
 	}
 
-	async __withTransaction(fn, count = RETRY_COUNT) {
+	async __withTransaction(fn, busyRetry = RETRY_COUNT) {
 		try {
 			await this.exec(`BEGIN IMMEDIATE`)
 			this.emit('begin')
 		} catch (error) {
-			if (error.code === 'SQLITE_BUSY' && count) {
+			if (isBusyError(error) && busyRetry) {
 				// Transaction already running
-				if (count === RETRY_COUNT) dbg('DB is busy, retrying')
-				await wait(Math.random() * 1000 + 200)
-				return this.__withTransaction(fn, count - 1)
+				if (busyRetry === RETRY_COUNT) dbg(`${this.name} DB is busy, retrying`)
+				await busyWait()
+				return this.__withTransaction(fn, busyRetry - 1)
 			}
 			throw error
 		}
@@ -498,7 +527,11 @@ class SQLite extends EventEmitter {
 			result = await fn()
 		} catch (error) {
 			if (process.env.NODE_ENV !== 'test')
-				console.error('transaction failure, rolling back', error)
+				// eslint-disable-next-line no-console
+				console.error(
+					`${this.name} !!! transaction failure, rolling back`,
+					error
+				)
 			await this.exec(`ROLLBACK`)
 			this.emit('rollback')
 			this.emit('finally')

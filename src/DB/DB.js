@@ -7,16 +7,18 @@ import SQLite, {sql} from './SQLite'
 const dbg = debug('strato-db/DB')
 
 export const _getRanMigrations = async db => {
-	if (await db.get(`SELECT 1 FROM sqlite_master WHERE name="_migrations"`))
-		await db.exec(`ALTER TABLE _migrations RENAME TO "{sdb} migrations"`)
 	if (
 		!(await db.get(`SELECT 1 FROM sqlite_master WHERE name="{sdb} migrations"`))
-	)
-		await db.exec(`CREATE TABLE "{sdb} migrations"(
-			runKey TEXT,
-			ts DATETIME,
-			up BOOLEAN
-		);`)
+	) {
+		if (await db.get(`SELECT 1 FROM sqlite_master WHERE name="_migrations"`))
+			await db.exec(`ALTER TABLE _migrations RENAME TO "{sdb} migrations"`)
+		else
+			await db.exec(`CREATE TABLE "{sdb} migrations"(
+				runKey TEXT,
+				ts DATETIME,
+				up BOOLEAN
+			);`)
+	}
 	const didRun = {}
 	await db.each(
 		`

@@ -221,6 +221,10 @@ test('open: errors with filename', async () => {
 
 test('SQLite methods: errors with filename', async () => {
 	const db = new SQLite()
+	await expect(db.run('bad sql haha')).rejects.toHaveProperty(
+		'code',
+		'SQLITE_ERROR'
+	)
 	await expect(db.run('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.get('bad sql haha')).rejects.toThrow(':memory:')
 	await expect(db.all('bad sql haha')).rejects.toThrow(':memory:')
@@ -274,3 +278,27 @@ test('incrementally vacuum', async () =>
 		},
 		{unsafeCleanup: true}
 	))
+
+test('10 simultaneous opens', async () => {
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db = new SQLite({file})
+			await db.exec('CREATE TABLE t(id, v); INSERT INTO t VALUES(1, 0);')
+
+			const openClose = async () => {
+				const db = new SQLite({file})
+				await db.open()
+				await db.exec('UPDATE t SET v=v+1 WHERE id=1')
+				await db.close()
+			}
+			const Ps = []
+			for (let i = 0; i < 10; i++) {
+				Ps.push(openClose())
+			}
+			await Promise.all(Ps)
+			expect(await db.get('SELECT v from t')).toHaveProperty('v', 10)
+		},
+		{unsafeCleanup: true}
+	)
+})
