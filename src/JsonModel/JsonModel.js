@@ -538,11 +538,21 @@ class JsonModel {
 
 	/**
 	 * Check for existence of objects
-	 * @param {object} attrs - simple value attributes
+	 * @param {object|string|number} attrs - simple value attributes or the id
 	 * @param {SearchOptions} [options] - search options
 	 * @returns {Promise<boolean>} - `true` if the search would have results
 	 */
 	exists(attrs, options) {
+		if (attrs && typeof attrs !== 'object') {
+			if (this._existsSql?.db !== this.db) {
+				const where = this.columns[this.idCol].sql
+				this._existsSql = this.db.prepare(
+					`SELECT 1 FROM ${this.quoted} tbl WHERE ${where} = ?`,
+					`existsId ${this.name}`
+				)
+			}
+			return this._existsSql.get([attrs]).then(row => !!row)
+		}
 		const [q, vals] = this.makeSelect({
 			attrs,
 			...options,
