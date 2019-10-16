@@ -99,3 +99,14 @@ test('exists', async () => {
 	expect(await m.exists({hi: true})).toBe(true)
 	expect(await m.exists({hi: false})).toBe(false)
 })
+
+test('exists id', async () => {
+	const m = getModel({columns: {hi: {}}})
+	await m.set({id: 1}) // make sure we have rows so empty exists returns true
+	expect(await m.exists(55)).toBe(false)
+	await m.set({id: 55})
+	expect(await m.exists(55)).toBe(true)
+	expect(await m.exists('foo')).toBe(false)
+	await m.set({id: 'foo'})
+	expect(await m.exists('foo')).toBe(true)
+})
