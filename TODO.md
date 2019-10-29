@@ -54,6 +54,15 @@
 
 ### Important
 
+- FTS5 support for text searching
+  - Real columns marked `textSearch: true|string|object` generate a FTS5 index
+  - one index per textSearch value ("tag")
+  - It uses the table as a backing table
+  - FTS options can be passed as an object with `tag` for the textSearch value
+  - Searching passes the search argument to the tagged FTS5 index limited to the column
+  - Changes are applied by JM, not triggers. Generating
+    The tags are there to allow multilingual searching. Another column should be added to allow searching all columns in the tagged index.
+    Need to come up with nicer configuration keys. Also something for custom tokenizing
 - [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
 
   ```sql
@@ -95,7 +104,6 @@
 - Test for `uniqueSlugId`
 - Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers that can't have native code
-- FTS5 support for text searching
 
 ## Queue
 
