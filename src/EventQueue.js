@@ -5,6 +5,8 @@ import JsonModel from './JsonModel'
 
 const dbg = debug('strato-db/queue')
 
+let warnedLatest
+
 /**
  * An event queue, including history
  * @extends JsonModel
@@ -120,11 +122,23 @@ class EventQueue extends JsonModel {
 		return super.set(event)
 	}
 
+	latestVersion() {
+		if (process.env.NODE_ENV !== 'production' && !warnedLatest) {
+			const {stack} = new Error(
+				'EventQueue: latestVersion() is deprecated, use getMaxV instead'
+			)
+			// eslint-disable-next-line no-console
+			console.error(stack)
+			warnedLatest = true
+		}
+		return this.getMaxV()
+	}
+
 	/**
 	 * Get the highest version stored in the queue
 	 * @returns {Promise<number>} - the version
 	 */
-	async latestVersion() {
+	async getMaxV() {
 		if (this._addP) await this._addP
 
 		const dataV = await this.db.dataVersion()
@@ -159,7 +173,7 @@ class EventQueue extends JsonModel {
 
 		// We need to guarantee same-process in-order insertion, the sqlite3 lib doesn't do it :(
 		this._addP = (this._addP || Promise.resolve()).then(async () => {
-			// Store promise so latestVersion can get the most recent v
+			// Store promise so getMaxV can get the most recent v
 			// Note that it replaces the promise for the previous add
 			// sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID and v
 			if (this._addSql?.db !== this.db)
@@ -222,7 +236,7 @@ class EventQueue extends JsonModel {
 		do {
 			this._makeNAP()
 			// eslint-disable-next-line no-await-in-loop
-			const currentV = await this.latestVersion()
+			const currentV = await this.getMaxV()
 			event =
 				v < currentV
 					? // eslint-disable-next-line no-await-in-loop

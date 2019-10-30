@@ -303,10 +303,7 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async checkForEvents() {
-		const [v, qV] = await Promise.all([
-			this.getVersion(),
-			this.queue.latestVersion(),
-		])
+		const [v, qV] = await Promise.all([this.getVersion(), this.queue.getMaxV()])
 		if (v < qV) return this.startPolling(qV)
 	}
 
@@ -385,7 +382,7 @@ class EventSourcingDB extends EventEmitter {
 	async waitForQueue() {
 		// give migrations a chance to queue things
 		await this.rwDb.open()
-		const v = await this.queue.latestVersion()
+		const v = await this.queue.getMaxV()
 		return this.handledVersion(v)
 	}
 
