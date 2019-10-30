@@ -814,8 +814,19 @@ class JsonModel {
 		return this.set(prev, false, noReturn)
 	}
 
-	update(...args) {
-		return this.db.withTransaction(() => this.updateNoTrans(...args))
+	/**
+	 * Update or upsert an object
+	 * @param  {object} obj The changes to store, including the id field
+	 * @param  {boolean} [upsert] Insert the object if it doesn't exist
+	 * @param  {boolean} [noReturn] Do not return the stored object
+	 * @returns {Promise<object|undefined>} A copy of the stored object
+	 */
+	update(obj, upsert, noReturn) {
+		// Update needs to read the object to apply the changes, so it needs a transaction
+		if (this.db.inTransaction) return this.updateNoTrans(obj, upsert, noReturn)
+		return this.db.withTransaction(() =>
+			this.updateNoTrans(obj, upsert, noReturn)
+		)
 	}
 
 	remove(idOrObj) {

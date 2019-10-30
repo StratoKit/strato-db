@@ -36,6 +36,7 @@
 - SQlite: emit `'begin'`, `'rollback'`, `'end'`, `'finally'` on transactions as EventEmitter
 - JsonModel: `.set` and `.update` take the `noReturn` boolean as their 3rd argument to indicate they don't have to return the value, as an optimization
 - SQLite: add `.inTransaction` boolean that indicates if `withTransaction` is active
+- JsonModel: `.update` reuses a running `withTransaction`, so there is probably never a reason to use `.updateNoTrans`
 
 ## 2.3.3
 

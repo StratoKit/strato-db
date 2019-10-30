@@ -109,6 +109,13 @@ test('update transactional', async () => {
 	)
 })
 
+test('update reuses existing transaction', async () => {
+	const m = getModel()
+	await m.db.withTransaction(async () => {
+		await expect(m.update({id: 5, ho: 9}, true)).resolves.not.toThrow()
+	})
+})
+
 test('updateNoTrans not transactional', async () => {
 	const m = getModel()
 	await m.db.run(`BEGIN IMMEDIATE`)
