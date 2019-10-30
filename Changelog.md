@@ -35,6 +35,7 @@
 - SQlite: run `PRAGMA optimize` every 2 hours
 - SQlite: emit `'begin'`, `'rollback'`, `'end'`, `'finally'` on transactions as EventEmitter
 - JsonModel: `.set` and `.update` take the `noReturn` boolean as their 3rd argument to indicate they don't have to return the value, as an optimization
+- SQLite: add `.inTransaction` boolean that indicates if `withTransaction` is active
 
 ## 2.3.3
 

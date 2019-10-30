@@ -119,6 +119,8 @@ class SQLite extends EventEmitter {
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
+		// Are we in withTransaction?
+		this.inTransaction = false
 		this.readOnly = readOnly
 		this._isChild = !!_sqlite
 		this._sqlite = _sqlite
@@ -511,6 +513,7 @@ class SQLite extends EventEmitter {
 
 	async __withTransaction(fn, busyRetry = RETRY_COUNT) {
 		try {
+			this.inTransaction = true
 			await this.exec(`BEGIN IMMEDIATE`)
 			this.emit('begin')
 		} catch (error) {
@@ -520,6 +523,7 @@ class SQLite extends EventEmitter {
 				await busyWait()
 				return this.__withTransaction(fn, busyRetry - 1)
 			}
+			this.inTransaction = false
 			throw error
 		}
 		let result
@@ -533,11 +537,13 @@ class SQLite extends EventEmitter {
 					error
 				)
 			await this.exec(`ROLLBACK`)
+			this.inTransaction = false
 			this.emit('rollback')
 			this.emit('finally')
 			throw error
 		}
 		await this.exec(`END`)
+		this.inTransaction = false
 		this.emit('end')
 		this.emit('finally')
 		return result
