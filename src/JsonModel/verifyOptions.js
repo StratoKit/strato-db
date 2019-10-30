@@ -93,7 +93,7 @@ export const columnPropType =
 				falsyBool: PropTypes.bool,
 				// === index ===
 				// create index for this column
-				index: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
+				index: PropTypes.oneOfType([PropTypes.bool, PropTypes.oneOf(['ALL', 'SPARSE'])]),
 				ignoreNull: PropTypes.bool,
 				unique: PropTypes.bool,
 				// === queries ===
