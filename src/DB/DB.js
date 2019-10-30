@@ -57,6 +57,7 @@ class DBImpl extends SQLite {
 			  }
 		super({...options, onDidOpen})
 		this.options.migrations = migrations
+		this.tables={}
 	}
 
 	static sql = sql
@@ -64,6 +65,12 @@ class DBImpl extends SQLite {
 	get models() {
 		if (DEV) deprecated(`use db.store instead of db.models`)
 		return this.store
+	}
+
+	ensureTable({name, columns}) {
+		if (!this.tables[name]) this.tables.name={}
+		for (const )
+		
 	}
 
 	/**
