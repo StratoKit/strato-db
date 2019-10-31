@@ -395,7 +395,8 @@ class EventSourcingDB extends EventEmitter {
 		// We must get the version first because our history might contain future events
 		if (v <= (await this.getVersion())) {
 			const event = await this.queue.get(v)
-			if (event.error) {
+			// The event could be missing if pruned
+			if (event?.error) {
 				// This can only happen if we skipped a failed event
 				return Promise.reject(event)
 			}
@@ -695,7 +696,7 @@ class EventSourcingDB extends EventEmitter {
 				},
 			}
 		}
-		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
+		dbg(`handling ${origEvent.v} ${'>'.repeat(depth)}${origEvent.type}`)
 		event = {
 			...origEvent,
 			result: undefined,
