@@ -1,3 +1,5 @@
+**Note**: The most recent developments are in the https://github.com/StratoKit/strato-db/tree/improvements branch
+
 # Strato-DB
 
 > NoSQL-hybrid with Event Sourcing based on SQLite
