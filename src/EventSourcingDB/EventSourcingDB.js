@@ -100,7 +100,9 @@ class EventSourcingDB extends EventEmitter {
 		models,
 		queueFile,
 		withViews = true,
-		onWillOpen: prevOWO,
+		onWillOpen,
+		onBeforeMigrations: prevOBM,
+		onDidOpen: prevODO,
 		...dbOptions
 	}) {
 		super()
@@ -117,9 +119,20 @@ class EventSourcingDB extends EventEmitter {
 
 		this.rwDb = new DB({
 			...dbOptions,
-			onWillOpen: async () => {
-				await this.queue.db.open()
-				if (prevOWO) await prevOWO()
+			onWillOpen,
+			onBeforeMigrations: async db => {
+				// hacky side-channel to get current version to queue without deadlocks
+				this._knownV = await db.userVersion()
+				if (prevOBM) await prevOBM()
+			},
+			onDidOpen: async db => {
+				// let's hope nobody added events to the queue with the wrong version
+				const {_knownV} = this
+				if (_knownV) {
+					this._knownV = null
+					await this.queue.setKnownV(_knownV)
+				}
+				if (prevODO) await prevODO(db)
 			},
 		})
 		const {readOnly} = this.rwDb
@@ -145,6 +158,14 @@ class EventSourcingDB extends EventEmitter {
 				...dbOptions,
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
+				onDidOpen: async () => {
+					// let's hope nobody added events to the queue with the wrong version
+					const {_knownV} = this
+					if (_knownV) {
+						this._knownV = null
+						await this.queue.setKnownV(_knownV)
+					}
+				},
 			})
 			this.queue = new EventQueue({
 				db: qDb,
@@ -293,6 +314,10 @@ class EventSourcingDB extends EventEmitter {
 		}
 	}
 
+	open() {
+		return this.db.open()
+	}
+
 	async close() {
 		await this.stopPolling()
 		return Promise.all([
@@ -305,6 +330,13 @@ class EventSourcingDB extends EventEmitter {
 	async checkForEvents() {
 		const [v, qV] = await Promise.all([this.getVersion(), this.queue.getMaxV()])
 		if (v < qV) return this.startPolling(qV)
+	}
+
+	async waitForQueue() {
+		// give migrations a chance to queue things
+		await this.rwDb.open()
+		const v = await this.queue.getMaxV()
+		return this.handledVersion(v)
 	}
 
 	_waitingP = null
@@ -358,6 +390,11 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async dispatch(type, data, ts) {
+		const {_knownV} = this
+		if (_knownV) {
+			this._knownV = null
+			await this.queue.setKnownV(_knownV)
+		}
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
 	}
@@ -377,13 +414,6 @@ class EventSourcingDB extends EventEmitter {
 			})
 		}
 		return this._getVersionP
-	}
-
-	async waitForQueue() {
-		// give migrations a chance to queue things
-		await this.rwDb.open()
-		const v = await this.queue.getMaxV()
-		return this.handledVersion(v)
 	}
 
 	_waitingFor = {}
