@@ -75,6 +75,7 @@
   ```
 
 - [ ] columns using the same path should get the same JSON path. There are some edge cases.
+- [ ] falsyBool paging doesn't work because it tries to >= and that fails for null. It should add a "sortable: false" flag
 
 ### Nice to have
 
@@ -123,13 +124,16 @@
 ### Nice to have
 
 - [ ] implement `.changeID`. It requires applyEvent to support `mv`
+- [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
+- [ ] .changeId (`mv:[[oldId, newId],…]` apply action?)
 
 ## ESDB
 
 ### Nice to have
 
-- [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
-- [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
-- [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
+- [ ] don't store empty result sub-events
+- [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
+  - same for preprocessor/deriver
+- [ ] provide same arguments to reducer as preprocessor/deriver with length sniffing
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
