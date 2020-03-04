@@ -104,6 +104,7 @@ export const verifyColumn = (name, column) => {
  * @property {Object} [columns] - the column definitions as {@link ColumnDef} objects. Each value must be a columndef or a function returning a columndef.
  * @property {function} [ItemClass] - an object class to use for results, must be able to handle `Object.assign(item, result)`
  * @property {string} [idCol='id'] - the key of the ID column
+ * @property {boolean} [keepRowId] - preserve row id after vacuum
  */
 const jmPropTypes =
 	process.env.NODE_ENV === 'production'
@@ -125,6 +126,7 @@ const jmPropTypes =
 					),
 					ItemClass: PropTypes.func,
 					idCol: PropTypes.string,
+					keepRowId: PropTypes.bool,
 					// Harmless props passed by ESDB
 					dispatch: PropTypes.any,
 					emitter: PropTypes.any,
