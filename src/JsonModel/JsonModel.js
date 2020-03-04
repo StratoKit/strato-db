@@ -205,8 +205,9 @@ class JsonModel {
 					`INSERT ${setSql}`,
 					`ins ${this.name}`
 				)
+				const updateSql = colSqls.map(col => `${col} = ?`).join(', ')
 				this._updateSql = this.db.prepare(
-					`INSERT OR REPLACE ${setSql}`,
+					`INSERT ${setSql} ON CONFLICT(${this.idCol}) DO UPDATE SET ${updateSql}`,
 					`set ${this.name}`
 				)
 			}
@@ -236,7 +237,9 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			const P = (insertOnly ? _insertSql : _updateSql).run(colVals)
+			const P = insertOnly
+				? _insertSql.run(colVals)
+				: _updateSql.run([...colVals, ...colVals])
 			return noReturn
 				? P
 				: P.then(result => {
