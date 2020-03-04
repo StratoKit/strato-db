@@ -55,6 +55,12 @@ test('set with existing id', async () => {
 	expect(p[0].id).toBe('5')
 })
 
+test('insert conflicting unique non-id column', async () => {
+	const m = getModel({columns: {u: {unique: true, index: true}}})
+	await m.set({id: 1, u: 1})
+	await expect(m.set({id: 2, u: 1})).rejects.toThrow('SQLITE_CONSTRAINT')
+})
+
 test('set(obj, insertOnly)', async () => {
 	const m = getModel()
 	await m.set({id: '234'})

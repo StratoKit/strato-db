@@ -63,17 +63,6 @@
   - Changes are applied by JM, not triggers. Generating
     The tags are there to allow multilingual searching. Another column should be added to allow searching all columns in the tagged index.
     Need to come up with nicer configuration keys. Also something for custom tokenizing
-- [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
-
-  ```sql
-  CREATE TABLE demo(id INTEGER PRIMARY KEY, k TEXT, otherstuff ANY);
-  CREATE INDEX demo_k ON demo(k);
-  CREATE TRIGGER demo_trigger1 BEFORE INSERT ON demo BEGIN
-    SELECT raise(ABORT,'uniqueness constraint failed on k')
-      FROM demo WHERE k=new.k;
-  END;
-  ```
-
 - [ ] columns using the same path should get the same JSON path. There are some edge cases.
 - [ ] falsyBool paging doesn't work because it tries to >= and that fails for null. It should add a "sortable: false" flag
 
