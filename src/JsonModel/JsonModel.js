@@ -39,6 +39,7 @@ class JsonModel {
 			columns,
 			ItemClass,
 			idCol = 'id',
+			keepRowId = true,
 		} = options
 
 		this.db = db
@@ -106,6 +107,7 @@ class JsonModel {
 				name: this.name,
 				columns: this.columns,
 				idCol,
+				keepRowId,
 				migrations,
 				migrationOptions,
 			})
@@ -152,6 +154,7 @@ class JsonModel {
 					if (k.real) {
 						const prevVal = get(out, k.path)
 						// Prevent added columns from overwriting existing data
+						// eslint-disable-next-line max-depth
 						if (typeof prevVal !== 'undefined') continue
 					}
 					set(out, k.path, val)

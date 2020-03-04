@@ -11,6 +11,7 @@ export const makeMigrations = ({
 	name: tableName,
 	idCol,
 	columns,
+	keepRowId,
 	migrations,
 	migrationOptions,
 }) => {
@@ -20,25 +21,29 @@ export const makeMigrations = ({
 		// We make id a real column to allow foreign keys
 		0: async ({db}) => {
 			const {quoted, type, autoIncrement} = columns[idCol]
+			const isIntegerId = type === 'INTEGER'
+			const addRowId = !isIntegerId && keepRowId
 			// The NOT NULL is a SQLite bug, otherwise it allows NULL as id
-			if (type.toUpperCase() === 'INTEGER') {
-				const keySql = `${type} PRIMARY KEY ${
-					autoIncrement ? 'AUTOINCREMENT' : ''
-				} NOT NULL`
-				return db.exec(
-					`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
-				)
-			}
-
-			const keySql = `${type} UNIQUE NOT NULL`
-			const rowId = `"rowId" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL`
+			const rowIdCol = addRowId
+				? `"rowId" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `
+				: ''
+			const keySql = addRowId
+				? `${type} NOT NULL`
+				: `${type} PRIMARY KEY ${
+						isIntegerId && autoIncrement ? 'AUTOINCREMENT' : ''
+				  } NOT NULL`
 
 			await db.exec(
-				`CREATE TABLE ${tableQuoted}(${rowId}, ${quoted} ${keySql}, json JSON);`
+				`CREATE TABLE ${tableQuoted}(${rowIdCol}${quoted} ${keySql}, json JSON);`
 			)
-			return db.exec(
-				`CREATE INDEX "${tableName}_${idCol}" ON "${tableName}"("${idCol}");`
-			)
+			if (addRowId) {
+				// implement the unique constraint with our own index
+				await db.exec(
+					`CREATE UNIQUE INDEX ${sql.quoteId(
+						`${tableName}_${idCol}`
+					)} ON ${tableQuoted}(${sql.quoteId(idCol)})`
+				)
+			}
 		},
 	}
 	for (const [name, col] of Object.entries(columns)) {

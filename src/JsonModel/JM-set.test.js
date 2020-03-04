@@ -57,6 +57,12 @@ test('set with existing id', async () => {
 
 test('set(obj, insertOnly)', async () => {
 	const m = getModel()
+	await m.set({id: '234'})
+	await expect(m.set({id: '234'}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
+})
+
+test('set(obj, insertOnly) for integer id', async () => {
+	const m = getModel({columns: {id: {type: 'INTEGER'}}})
 	await m.set({id: 234})
 	await expect(m.set({id: 234}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
 })
