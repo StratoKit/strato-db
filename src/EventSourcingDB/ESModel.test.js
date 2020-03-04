@@ -310,10 +310,11 @@ test('preprocessor', () => {
 		{
 			m: {
 				idCol: 'hi',
-				reducer: (model, event) => {
-					if (!model) return false
-					if (event.type === model.TYPE && event.data[1] === 'a') ok = true
-					return ESModel.reducer(model, event)
+				reducer: args => {
+					if (!args.model) return false
+					if (args.event.type === args.model.TYPE && args.event.data[1] === 'a')
+						ok = true
+					return ESModel.reducer(args)
 				},
 			},
 		}
@@ -330,7 +331,7 @@ test('init', () =>
 		{
 			m: {
 				init: true,
-				reducer: (model, event) =>
+				reducer: ({model, event}) =>
 					event.type === model.INIT ? {ins: [{id: 'yey'}]} : false,
 			},
 		}

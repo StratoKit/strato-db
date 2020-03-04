@@ -134,6 +134,5 @@
 - [ ] don't store empty result sub-events
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
   - same for preprocessor/deriver
-- [ ] provide same arguments to reducer as preprocessor/deriver with length sniffing
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers

@@ -38,7 +38,7 @@ export const testModels = {
 		preprocessor: async ({event}) => {
 			if (event.type === 'error_pre') throw new Error('pre error for you')
 		},
-		reducer: async (model, {type}) => {
+		reducer: async ({model, event: {type}}) => {
 			if (type === 'error_reduce') throw new Error('error for you')
 			if (!model.get) return false
 			const c = (await model.get('count')) || {
@@ -58,7 +58,8 @@ export const testModels = {
 		},
 	},
 	ignorer: {
-		reducer: (model = null) => model,
+		// eslint-disable-next-line no-unused-vars
+		reducer: args => {},
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {

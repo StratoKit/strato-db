@@ -139,7 +139,7 @@ test('preprocess => reduce', () => {
 				if (event.type !== 'meep') return
 				return {...event, step: 1}
 			},
-			reducer: (model, event) => {
+			reducer: ({event}) => {
 				if (event.type !== 'meep') return
 				expect(event).toHaveProperty('step', 1)
 			},
@@ -190,7 +190,8 @@ test('metadata migration', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},
@@ -221,7 +222,8 @@ test('metadata migration with existing data', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},

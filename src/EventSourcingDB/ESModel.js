@@ -265,7 +265,7 @@ class ESModel extends JsonModel {
 	 * @param {Event} event - the event
 	 * @returns {Promise<Object>} - the result object in the format JsonModel likes
 	 */
-	static async reducer(model, {type, data}) {
+	static async reducer({model, event: {type, data}}) {
 		if (!model || type !== model.TYPE) return false
 
 		let [action, id, obj] = data

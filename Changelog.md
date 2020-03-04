@@ -20,6 +20,10 @@
 - EventSourcingDB now passes `emitter` as an option to models, so they can subscribe to events. You have to take it out before passing the options to `JsonModel`.
 - Migration metadata is now stored in the table `{sdb} migrations` instead of `_migrations`. There is a migration procedure, but don't open your DBs with previous versions of strato-db, since the old versions will try to run the migrations again (and fail, so the data is safe).
 
+### Deprecated
+
+- reducers are now called with a single `{model, event, store, dispatch, isMainEvent}` object like preprocessor and deriver. Old reducers with multiple arguments are automatically wrapped and result in a deprecation message
+
 ### Changes
 
 - EventSourcingDB refactor:

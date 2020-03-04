@@ -43,6 +43,7 @@ import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 import {settleAll} from '../lib/settleAll'
+import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/ESDB')
 
@@ -83,6 +84,27 @@ const errorToString = error => {
 		? error.stack || error.message || String(error)
 		: new Error('missing error').stack
 	return String(msg).replace(/\s+/g, ' ')
+}
+
+const fixupOldReducer = (name, reducer) => {
+	if (!reducer) return
+	if (reducer.length !== 1) {
+		if (DEV)
+			if (reducer.length === 0) {
+				deprecated(
+					'varargsReducer',
+					`${name}: reducer has a single argument now, don't use ...args`
+				)
+			} else {
+				deprecated(
+					'oldReducer',
+					`${name}: reducer has a single argument now, like preprocessor/deriver`
+				)
+			}
+		const prev = reducer
+		reducer = args => prev(args.model, args.event, args)
+	}
+	return reducer
 }
 
 /**
@@ -240,11 +262,11 @@ class EventSourcingDB extends EventEmitter {
 
 				if (RWModel === ESModel) {
 					if (reducer) {
-						const prev = reducer
-						reducer = async (model, event, helpers) => {
-							const result = await prev(model, event, helpers)
-							if (!result && event.type === model.TYPE)
-								return ESModel.reducer(model, event)
+						const prev = fixupOldReducer(name, reducer)
+						reducer = async args => {
+							const result = await prev(args)
+							if (!result && args.event.type === model.TYPE)
+								return ESModel.reducer(args)
 							return result
 						}
 					}
@@ -288,7 +310,7 @@ class EventSourcingDB extends EventEmitter {
 					})
 				}
 				model.preprocessor = preprocessor || Model.preprocessor
-				model.reducer = reducer || Model.reducer
+				model.reducer = fixupOldReducer(name, reducer || Model.reducer)
 				this.store[name] = model
 				if (model.preprocessor) {
 					this._preprocModels.push(model)
@@ -617,8 +639,8 @@ class EventSourcingDB extends EventEmitter {
 				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
 					event,
-					model: isMainEvent ? model : this.rwStore[name],
 					// subevents must see intermediate state
+					model: isMainEvent ? model : this.rwStore[name],
 					store: isMainEvent ? this.store : this.rwStore,
 					dispatch: this._subDispatch.bind(this, event),
 					isMainEvent,
@@ -654,26 +676,24 @@ class EventSourcingDB extends EventEmitter {
 	async _reducer(event, isMainEvent) {
 		const result = {}
 		const events = event.events || []
-		const helpers = {
-			// subevents must see intermediate state
-			store: isMainEvent ? this.store : this.rwStore,
-			dispatch: this._subDispatch.bind(this, event),
-			event,
-			isMainEvent,
-		}
-		if (process.env.NODE_ENV !== 'production') {
+
+		if (DEV) {
 			Object.freeze(event.data)
 		}
 		await Promise.all(
-			this._reducerNames.map(async key => {
-				const model = this.store[key]
+			this._reducerNames.map(async name => {
+				const model = this.store[name]
+				const helpers = {
+					event,
+					// subevents must see intermediate state
+					model: isMainEvent ? model : this.rwStore[name],
+					store: isMainEvent ? this.store : this.rwStore,
+					dispatch: this._subDispatch.bind(this, event),
+					isMainEvent,
+				}
 				let out
 				try {
-					out = await model.reducer(
-						isMainEvent ? model : this.rwStore[key],
-						event,
-						helpers
-					)
+					out = await model.reducer(helpers)
 				} catch (error) {
 					out = {
 						error: errorToString(error),
@@ -683,7 +703,7 @@ class EventSourcingDB extends EventEmitter {
 				if (!out || out === model) return
 				if (out.events) {
 					if (!Array.isArray(out.events)) {
-						result[key] = {error: `.events is not an array`}
+						result[name] = {error: `.events is not an array`}
 						return
 					}
 					events.push(...out.events)
@@ -692,7 +712,7 @@ class EventSourcingDB extends EventEmitter {
 					// allow falsy events
 					delete out.events
 				}
-				result[key] = out
+				result[name] = out
 			})
 		)
 
@@ -798,13 +818,13 @@ class EventSourcingDB extends EventEmitter {
 				phase = 'derive'
 				await settleAll(this._deriverModels, async model =>
 					model.deriver({
+						event,
 						model,
 						// derivers can write anywhere (carefully)
 						store: this.rwStore,
-						event,
-						result: result[model.name],
 						dispatch: this._subDispatch.bind(this, event),
 						isMainEvent,
+						result: result[model.name],
 					})
 				)
 			}
