@@ -18,14 +18,26 @@ export const makeMigrations = ({
 	const allMigrations = {
 		...migrations,
 		// We make id a real column to allow foreign keys
-		0: ({db}) => {
+		0: async ({db}) => {
 			const {quoted, type, autoIncrement} = columns[idCol]
 			// The NOT NULL is a SQLite bug, otherwise it allows NULL as id
-			const keySql = `${type} PRIMARY KEY ${
-				autoIncrement ? 'AUTOINCREMENT' : ''
-			} NOT NULL`
+			if (type.toUpperCase() === 'INTEGER') {
+				const keySql = `${type} PRIMARY KEY ${
+					autoIncrement ? 'AUTOINCREMENT' : ''
+				} NOT NULL`
+				return db.exec(
+					`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
+				)
+			}
+
+			const keySql = `${type} UNIQUE NOT NULL`
+			const rowId = `"rowId" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL`
+
+			await db.exec(
+				`CREATE TABLE ${tableQuoted}(${rowId}, ${quoted} ${keySql}, json JSON);`
+			)
 			return db.exec(
-				`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`
+				`CREATE INDEX "${tableName}_${idCol}" ON "${tableName}"("${idCol}");`
 			)
 		},
 	}
