@@ -34,7 +34,8 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 const getModel = options => {
   const db = new _DB.default();
   return db.addModel(_JsonModel.default, _objectSpread({
-    name: 'testing'
+    name: 'testing',
+    keepRowId: false
   }, options));
 };
 
@@ -83,8 +84,11 @@ const testModels = {
     }) => {
       if (event.type === 'error_pre') throw new Error('pre error for you');
     },
-    reducer: async (model, {
-      type
+    reducer: async ({
+      model,
+      event: {
+        type
+      }
     }) => {
       if (type === 'error_reduce') throw new Error('error for you');
       if (!model.get) return false;
@@ -107,7 +111,8 @@ const testModels = {
     }
   },
   ignorer: {
-    reducer: (model = null) => model
+    // eslint-disable-next-line no-unused-vars
+    reducer: args => {}
   },
   deriver: {
     deriver: async ({

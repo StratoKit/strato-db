@@ -301,9 +301,12 @@ class ESModel extends _JsonModel.default {
    */
 
 
-  static async reducer(model, {
-    type,
-    data
+  static async reducer({
+    model,
+    event: {
+      type,
+      data
+    }
   }) {
     if (!model || type !== model.TYPE) return false;
     let [action, id, obj] = data;

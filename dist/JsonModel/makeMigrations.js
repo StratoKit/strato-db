@@ -24,6 +24,7 @@ const makeMigrations = ({
   name: tableName,
   idCol,
   columns,
+  keepRowId,
   migrations,
   migrationOptions
 }) => {
@@ -31,17 +32,25 @@ const makeMigrations = ({
 
   const allMigrations = _objectSpread({}, migrations, {
     // We make id a real column to allow foreign keys
-    0: ({
+    0: async ({
       db
     }) => {
       const {
         quoted,
         type,
         autoIncrement
-      } = columns[idCol]; // The NOT NULL is a SQLite bug, otherwise it allows NULL as id
+      } = columns[idCol];
+      const isIntegerId = type === 'INTEGER';
+      const addRowId = !isIntegerId && keepRowId; // The NOT NULL is a SQLite bug, otherwise it allows NULL as id
 
-      const keySql = `${type} PRIMARY KEY ${autoIncrement ? 'AUTOINCREMENT' : ''} NOT NULL`;
-      return db.exec(`CREATE TABLE ${tableQuoted}(${quoted} ${keySql}, json JSON);`);
+      const rowIdCol = addRowId ? `"rowId" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ` : '';
+      const keySql = addRowId ? `${type} NOT NULL` : `${type} PRIMARY KEY ${isIntegerId && autoIncrement ? 'AUTOINCREMENT' : ''} NOT NULL`;
+      await db.exec(`CREATE TABLE ${tableQuoted}(${rowIdCol}${quoted} ${keySql}, json JSON);`);
+
+      if (addRowId) {
+        // implement the unique constraint with our own index
+        await db.exec(`CREATE UNIQUE INDEX ${_DB.sql.quoteId(`${tableName}_${idCol}`)} ON ${tableQuoted}(${_DB.sql.quoteId(idCol)})`);
+      }
     }
   });
 

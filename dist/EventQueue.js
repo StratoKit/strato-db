@@ -20,6 +20,7 @@ function _objectWithoutPropertiesLoose(source, excluded) { if (source == null) r
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 const dbg = (0, _debug.default)('strato-db/queue');
+let warnedLatest;
 /**
  * An event queue, including history
  * @extends JsonModel
@@ -160,13 +161,26 @@ class EventQueue extends _JsonModel.default {
     this.currentV = -1;
     return super.set(event);
   }
+
+  latestVersion() {
+    if (process.env.NODE_ENV !== 'production' && !warnedLatest) {
+      const {
+        stack
+      } = new Error('EventQueue: latestVersion() is deprecated, use getMaxV instead'); // eslint-disable-next-line no-console
+
+      console.error(stack);
+      warnedLatest = true;
+    }
+
+    return this.getMaxV();
+  }
   /**
    * Get the highest version stored in the queue
    * @returns {Promise<number>} - the version
    */
 
 
-  async latestVersion() {
+  async getMaxV() {
     var _this$_maxSql;
 
     if (this._addP) await this._addP;
@@ -198,7 +212,7 @@ class EventQueue extends _JsonModel.default {
     this._addP = (this._addP || Promise.resolve()).then(async () => {
       var _this$_addSql;
 
-      // Store promise so latestVersion can get the most recent v
+      // Store promise so getMaxV can get the most recent v
       // Note that it replaces the promise for the previous add
       // sqlite-specific: INTEGER PRIMARY KEY is also the ROWID and therefore the lastID and v
       if (((_this$_addSql = this._addSql) === null || _this$_addSql === void 0 ? void 0 : _this$_addSql.db) !== this.db) this._addSql = this.db.prepare(`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`, 'add');
@@ -253,7 +267,7 @@ class EventQueue extends _JsonModel.default {
       this._makeNAP(); // eslint-disable-next-line no-await-in-loop
 
 
-      const currentV = await this.latestVersion();
+      const currentV = await this.getMaxV();
       event = v < currentV ? // eslint-disable-next-line no-await-in-loop
       await this.searchOne(null, {
         where: {

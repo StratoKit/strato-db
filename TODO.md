@@ -54,18 +54,17 @@
 
 ### Important
 
-- [ ] unique indexes should fail when inserting non-unique, not overwrite other. ID takes precedence.
-
-  ```sql
-  CREATE TABLE demo(id INTEGER PRIMARY KEY, k TEXT, otherstuff ANY);
-  CREATE INDEX demo_k ON demo(k);
-  CREATE TRIGGER demo_trigger1 BEFORE INSERT ON demo BEGIN
-    SELECT raise(ABORT,'uniqueness constraint failed on k')
-      FROM demo WHERE k=new.k;
-  END;
-  ```
-
+- FTS5 support for text searching
+  - Real columns marked `textSearch: true|string|object` generate a FTS5 index
+  - one index per textSearch value ("tag")
+  - It uses the table as a backing table
+  - FTS options can be passed as an object with `tag` for the textSearch value
+  - Searching passes the search argument to the tagged FTS5 index limited to the column
+  - Changes are applied by JM, not triggers. Generating
+    The tags are there to allow multilingual searching. Another column should be added to allow searching all columns in the tagged index.
+    Need to come up with nicer configuration keys. Also something for custom tokenizing
 - [ ] columns using the same path should get the same JSON path. There are some edge cases.
+- [ ] falsyBool paging doesn't work because it tries to >= and that fails for null. It should add a "sortable: false" flag
 
 ### Nice to have
 
@@ -95,7 +94,6 @@
 - Test for `uniqueSlugId`
 - Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers that can't have native code
-- FTS5 support for text searching
 
 ## Queue
 
@@ -115,13 +113,15 @@
 ### Nice to have
 
 - [ ] implement `.changeID`. It requires applyEvent to support `mv`
+- [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
+- [ ] .changeId (`mv:[[oldId, newId],…]` apply action?)
 
 ## ESDB
 
 ### Nice to have
 
-- [ ] `reducers` object keyed by type that gets the same arguments as preprocessor
-- [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
-- [ ] .changeId for ESModel (`mv:[[oldId, newId],…]` apply action?)
+- [ ] don't store empty result sub-events
+- [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
+  - same for preprocessor/deriver
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
 - Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
