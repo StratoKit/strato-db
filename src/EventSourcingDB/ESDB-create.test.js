@@ -2,7 +2,7 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import {JsonModel} from '..'
 import ESDB from '.'
-import {withESDB, testModels} from '../lib/_test-helpers'
+import {withESDB, testModels, DB} from '../lib/_test-helpers'
 
 const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
 
@@ -29,6 +29,27 @@ test('create', () =>
 			expect(await eSDB.store.count.all()).toEqual([
 				{id: 'count', total: 0, byType: {}},
 			])
+		},
+		{unsafeCleanup: true}
+	))
+
+test('create with existing version', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db = new DB({file})
+			await db.userVersion(100)
+			const queueFile = sysPath.join(dir, 'q')
+			const eSDB = new ESDB({
+				file,
+				queueFile,
+				name: 'E',
+				models: testModels,
+			})
+			// Note that this only works if you open the db first
+			await eSDB.waitForQueue()
+			const e = await eSDB.dispatch('hi')
+			expect(e.v).toBe(101)
 		},
 		{unsafeCleanup: true}
 	))
@@ -118,7 +139,7 @@ test('preprocess => reduce', () => {
 				if (event.type !== 'meep') return
 				return {...event, step: 1}
 			},
-			reducer: (model, event) => {
+			reducer: ({event}) => {
 				if (event.type !== 'meep') return
 				expect(event).toHaveProperty('step', 1)
 			},
@@ -169,7 +190,8 @@ test('metadata migration', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},
@@ -200,7 +222,8 @@ test('metadata migration with existing data', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},

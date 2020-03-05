@@ -8,31 +8,34 @@ Basic ideas from [Turning The Database Inside Out](https://www.confluent.io/blog
 
 ## Parts
 
-- **Version**: All changes have a `version`, an arbitrary monotonously increasing sortable value.
-- **Event**: An object with `version` (assigned by the queue), `type` and arbitrary `data` to describe a desired change to server state.
-  - Examples: "this `user` logged in", "this `user` requested changing this `document`", "this `weatherData` arrived", …
+- **Version**: All changes have a version `v`, a non-zero monotonously increasing positive integer.
+- **Event**: An object with `v` (assigned by the queue), `type` and arbitrary `data` to describe a past event or desired change to server state.
+  - Examples: "this `user` logged in", "this `user` requested changing this `document`", "this `weatherData` arrived", "this `amount` needs to be refunded", …
 - **Event queue**: A FIFO store, holding events until they are processed.
   - This should be a very reliable store.
-  - When an `event` is put on the queue, it gets a unique incremented `version`.
+  - When an `event` is put on the queue, it gets a unique incremented `v`.
+  - Events can lead to sub-events, which are processed as part of the transaction of the event
 - **State**: The state consists of sets of objects with at-least-per-set-unique-ids.
   - Database tables can store a row per set entry, so that's what we'll do. Each set is a table. We also store the current version in a separate one-row table (so that concurrent transactions conflict). The database is presumed to always be consistent (all tables and version in sync).
-- **Middleware => Preprocessors**: Redux middleware is mostly implemented as preprocessor functions that run within the event handling transaction, and can alter the event based on data from all tables.
+- **Middleware => Preprocessors**: Redux middleware is mostly implemented as preprocessor functions that run within the event handling transaction, and can alter the event based on data from all tables. Preprocessors should only be used to convert events into a canonical representation. Side-effects like I/O should be performed by restartable workers that store their state in the DB ("this needs doing", "this was done", "this failed, retry x more times", …).
 - **Reducers**: Reducers are pure functions that get current state and the event, and return a description of what should happen to the state to get to the next version.
   - Current state (the DB model) is accessed by calling (asynchronous) DB functions
-  - Each reducer is responsible for a single set (table) and can't read other sets
+  - Each reducer is responsible for a single set (table)
+    - Contrary to Redux, in ESDB reducers also get access to the state of other reducers, this turns out to be very useful
   - Given the same state and event, the reducer always returns the same result
-  - The result is an object `{error: {message: "..."}, set: [{id, ...}], rm: [id, ...], audit, ...}`
+  - The result is an object `{error: {message: "..."}, set: [{id, ...}], rm: [id, ...], events: [], audit, ...}`
     - `error`: Present if the event can not be processed for some reason, contains information to debug the problem. This halts all event processing until the problem is fixed. To represent e.g. denial of requests, use a different key (ESModel uses `esFail`) and inspect the event result to see if it the request was granted.
-    - Several keys are used by the JsonModel `applyEvent`:
+    - `events`: any sub-events that should be processed. They are handled in-order after applying the changes of the parent event.
+    - Several keys are used by the JsonModel `applyResult`:
       - `set`: objects to replace in the table
       - `ins`: objects to insert in the table (errors if exist)
       - `upd`: objects to shallow-update
       - `sav`: objects to shallow-update or insert if missing
       - `rm`: ids of objects to remove from the table
       - by subclassing, the behavior can be tweaked
-    - any other keys: opaque data describing the change, can be informational or used by a custom `applyEvent`
+    - any other keys: opaque data describing the change, can be informational or used by a custom `applyResult`
   - **Derivers**: Functions that calculate "secondary state" from the changes. They can serve to make the event result smaller
-- **History**: An ordered list of reduced events (so `{version, type, data, result}`). This is not required, and the event can be abridged. It could serve as an audit log. If all the original event data is retained, it can be used to reprocess the database from scratch.
+- **History**: An ordered list of reduced events (so `{v, type, data, result}`). This is not required, and the event can be abridged. It could serve as an audit log. If all the original event data is retained, it can be used to reprocess the database from scratch.
 - **Sub-events**: To make the event processing code simpler, ESDB allows dispatching further events from anywhere in the redux cycle. These events are processed depth-first. For example, a USER_LOGIN event can result in a USER_REGISTERED event if they logged in via OAuth for the first time.
 
 ## Flow
@@ -44,28 +47,45 @@ Basic ideas from [Turning The Database Inside Out](https://www.confluent.io/blog
   - **Dispatch**: The event is stored on the queue and auto-assigned a version `v`
 
 - Redux cycle:
-  - **Wait for event**: get the v+1 event from the queue
-  - **Preprocess**: `preprocess`ors can change the event object before it's passed to the reducers. They should return the new event object if they change it. Version cannot change, but e.g. id could be assigned.
+  - **Wait for event**:
+    - Based on the DB processed version, get the next event from the queue.
+  - **Start Transaction**:
+    - All the below now runs in a transaction in a separate read-write DB connection.
+    - The separate connection makes sure that other code only sees the previous version via the default read-only connection
+    - If any step fails, the transaction is rolled back and retried later.
+    - All later events are held until the error is resolved, possibly through manual resolution (by fixing the code, the event data or disabling/removing the event).
+    - As such, avoid errors at all times, instead recording failure states.
+  - **Preprocess**:
+    - `preprocess`ors can change the event object before it's passed to the reducers.
+    - Mutation is allowed, but this is stored in the DB, so make sure it's repeatable.
+    - Version cannot change, but e.g. id could be assigned.
+    - For example, ESModel uses this to make sure the data always includes the object id even for new objects.
+    - Failing preprocessors abort the transaction
   - **Reduce**:
     - The event is passed to all `reducer`s
-    - Reducers produce a change description
+    - All reducers see the same state, the DB after processing the previous event
+    - Reducers produce a change description and sub-events
     - Event object becomes history object with `result` attribute
+    - Failing reducers abort the transaction
   - **Apply**
-    - Starts transaction
     - All results are written, including history object
-    - The way they are written is arbitrary, implemented by an `applyEvent` method
+    - The way they are written is arbitrary, implemented by an `applyResult` method
+    - Failing applyResult functions abort the transaction
   - **Derive**
     - `deriver`s are called with the history object
     - They change their models as they see fit
     - Failing derivers abort the transaction
-    - Ends transaction. The DB is now at the event version.
-- These steps run in a single transaction. If any step fails, the transaction is rolled back and retried later. All later events are held until the error is resolved, possibly through manual resolution. As such, avoid errors at all times. Events should be self-contained.
-
-  - Listeners: They can get called with the history object after the Redux cycle completes
+  - **SubEvents**
+    - Each subevent undergoes these same steps in the same transaction, with the same version number.
+  - **End transaction**
+    - The DB is now at the event version.
+  - **Listeners**:
+    - They get called with the history object after the Redux cycle completes.
+    - Note that side-effect workers should wait until the queue is processed (`eSDB.waitForQueue()`), making sure they are not working from stale data
 
 The Inbox flow can happen at any time; the Reduce/Write cycle happens sequentially.
 
-If an incoming request is for some side-effect change, this should be stored as a sequence of events, recording the intent, the intermediate states and the end result. The database is then used by listeners to know the current state of side-effects.
+If an incoming request is for some side-effect change, this should be stored as a sequence of events, recording the intent, the intermediate states and the end result. The database is then used by worker functions to know the current state of side-effects. These workers should be restartable and correctly manage real-world state.
 
 ## Advantages
 
@@ -74,7 +94,7 @@ All the advantages of Redux, but applied to the server:
 - time travel (requires snapshots or reversible events (storing the full calculated change with the event))
 - clean code, easy to unit test
 - reprocessing: just start from 0
-- reducers can run in parallel, interleaving I/O requests
+- reducers can run in parallel on the same event, interleaving I/O requests
 - easy to generate audit log
 
 ## Limitations
@@ -91,9 +111,9 @@ It is sometimes harder to model all changes as events, for example spawning side
 ### Resource use
 
 - Requires a data store with transactions, so that the new state and history is stored in one go.
-- Not well suited for high-volume writes due to per-event "synchronous" updating. Caching can help. Reducers can run in parallel though.
+- Not well suited for high-volume writes due to per-event "synchronous" updating. Caching can help.
 - Not well suited for change sets exceeding available working memory. (e.g. delete all records). Those have to be special-cased within the `applyEvent` code.
-- Not well suited for huge events (e.g. >2MB of data in the event). Move data out of the event into files etc.
+- Not well suited for huge events since events are loaded into memory during processing and written several times (e.g. >2MB of data in the event). Move big data out of the event and use side-effects.
 - Single master for event queue. Sharding might help if that's a problem.
 
 ## Implementation

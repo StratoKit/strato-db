@@ -155,7 +155,9 @@ class SQLite extends _events.EventEmitter {
 
     if (Object.keys(rest).length) throw new Error(`Unknown options ${Object.keys(rest).join(',')}`);
     this.file = file || ':memory:';
-    this.name = `${name || _path.default.basename(this.file, '.db')}|${connId++}`;
+    this.name = `${name || _path.default.basename(this.file, '.db')}|${connId++}`; // Are we in withTransaction?
+
+    this.inTransaction = false;
     this.readOnly = readOnly;
     this._isChild = !!_sqlite;
     this._sqlite = _sqlite;
@@ -208,7 +210,7 @@ class SQLite extends _events.EventEmitter {
       _store: this.store
     }); // in dev mode, 50% of the time, return unordered selects in reverse order (chosen once per open)
 
-    if (process.env.NODE_ENV === 'development' && Date.now() & 1) await childDb.exec('PRAGMA reverse_unordered_selects = ON');
+    if (process.env.NODE_ENV === 'development' && Math.random() > 0.5) await childDb.exec('PRAGMA reverse_unordered_selects = ON');
 
     if (!this.readOnly) {
       // Make sure we have WAL journaling - cannot be done in transaction
@@ -539,6 +541,7 @@ class SQLite extends _events.EventEmitter {
 
   async __withTransaction(fn, busyRetry = RETRY_COUNT) {
     try {
+      this.inTransaction = true;
       await this.exec(`BEGIN IMMEDIATE`);
       this.emit('begin');
     } catch (error) {
@@ -549,6 +552,7 @@ class SQLite extends _events.EventEmitter {
         return this.__withTransaction(fn, busyRetry - 1);
       }
 
+      this.inTransaction = false;
       throw error;
     }
 
@@ -560,12 +564,14 @@ class SQLite extends _events.EventEmitter {
       if (process.env.NODE_ENV !== 'test') // eslint-disable-next-line no-console
         console.error(`${this.name} !!! transaction failure, rolling back`, error);
       await this.exec(`ROLLBACK`);
+      this.inTransaction = false;
       this.emit('rollback');
       this.emit('finally');
       throw error;
     }
 
     await this.exec(`END`);
+    this.inTransaction = false;
     this.emit('end');
     this.emit('finally');
     return result;
@@ -576,11 +582,11 @@ class SQLite extends _events.EventEmitter {
     const {
       vacuumInterval,
       vacuumPageCount
-    } = this.options; // Sadly, you cannot prepare pragma statements
-
+    } = this.options;
+    if (!this._freeCountSql) this._freeCountSql = this.prepare('PRAGMA freelist_count', 'freeCount');
     const {
       freelist_count: left
-    } = await this.get('PRAGMA freelist_count'); // leave some free pages in there
+    } = await this._freeCountSql.get(); // leave some free pages in there
 
     if (left < vacuumPageCount * 20 || !this._sqlite) return;
     await this.exec(`PRAGMA incremental_vacuum(${vacuumPageCount})`);

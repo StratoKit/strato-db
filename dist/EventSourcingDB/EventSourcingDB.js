@@ -19,6 +19,8 @@ var _events = _interopRequireDefault(require("events"));
 
 var _settleAll = require("../lib/settleAll");
 
+var _warning = require("../lib/warning");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = _objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }
@@ -58,6 +60,23 @@ const errorToString = error => {
   const msg = error ? error.stack || error.message || String(error) : new Error('missing error').stack;
   return String(msg).replace(/\s+/g, ' ');
 };
+
+const fixupOldReducer = (name, reducer) => {
+  if (!reducer) return;
+
+  if (reducer.length !== 1) {
+    if (_warning.DEV) if (reducer.length === 0) {
+      (0, _warning.deprecated)('varargsReducer', `${name}: reducer has a single argument now, don't use ...args`);
+    } else {
+      (0, _warning.deprecated)('oldReducer', `${name}: reducer has a single argument now, like preprocessor/deriver`);
+    }
+    const prev = reducer;
+
+    reducer = args => prev(args.model, args.event, args);
+  }
+
+  return reducer;
+};
 /**
  * EventSourcingDB maintains a DB where all data is
  * atomically updated based on {@link Event events (free-form messages)}.
@@ -75,9 +94,11 @@ class EventSourcingDB extends _events.default {
       models,
       queueFile,
       withViews = true,
-      onWillOpen: prevOWO
+      onWillOpen,
+      onBeforeMigrations: prevOBM,
+      onDidOpen: prevODO
     } = _ref,
-        dbOptions = _objectWithoutProperties(_ref, ["queue", "models", "queueFile", "withViews", "onWillOpen"]);
+        dbOptions = _objectWithoutProperties(_ref, ["queue", "models", "queueFile", "withViews", "onWillOpen", "onBeforeMigrations", "onDidOpen"]);
 
     super(); // Prevent node warning about more than 11 listeners
     // Each model has 2 instances that might listen
@@ -203,9 +224,24 @@ class EventSourcingDB extends _events.default {
     if (!models) throw new TypeError('models are required');
     if (queueFile && queue) throw new TypeError('Either pass queue or queueFile');
     this.rwDb = new _DB.default(_objectSpread({}, dbOptions, {
-      onWillOpen: async () => {
-        await this.queue.db.open();
-        if (prevOWO) await prevOWO();
+      onWillOpen,
+      onBeforeMigrations: async db => {
+        // hacky side-channel to get current version to queue without deadlocks
+        this._knownV = await db.userVersion();
+        if (prevOBM) await prevOBM();
+      },
+      onDidOpen: async db => {
+        // let's hope nobody added events to the queue with the wrong version
+        const {
+          _knownV
+        } = this;
+
+        if (_knownV) {
+          this._knownV = null;
+          await this.queue.setKnownV(_knownV);
+        }
+
+        if (prevODO) await prevODO(db);
       }
     }));
     const {
@@ -226,7 +262,18 @@ class EventSourcingDB extends _events.default {
     } else {
       const qDb = new _DB.default(_objectSpread({}, dbOptions, {
         name: `${dbOptions.name || ''}Queue`,
-        file: queueFile || this.rwDb.file
+        file: queueFile || this.rwDb.file,
+        onDidOpen: async () => {
+          // let's hope nobody added events to the queue with the wrong version
+          const {
+            _knownV
+          } = this;
+
+          if (_knownV) {
+            this._knownV = null;
+            await this.queue.setKnownV(_knownV);
+          }
+        }
       }));
       this.queue = new _EventQueue.default({
         db: qDb,
@@ -302,11 +349,11 @@ class EventSourcingDB extends _events.default {
 
         if (RWModel === _ESModel.default) {
           if (reducer) {
-            const prev = reducer;
+            const prev = fixupOldReducer(name, reducer);
 
-            reducer = async (model, event, helpers) => {
-              const result = await prev(model, event, helpers);
-              if (!result && event.type === model.TYPE) return _ESModel.default.reducer(model, event);
+            reducer = async args => {
+              const result = await prev(args);
+              if (!result && args.event.type === model.TYPE) return _ESModel.default.reducer(args);
               return result;
             };
           }
@@ -355,7 +402,7 @@ class EventSourcingDB extends _events.default {
         }
 
         model.preprocessor = preprocessor || Model.preprocessor;
-        model.reducer = reducer || Model.reducer;
+        model.reducer = fixupOldReducer(name, reducer || Model.reducer);
         this.store[name] = model;
 
         if (model.preprocessor) {
@@ -380,14 +427,25 @@ class EventSourcingDB extends _events.default {
     }
   }
 
+  open() {
+    return this.db.open();
+  }
+
   async close() {
     await this.stopPolling();
     return Promise.all([this.rwDb && this.rwDb.close(), this.db !== this.rwDb && this.db.close(), this.queue.db.close()]);
   }
 
   async checkForEvents() {
-    const [v, qV] = await Promise.all([this.getVersion(), this.queue.latestVersion()]);
+    const [v, qV] = await Promise.all([this.getVersion(), this.queue.getMaxV()]);
     if (v < qV) return this.startPolling(qV);
+  }
+
+  async waitForQueue() {
+    // give migrations a chance to queue things
+    await this.rwDb.open();
+    const v = await this.queue.getMaxV();
+    return this.handledVersion(v);
   }
 
   startPolling(wantVersion) {
@@ -432,6 +490,15 @@ class EventSourcingDB extends _events.default {
   }
 
   async dispatch(type, data, ts) {
+    const {
+      _knownV
+    } = this;
+
+    if (_knownV) {
+      this._knownV = null;
+      await this.queue.setKnownV(_knownV);
+    }
+
     const event = await this.queue.add(type, data, ts);
     return this.handledVersion(event.v);
   }
@@ -455,20 +522,13 @@ class EventSourcingDB extends _events.default {
     return this._getVersionP;
   }
 
-  async waitForQueue() {
-    // give migrations a chance to queue things
-    await this.rwDb.open();
-    const v = await this.queue.latestVersion();
-    return this.handledVersion(v);
-  }
-
   async handledVersion(v) {
     if (!v) return; // We must get the version first because our history might contain future events
 
     if (v <= (await this.getVersion())) {
-      const event = await this.queue.get(v);
+      const event = await this.queue.get(v); // The event could be missing if pruned
 
-      if (event.error) {
+      if (event === null || event === void 0 ? void 0 : event.error) {
         // This can only happen if we skipped a failed event
         return Promise.reject(event);
       }
@@ -555,8 +615,8 @@ class EventSourcingDB extends _events.default {
         // eslint-disable-next-line no-await-in-loop
         newEvent = await model.preprocessor({
           event,
-          model: isMainEvent ? model : this.rwStore[name],
           // subevents must see intermediate state
+          model: isMainEvent ? model : this.rwStore[name],
           store: isMainEvent ? this.store : this.rwStore,
           dispatch: this._subDispatch.bind(this, event),
           isMainEvent
@@ -595,24 +655,25 @@ class EventSourcingDB extends _events.default {
   async _reducer(event, isMainEvent) {
     const result = {};
     const events = event.events || [];
-    const helpers = {
-      // subevents must see intermediate state
-      store: isMainEvent ? this.store : this.rwStore,
-      dispatch: this._subDispatch.bind(this, event),
-      event,
-      isMainEvent
-    };
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (_warning.DEV) {
       Object.freeze(event.data);
     }
 
-    await Promise.all(this._reducerNames.map(async key => {
-      const model = this.store[key];
+    await Promise.all(this._reducerNames.map(async name => {
+      const model = this.store[name];
+      const helpers = {
+        event,
+        // subevents must see intermediate state
+        model: isMainEvent ? model : this.rwStore[name],
+        store: isMainEvent ? this.store : this.rwStore,
+        dispatch: this._subDispatch.bind(this, event),
+        isMainEvent
+      };
       let out;
 
       try {
-        out = await model.reducer(isMainEvent ? model : this.rwStore[key], event, helpers);
+        out = await model.reducer(helpers);
       } catch (error) {
         out = {
           error: errorToString(error)
@@ -624,7 +685,7 @@ class EventSourcingDB extends _events.default {
 
       if (out.events) {
         if (!Array.isArray(out.events)) {
-          result[key] = {
+          result[name] = {
             error: `.events is not an array`
           };
           return;
@@ -637,7 +698,7 @@ class EventSourcingDB extends _events.default {
         delete out.events;
       }
 
-      result[key] = out;
+      result[name] = out;
     }));
 
     if (this._reducerNames.some(n => result[n] && result[n].error)) {
@@ -676,7 +737,7 @@ class EventSourcingDB extends _events.default {
       });
     }
 
-    dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`);
+    dbg(`handling ${origEvent.v} ${'>'.repeat(depth)}${origEvent.type}`);
     event = _objectSpread({}, origEvent, {
       result: undefined,
       events: undefined,
@@ -746,13 +807,13 @@ class EventSourcingDB extends _events.default {
       if (!event.error && this._deriverModels.length) {
         phase = 'derive';
         await (0, _settleAll.settleAll)(this._deriverModels, async model => model.deriver({
+          event,
           model,
           // derivers can write anywhere (carefully)
           store: this.rwStore,
-          event,
-          result: result[model.name],
           dispatch: this._subDispatch.bind(this, event),
-          isMainEvent
+          isMainEvent,
+          result: result[model.name]
         }));
       }
     } catch (error) {

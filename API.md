@@ -75,7 +75,7 @@ An event queue, including history
     * [new EventQueue([name], [forever], [withViews])](#new_EventQueue_new)
     * [.parseRow](#JsonModel+parseRow) ⇒ <code>object</code>
     * [.set(event)](#EventQueue+set) ⇒ <code>Promise.&lt;void&gt;</code>
-    * [.latestVersion()](#EventQueue+latestVersion) ⇒ <code>Promise.&lt;number&gt;</code>
+    * [.getMaxV()](#EventQueue+getMaxV) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.add(type, [data], [ts])](#EventQueue+add) ⇒ [<code>Promise.&lt;Event&gt;</code>](#Event)
     * [.getNext([v], [noWait])](#EventQueue+getNext) ⇒ [<code>Promise.&lt;Event&gt;</code>](#Event)
     * [.cancelNext()](#EventQueue+cancelNext)
@@ -96,6 +96,7 @@ An event queue, including history
     * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
     * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
     * [.clearCache([cache], id, [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
 
 <a name="new_EventQueue_new"></a>
 
@@ -136,9 +137,9 @@ Replace existing event data
 | --- | --- | --- |
 | event | [<code>Event</code>](#Event) | the new event |
 
-<a name="EventQueue+latestVersion"></a>
+<a name="EventQueue+getMaxV"></a>
 
-### eventQueue.latestVersion() ⇒ <code>Promise.&lt;number&gt;</code>
+### eventQueue.getMaxV() ⇒ <code>Promise.&lt;number&gt;</code>
 Get the highest version stored in the queue
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
@@ -417,6 +418,21 @@ change only some items
 | id | <code>\*</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
+<a name="JsonModel+update"></a>
+
+### eventQueue.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+Update or upsert an object
+
+**Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
+**Overrides**: [<code>update</code>](#JsonModel+update)  
+**Returns**: <code>Promise.&lt;(object\|undefined)&gt;</code> - A copy of the stored object  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| obj | <code>object</code> | The changes to store, including the id field |
+| [upsert] | <code>boolean</code> | Insert the object if it doesn't exist |
+| [noReturn] | <code>boolean</code> | Do not return the stored object |
+
 <a name="DB"></a>
 
 ## DB ⇐ [<code>SQLite</code>](#SQLite)
@@ -427,6 +443,7 @@ The migration state is kept in the table ""{sdb} migrations"".
 **Extends**: [<code>SQLite</code>](#SQLite)  
 
 * [DB](#DB) ⇐ [<code>SQLite</code>](#SQLite)
+    * [new DB(options)](#new_DB_new)
     * [.addModel(Model, options)](#DB+addModel) ⇒ <code>object</code>
     * [.registerMigrations(name, migrations)](#DB+registerMigrations) ⇒ <code>void</code>
     * [.runMigrations(db)](#DB+runMigrations) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -441,6 +458,18 @@ The migration state is kept in the table ""{sdb} migrations"".
     * [.dataVersion()](#SQLite+dataVersion) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.userVersion([newV])](#SQLite+userVersion) ⇒ <code>Promise.&lt;(number\|void)&gt;</code>
     * [.withTransaction(fn)](#SQLite+withTransaction) ⇒ <code>Promise.&lt;void&gt;</code>
+
+<a name="new_DB_new"></a>
+
+### new DB(options)
+
+| Param | Type | Description |
+| --- | --- | --- |
+| options | <code>object</code> | options for DB and SQLite |
+| [options.readOnly] | <code>boolean</code> | open the DB read-only |
+| [options.migrations] | <code>Array</code> | migration definitions |
+| [options.onBeforeMigrations] | <code>function</code> | called with the `db` before migrations run. Not called for read-only |
+| [options.onDidOpen] | <code>function</code> | called with the `db` after migrations ran. If readOnly is set, it runs after opening DB. The DB is open after this function resolves |
 
 <a name="DB+addModel"></a>
 
@@ -914,6 +943,7 @@ Insert or replace the given object into the database
 update an existing object
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
+**Overrides**: [<code>update</code>](#JsonModel+update)  
 **Returns**: <code>Promise.&lt;Object&gt;</code> - - if `noReturn` is false, the stored object is fetched from the DB  
 
 | Param | Type | Description |
@@ -1249,6 +1279,7 @@ per object (document). Each object must have a unique ID, normally at `obj.id`.
     * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
     * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
     * [.clearCache([cache], id, [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
 
 <a name="new_JsonModel_new"></a>
 
@@ -1485,6 +1516,20 @@ change only some items
 | id | <code>\*</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
+<a name="JsonModel+update"></a>
+
+### jsonModel.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+Update or upsert an object
+
+**Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
+**Returns**: <code>Promise.&lt;(object\|undefined)&gt;</code> - A copy of the stored object  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| obj | <code>object</code> | The changes to store, including the id field |
+| [upsert] | <code>boolean</code> | Insert the object if it doesn't exist |
+| [noReturn] | <code>boolean</code> | Do not return the stored object |
+
 <a name="sql"></a>
 
 ## sql ⇒ <code>array</code>
@@ -1591,6 +1636,7 @@ is converted to
 | [columns] | <code>Object</code> |  | the column definitions as [ColumnDef](#ColumnDef) objects. Each value must be a columndef or a function returning a columndef. |
 | [ItemClass] | <code>function</code> |  | an object class to use for results, must be able to handle `Object.assign(item, result)` |
 | [idCol] | <code>string</code> | <code>&quot;&#x27;id&#x27;&quot;</code> | the key of the ID column |
+| [keepRowId] | <code>boolean</code> |  | preserve row id after vacuum |
 
 
-_Generated from 8b69468ca79f8212562f08be4fca572ece9d77b6, 2019-10-16T12:45:51+02:00_
+_Generated from 04ebc5c64552a4747c2655f63c82d39a29bfbd60, 2020-03-05T10:23:13+01:00_

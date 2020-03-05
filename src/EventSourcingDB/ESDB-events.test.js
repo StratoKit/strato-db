@@ -108,7 +108,7 @@ test('preprocessors', async () => {
 						return {error: 'Yeah, no.'}
 					}
 				},
-				reducer: (model, event) => {
+				reducer: ({event}) => {
 					if (event.type === 'set_thing') {
 						return {set: [event.data]}
 					}
@@ -133,7 +133,7 @@ test('reducer, deriver data immutable', async () => {
 		},
 		{
 			meep: {
-				reducer: (model, event) => {
+				reducer: ({event}) => {
 					if (event.type === 'reduce') event.data.foo = 'bar'
 				},
 				deriver: ({event}) => {
@@ -164,7 +164,7 @@ test('preprocessor/reducer for ESModel', async () =>
 				preprocessor: async ({event}) => {
 					if (event.data && event.data.foo) event.data.ok = true
 				},
-				reducer: (model, event) => {
+				reducer: ({event}) => {
 					if (event.type === 'set_thing') {
 						return {set: [event.data]}
 					}

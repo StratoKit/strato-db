@@ -31,12 +31,12 @@ test('add invalid event', async () => {
 
 test('setKnownV', async () => {
 	const m = getModel()
-	expect(await m.latestVersion()).toBe(0)
+	expect(await m.getMaxV()).toBe(0)
 	// internal API
 	await m.setKnownV(20)
-	expect(await m.latestVersion()).toBe(20)
+	expect(await m.getMaxV()).toBe(20)
 	await m.set({v: 500, type: 'fooo'})
-	expect(await m.latestVersion()).toBe(500)
+	expect(await m.getMaxV()).toBe(500)
 })
 
 test('add event', async () => {
