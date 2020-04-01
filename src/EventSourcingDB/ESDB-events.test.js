@@ -62,19 +62,19 @@ test('preprocessors', async () => {
 	return withESDB(
 		async eSDB => {
 			await expect(
-				eSDB._preprocessor({type: 'pre type'})
+				eSDB._preprocessor({}, {type: 'pre type'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('type')
 			)
 			await expect(
-				eSDB._preprocessor({type: 'pre version'})
+				eSDB._preprocessor({}, {type: 'pre version'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('version')
 			)
 			await expect(
-				eSDB._preprocessor({type: 'bad event'})
+				eSDB._preprocessor({}, {type: 'bad event'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('Yeah, no.')
@@ -87,7 +87,9 @@ test('preprocessors', async () => {
 		},
 		{
 			meep: {
-				preprocessor: async ({event, model, store, dispatch}) => {
+				preprocessor: async ({event, model, store, dispatch, cache}) => {
+					if (typeof cache !== 'object')
+						throw new Error('preprocessor: expecting a cache object')
 					if (!model) throw new Error('expecting my model')
 					if (!store) throw new Error('expecting the store')
 					if (!dispatch) throw new Error('expecting dispatch for subevents')
@@ -108,7 +110,9 @@ test('preprocessors', async () => {
 						return {error: 'Yeah, no.'}
 					}
 				},
-				reducer: ({event}) => {
+				reducer: ({event, cache}) => {
+					if (typeof cache !== 'object')
+						throw new Error('reducer: expecting a cache object')
 					if (event.type === 'set_thing') {
 						return {set: [event.data]}
 					}

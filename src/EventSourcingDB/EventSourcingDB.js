@@ -630,7 +630,7 @@ class EventSourcingDB extends EventEmitter {
 		/* eslint-enable no-await-in-loop */
 	}
 
-	async _preprocessor(event, isMainEvent) {
+	async _preprocessor(cache, event, isMainEvent) {
 		for (const model of this._preprocModels) {
 			const {name} = model
 			const {v, type} = event
@@ -638,6 +638,7 @@ class EventSourcingDB extends EventEmitter {
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
+					cache,
 					event,
 					// subevents must see intermediate state
 					model: isMainEvent ? model : this.rwStore[name],
@@ -673,7 +674,7 @@ class EventSourcingDB extends EventEmitter {
 		return event
 	}
 
-	async _reducer(event, isMainEvent) {
+	async _reducer(cache, event, isMainEvent) {
 		const result = {}
 		const events = event.events || []
 
@@ -684,6 +685,7 @@ class EventSourcingDB extends EventEmitter {
 			this._reducerNames.map(async name => {
 				const model = this.store[name]
 				const helpers = {
+					cache,
 					event,
 					// subevents must see intermediate state
 					model: isMainEvent ? model : this.rwStore[name],
@@ -753,12 +755,15 @@ class EventSourcingDB extends EventEmitter {
 			events: undefined,
 			error: undefined,
 		}
-
-		event = await this._preprocessor(event, isMainEvent)
+		let cache = {}
+		event = await this._preprocessor(cache, event, isMainEvent)
 		if (event.error) return event
 
-		event = await this._reducer(event, isMainEvent)
+		event = await this._reducer(cache, event, isMainEvent)
 		if (event.error) return event
+
+		// Allow GC
+		cache = null
 
 		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event

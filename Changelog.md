@@ -43,6 +43,7 @@
 - JsonModel: `.update` reuses a running `withTransaction`, so there is probably never a reason to use `.updateNoTrans`
 - EventQueue: `.latestVersion()` is deprecated in favor of `.getMaxV()`
 - JsonModel: if the id column is not an integer type (which means that sqlite uses it as the `rowId`), `rowId` will be added as a column. This ensures that the VACUUM command doesn't change the `rowid`s so that references to them won't become invalid. To disable this you can pass `keepRowId: false` to JsonModel.
+- EventSourcingDB: provide a `cache` object to the preprocessor and reducer, which can be used to optimize data fetching. The cache is shared and only valid during the read-only phase of the event handling
 
 ## 2.3.3
 
