@@ -7,7 +7,11 @@ export {DB, JsonModel}
 
 export const getModel = options => {
 	const db = new DB()
-	return db.addModel(JsonModel, {name: 'testing', ...options})
+	return db.addModel(JsonModel, {
+		name: 'testing',
+		keepRowId: false,
+		...options,
+	})
 }
 
 export const sharedSetup = getPromise => fn => {
@@ -29,7 +33,9 @@ export const testModels = {
 		migrations: {
 			init: {
 				up({db, model, queue}) {
+					// eslint-disable-next-line jest/no-standalone-expect
 					expect(db).toBeTruthy()
+					// eslint-disable-next-line jest/no-standalone-expect
 					expect(queue).toBeTruthy()
 					return model.set({id: 'count', total: 0, byType: {}})
 				},
@@ -38,7 +44,7 @@ export const testModels = {
 		preprocessor: async ({event}) => {
 			if (event.type === 'error_pre') throw new Error('pre error for you')
 		},
-		reducer: async (model, {type}) => {
+		reducer: async ({model, event: {type}}) => {
 			if (type === 'error_reduce') throw new Error('error for you')
 			if (!model.get) return false
 			const c = (await model.get('count')) || {
@@ -58,7 +64,8 @@ export const testModels = {
 		},
 	},
 	ignorer: {
-		reducer: (model = null) => model,
+		// eslint-disable-next-line no-unused-vars
+		reducer: args => {},
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {

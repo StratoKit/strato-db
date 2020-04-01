@@ -39,6 +39,7 @@ class JsonModel {
 			columns,
 			ItemClass,
 			idCol = 'id',
+			keepRowId = true,
 		} = options
 
 		this.db = db
@@ -106,6 +107,7 @@ class JsonModel {
 				name: this.name,
 				columns: this.columns,
 				idCol,
+				keepRowId,
 				migrations,
 				migrationOptions,
 			})
@@ -137,7 +139,7 @@ class JsonModel {
 			if (dbg.enabled) {
 				try {
 					val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
-				} catch (error) {
+				} catch {
 					dbg(
 						`!!! ${this.name}.${k.name}:  parse failed for value ${String(
 							row[k.alias]
@@ -152,6 +154,7 @@ class JsonModel {
 					if (k.real) {
 						const prevVal = get(out, k.path)
 						// Prevent added columns from overwriting existing data
+						// eslint-disable-next-line max-depth
 						if (typeof prevVal !== 'undefined') continue
 					}
 					set(out, k.path, val)
@@ -205,8 +208,11 @@ class JsonModel {
 					`INSERT ${setSql}`,
 					`ins ${this.name}`
 				)
+				const updateSql = colSqls
+					.map((col, i) => `${col} = ?${i + 1}`)
+					.join(', ')
 				this._updateSql = this.db.prepare(
-					`INSERT OR REPLACE ${setSql}`,
+					`INSERT ${setSql} ON CONFLICT(${this.idCol}) DO UPDATE SET ${updateSql}`,
 					`set ${this.name}`
 				)
 			}
@@ -236,7 +242,7 @@ class JsonModel {
 			})
 
 			// The json field is part of the colVals
-			const P = (insertOnly ? _insertSql : _updateSql).run(colVals)
+			const P = insertOnly ? _insertSql.run(colVals) : _updateSql.run(colVals)
 			return noReturn
 				? P
 				: P.then(result => {
@@ -517,9 +523,10 @@ class JsonModel {
 			rows.length === options.limit
 		) {
 			const last = rows[rows.length - 1]
-			cursor = jsurl.stringify(cursorKeys.map(k => last[k]), {
-				short: true,
-			})
+			cursor = jsurl.stringify(
+				cursorKeys.map(k => last[k]),
+				{short: true}
+			)
 		}
 		const out = {items, cursor}
 		if (totalO) out.total = totalO.t
@@ -814,8 +821,19 @@ class JsonModel {
 		return this.set(prev, false, noReturn)
 	}
 
-	update(...args) {
-		return this.db.withTransaction(() => this.updateNoTrans(...args))
+	/**
+	 * Update or upsert an object
+	 * @param  {object} obj The changes to store, including the id field
+	 * @param  {boolean} [upsert] Insert the object if it doesn't exist
+	 * @param  {boolean} [noReturn] Do not return the stored object
+	 * @returns {Promise<object|undefined>} A copy of the stored object
+	 */
+	update(obj, upsert, noReturn) {
+		// Update needs to read the object to apply the changes, so it needs a transaction
+		if (this.db.inTransaction) return this.updateNoTrans(obj, upsert, noReturn)
+		return this.db.withTransaction(() =>
+			this.updateNoTrans(obj, upsert, noReturn)
+		)
 	}
 
 	remove(idOrObj) {

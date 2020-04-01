@@ -121,10 +121,13 @@ describe('withTransaction', () => {
 	test('works', async () => {
 		const db = new SQLite()
 		await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+		expect(db.inTransaction).toBe(false)
 		db.withTransaction(async () => {
+			expect(db.inTransaction).toBe(true)
 			await wait(100)
 			await db.exec`INSERT INTO foo VALUES (43, 1);`
 		})
+		expect(db.inTransaction).toBe(false)
 		await db.withTransaction(
 			() => db.exec`UPDATE foo SET ho = 2 where hi = 43;`
 		)
@@ -135,12 +138,15 @@ describe('withTransaction', () => {
 	test('rollback works', async () => {
 		const db = new SQLite()
 		await db.exec`CREATE TABLE foo(hi INTEGER PRIMARY KEY, ho INT);`
+		expect(db.inTransaction).toBe(false)
 		await expect(
 			db.withTransaction(async () => {
+				expect(db.inTransaction).toBe(true)
 				await db.exec`INSERT INTO foo VALUES (43, 1);`
 				throw new Error('ignoreme')
 			})
 		).rejects.toThrow('ignoreme')
+		expect(db.inTransaction).toBe(false)
 		expect(await db.all`SELECT * from foo`).toEqual([])
 		await db.close()
 	})

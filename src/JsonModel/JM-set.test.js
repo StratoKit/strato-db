@@ -34,7 +34,9 @@ test('set without id, INTEGER type', async () => {
 })
 
 test('INTEGER autoIncrement id', async () => {
-	const m = getModel({columns: {id: {type: 'INTEGER', autoIncrement: true}}})
+	const m = getModel({
+		columns: {id: {type: 'INTEGER', autoIncrement: true}},
+	})
 	await m.set({id: 50})
 	await m.remove({id: 50})
 	await m.set({})
@@ -55,8 +57,20 @@ test('set with existing id', async () => {
 	expect(p[0].id).toBe('5')
 })
 
+test('insert conflicting unique non-id column', async () => {
+	const m = getModel({columns: {u: {unique: true, index: true}}})
+	await m.set({id: 1, u: 1})
+	await expect(m.set({id: 2, u: 1})).rejects.toThrow('SQLITE_CONSTRAINT')
+})
+
 test('set(obj, insertOnly)', async () => {
 	const m = getModel()
+	await m.set({id: '234'})
+	await expect(m.set({id: '234'}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
+})
+
+test('set(obj, insertOnly) for integer id', async () => {
+	const m = getModel({columns: {id: {type: 'INTEGER'}}})
 	await m.set({id: 234})
 	await expect(m.set({id: 234}, true)).rejects.toThrow('SQLITE_CONSTRAINT')
 })
@@ -107,6 +121,13 @@ test('update transactional', async () => {
 	await expect(m.update({id: 5, ho: 9}, true)).rejects.toThrow(
 		'cannot start a transaction within a transaction'
 	)
+})
+
+test('update reuses existing transaction', async () => {
+	const m = getModel()
+	await m.db.withTransaction(async () => {
+		await expect(m.update({id: 5, ho: 9}, true)).resolves.not.toThrow()
+	})
 })
 
 test('updateNoTrans not transactional', async () => {

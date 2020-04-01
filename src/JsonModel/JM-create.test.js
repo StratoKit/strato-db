@@ -226,14 +226,38 @@ test('each', async () => {
 	expect(count).toBe(1)
 	expect(total).toBe(3)
 	expect(maxI).toBe(0)
-	// eslint-disable-next-line require-atomic-updates
 	count = 0
-	// eslint-disable-next-line require-atomic-updates
 	total = 0
-	// eslint-disable-next-line require-atomic-updates
 	maxI = 0
 	await m.each({}, {where: {'id<3': []}, fn})
 	expect(count).toBe(3)
 	expect(total).toBe(3)
 	expect(maxI).toBe(2)
+})
+
+describe('id column types', () => {
+	test('integer', async () => {
+		const m = getModel({columns: {id: {type: 'INTEGER'}}})
+		const layout = await m.db.all(`pragma table_info(${m.quoted})`)
+		expect(layout.find(col => col.name === 'id')).toEqual(
+			expect.objectContaining({pk: 1, type: 'INTEGER', notnull: 1})
+		)
+	})
+
+	test('other without keepRowId', async () => {
+		const m = getModel({columns: {id: {type: 'TEXT'}}, keepRowId: false})
+		const layout = await m.db.all(`pragma table_info(${m.quoted})`)
+		expect(layout.find(col => col.name === 'id')).toEqual(
+			expect.objectContaining({pk: 1, type: 'TEXT', notnull: 1})
+		)
+	})
+
+	test('other with keepRowId', async () => {
+		const m = getModel({columns: {id: {type: 'TEXT'}}, keepRowId: true})
+		const layout = await m.db.all(`pragma table_info(${m.quoted})`)
+		expect(layout.find(col => col.name === 'id')).toEqual(
+			expect.objectContaining({pk: 0, type: 'TEXT', notnull: 1})
+		)
+		expect(await m.db.get(`pragma index_info("${m.name}_id")`)).toBeTruthy()
+	})
 })

@@ -76,13 +76,11 @@ const calcUpd = (idCol, prev, obj, complete) => {
  * @extends JsonModel
  */
 class ESModel extends JsonModel {
-	/* eslint-disable lines-between-class-members */
 	static REMOVE = 0
 	static SET = 1
 	static INSERT = 2
 	static UPDATE = 3
 	static SAVE = 4
-	/* eslint-enable lines-between-class-members */
 
 	/**
 	 * Creates a new ESModel model, called by DB
@@ -252,7 +250,6 @@ class ESModel extends JsonModel {
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
 			// Always overwrite, so repeat events get correct ids
-			// eslint-disable-next-line require-atomic-updates
 			event.data[1] = await getId(model, event.data[2])
 			return event
 		}
@@ -265,7 +262,7 @@ class ESModel extends JsonModel {
 	 * @param {Event} event - the event
 	 * @returns {Promise<Object>} - the result object in the format JsonModel likes
 	 */
-	static async reducer(model, {type, data}) {
+	static async reducer({model, event: {type, data}}) {
 		if (!model || type !== model.TYPE) return false
 
 		let [action, id, obj] = data

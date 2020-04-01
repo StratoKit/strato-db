@@ -43,6 +43,7 @@ import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
 import EventEmitter from 'events'
 import {settleAll} from '../lib/settleAll'
+import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/ESDB')
 
@@ -85,6 +86,27 @@ const errorToString = error => {
 	return String(msg).replace(/\s+/g, ' ')
 }
 
+const fixupOldReducer = (name, reducer) => {
+	if (!reducer) return
+	if (reducer.length !== 1) {
+		if (DEV)
+			if (reducer.length === 0) {
+				deprecated(
+					'varargsReducer',
+					`${name}: reducer has a single argument now, don't use ...args`
+				)
+			} else {
+				deprecated(
+					'oldReducer',
+					`${name}: reducer has a single argument now, like preprocessor/deriver`
+				)
+			}
+		const prev = reducer
+		reducer = args => prev(args.model, args.event, args)
+	}
+	return reducer
+}
+
 /**
  * EventSourcingDB maintains a DB where all data is
  * atomically updated based on {@link Event events (free-form messages)}.
@@ -100,7 +122,9 @@ class EventSourcingDB extends EventEmitter {
 		models,
 		queueFile,
 		withViews = true,
-		onWillOpen: prevOWO,
+		onWillOpen,
+		onBeforeMigrations: prevOBM,
+		onDidOpen: prevODO,
 		...dbOptions
 	}) {
 		super()
@@ -117,9 +141,20 @@ class EventSourcingDB extends EventEmitter {
 
 		this.rwDb = new DB({
 			...dbOptions,
-			onWillOpen: async () => {
-				await this.queue.db.open()
-				if (prevOWO) await prevOWO()
+			onWillOpen,
+			onBeforeMigrations: async db => {
+				// hacky side-channel to get current version to queue without deadlocks
+				this._knownV = await db.userVersion()
+				if (prevOBM) await prevOBM()
+			},
+			onDidOpen: async db => {
+				// let's hope nobody added events to the queue with the wrong version
+				const {_knownV} = this
+				if (_knownV) {
+					this._knownV = null
+					await this.queue.setKnownV(_knownV)
+				}
+				if (prevODO) await prevODO(db)
 			},
 		})
 		const {readOnly} = this.rwDb
@@ -145,6 +180,14 @@ class EventSourcingDB extends EventEmitter {
 				...dbOptions,
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
+				onDidOpen: async () => {
+					// let's hope nobody added events to the queue with the wrong version
+					const {_knownV} = this
+					if (_knownV) {
+						this._knownV = null
+						await this.queue.setKnownV(_knownV)
+					}
+				},
 			})
 			this.queue = new EventQueue({
 				db: qDb,
@@ -219,11 +262,11 @@ class EventSourcingDB extends EventEmitter {
 
 				if (RWModel === ESModel) {
 					if (reducer) {
-						const prev = reducer
-						reducer = async (model, event, helpers) => {
-							const result = await prev(model, event, helpers)
-							if (!result && event.type === model.TYPE)
-								return ESModel.reducer(model, event)
+						const prev = fixupOldReducer(name, reducer)
+						reducer = async args => {
+							const result = await prev(args)
+							if (!result && args.event.type === model.TYPE)
+								return ESModel.reducer(args)
 							return result
 						}
 					}
@@ -231,7 +274,6 @@ class EventSourcingDB extends EventEmitter {
 						const prev = preprocessor
 						preprocessor = async args => {
 							const e = await ESModel.preprocessor(args)
-							// eslint-disable-next-line require-atomic-updates
 							if (e) args.event = e
 							return prev(args)
 						}
@@ -267,7 +309,7 @@ class EventSourcingDB extends EventEmitter {
 					})
 				}
 				model.preprocessor = preprocessor || Model.preprocessor
-				model.reducer = reducer || Model.reducer
+				model.reducer = fixupOldReducer(name, reducer || Model.reducer)
 				this.store[name] = model
 				if (model.preprocessor) {
 					this._preprocModels.push(model)
@@ -293,6 +335,10 @@ class EventSourcingDB extends EventEmitter {
 		}
 	}
 
+	open() {
+		return this.db.open()
+	}
+
 	async close() {
 		await this.stopPolling()
 		return Promise.all([
@@ -303,11 +349,15 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async checkForEvents() {
-		const [v, qV] = await Promise.all([
-			this.getVersion(),
-			this.queue.latestVersion(),
-		])
+		const [v, qV] = await Promise.all([this.getVersion(), this.queue.getMaxV()])
 		if (v < qV) return this.startPolling(qV)
+	}
+
+	async waitForQueue() {
+		// give migrations a chance to queue things
+		await this.rwDb.open()
+		const v = await this.queue.getMaxV()
+		return this.handledVersion(v)
 	}
 
 	_waitingP = null
@@ -361,6 +411,11 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async dispatch(type, data, ts) {
+		const {_knownV} = this
+		if (_knownV) {
+			this._knownV = null
+			await this.queue.setKnownV(_knownV)
+		}
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
 	}
@@ -382,13 +437,6 @@ class EventSourcingDB extends EventEmitter {
 		return this._getVersionP
 	}
 
-	async waitForQueue() {
-		// give migrations a chance to queue things
-		await this.rwDb.open()
-		const v = await this.queue.latestVersion()
-		return this.handledVersion(v)
-	}
-
 	_waitingFor = {}
 
 	_maxWaitingFor = 0
@@ -398,7 +446,8 @@ class EventSourcingDB extends EventEmitter {
 		// We must get the version first because our history might contain future events
 		if (v <= (await this.getVersion())) {
 			const event = await this.queue.get(v)
-			if (event.error) {
+			// The event could be missing if pruned
+			if (event?.error) {
 				// This can only happen if we skipped a failed event
 				return Promise.reject(event)
 			}
@@ -565,7 +614,6 @@ class EventSourcingDB extends EventEmitter {
 						error
 					)
 				}
-				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
@@ -580,7 +628,7 @@ class EventSourcingDB extends EventEmitter {
 		/* eslint-enable no-await-in-loop */
 	}
 
-	async _preprocessor(event, isMainEvent) {
+	async _preprocessor(cache, event, isMainEvent) {
 		for (const model of this._preprocModels) {
 			const {name} = model
 			const {v, type} = event
@@ -588,9 +636,10 @@ class EventSourcingDB extends EventEmitter {
 			try {
 				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
+					cache,
 					event,
-					model: isMainEvent ? model : this.rwStore[name],
 					// subevents must see intermediate state
+					model: isMainEvent ? model : this.rwStore[name],
 					store: isMainEvent ? this.store : this.rwStore,
 					dispatch: this._subDispatch.bind(this, event),
 					isMainEvent,
@@ -623,29 +672,28 @@ class EventSourcingDB extends EventEmitter {
 		return event
 	}
 
-	async _reducer(event, isMainEvent) {
+	async _reducer(cache, event, isMainEvent) {
 		const result = {}
 		const events = event.events || []
-		const helpers = {
-			// subevents must see intermediate state
-			store: isMainEvent ? this.store : this.rwStore,
-			dispatch: this._subDispatch.bind(this, event),
-			event,
-			isMainEvent,
-		}
-		if (process.env.NODE_ENV !== 'production') {
+
+		if (DEV) {
 			Object.freeze(event.data)
 		}
 		await Promise.all(
-			this._reducerNames.map(async key => {
-				const model = this.store[key]
+			this._reducerNames.map(async name => {
+				const model = this.store[name]
+				const helpers = {
+					cache,
+					event,
+					// subevents must see intermediate state
+					model: isMainEvent ? model : this.rwStore[name],
+					store: isMainEvent ? this.store : this.rwStore,
+					dispatch: this._subDispatch.bind(this, event),
+					isMainEvent,
+				}
 				let out
 				try {
-					out = await model.reducer(
-						isMainEvent ? model : this.rwStore[key],
-						event,
-						helpers
-					)
+					out = await model.reducer(helpers)
 				} catch (error) {
 					out = {
 						error: errorToString(error),
@@ -655,7 +703,7 @@ class EventSourcingDB extends EventEmitter {
 				if (!out || out === model) return
 				if (out.events) {
 					if (!Array.isArray(out.events)) {
-						result[key] = {error: `.events is not an array`}
+						result[name] = {error: `.events is not an array`}
 						return
 					}
 					events.push(...out.events)
@@ -664,7 +712,7 @@ class EventSourcingDB extends EventEmitter {
 					// allow falsy events
 					delete out.events
 				}
-				result[key] = out
+				result[name] = out
 			})
 		)
 
@@ -698,19 +746,22 @@ class EventSourcingDB extends EventEmitter {
 				},
 			}
 		}
-		dbg(`handling ${'>'.repeat(depth)}${origEvent.type}`)
+		dbg(`handling ${origEvent.v} ${'>'.repeat(depth)}${origEvent.type}`)
 		event = {
 			...origEvent,
 			result: undefined,
 			events: undefined,
 			error: undefined,
 		}
-
-		event = await this._preprocessor(event, isMainEvent)
+		let cache = {}
+		event = await this._preprocessor(cache, event, isMainEvent)
 		if (event.error) return event
 
-		event = await this._reducer(event, isMainEvent)
+		event = await this._reducer(cache, event, isMainEvent)
 		if (event.error) return event
+
+		// Allow GC
+		cache = null
 
 		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event
@@ -770,25 +821,22 @@ class EventSourcingDB extends EventEmitter {
 				phase = 'derive'
 				await settleAll(this._deriverModels, async model =>
 					model.deriver({
+						event,
 						model,
 						// derivers can write anywhere (carefully)
 						store: this.rwStore,
-						event,
-						result: result[model.name],
 						dispatch: this._subDispatch.bind(this, event),
 						isMainEvent,
+						result: result[model.name],
 					})
 				)
 			}
 		} catch (error) {
 			if (event.result) {
-				// eslint-disable-next-line require-atomic-updates
 				event.failedResult = event.result
 				delete event.result
 			}
-			// eslint-disable-next-line require-atomic-updates
 			if (!event.error) event.error = {}
-			// eslint-disable-next-line require-atomic-updates
 			event.error[`_apply_${phase}`] = errorToString(error)
 		} finally {
 			for (const model of readWriters) model.setWritable(false)

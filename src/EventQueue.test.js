@@ -15,7 +15,9 @@ const populate = (m, count) => {
 }
 
 test('create w/ extra columns', async () => {
-	const m = getModel({columns: {foo: {real: true, value: () => 5, get: true}}})
+	const m = getModel({
+		columns: {foo: {real: true, value: () => 5, get: true}},
+	})
 	expect(await m.add('hi')).not.toHaveProperty('foo')
 	expect(await m.get(1)).not.toHaveProperty('foo', 5)
 	await m.update({v: 1})
@@ -31,12 +33,12 @@ test('add invalid event', async () => {
 
 test('setKnownV', async () => {
 	const m = getModel()
-	expect(await m.latestVersion()).toBe(0)
+	expect(await m.getMaxV()).toBe(0)
 	// internal API
 	await m.setKnownV(20)
-	expect(await m.latestVersion()).toBe(20)
+	expect(await m.getMaxV()).toBe(20)
 	await m.set({v: 500, type: 'fooo'})
-	expect(await m.latestVersion()).toBe(500)
+	expect(await m.getMaxV()).toBe(500)
 })
 
 test('add event', async () => {

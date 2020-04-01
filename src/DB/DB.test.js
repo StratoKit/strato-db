@@ -147,6 +147,25 @@ test('close()', async () => {
 	await db.close()
 })
 
+test('onBeforeMigrations', async () => {
+	let t = 0
+	const db = new DB({
+		onBeforeMigrations() {
+			if (t === 0) t = 1
+		},
+	})
+	db.registerMigrations('meep', {
+		c: {
+			up: () => {
+				if (t === 1) t = 2
+			},
+		},
+	})
+	await db.open()
+	expect(t).toBe(2)
+	await db.close()
+})
+
 test('onWillOpen', async () => {
 	let t = 0
 	const db = new DB({

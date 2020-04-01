@@ -67,7 +67,6 @@ test('event emitter', async () => {
 		})
 		await eSDB.dispatch('foo')
 		await eSDB.dispatch('bar')
-		// eslint-disable-next-line require-atomic-updates
 		eSDB.__BE_QUIET = true
 		await expect(eSDB.dispatch('error_reduce')).rejects.toHaveProperty('error')
 		expect(errored).toBe(1)
@@ -90,4 +89,25 @@ test('event replay', async () =>
 
 test('model fail shows name', () => {
 	expect(() => new ESDB({models: {foutje: false}})).toThrow('foutje')
+})
+
+test('old reducer signature', async () => {
+	// eslint-disable-next-line no-console
+	const prev = console.error
+	// eslint-disable-next-line no-console
+	console.error = jest.fn()
+	const eSDB = new ESDB({
+		models: {
+			old: {
+				reducer: (model, event) =>
+					event.type === 'TEST' ? {ins: [{id: 5}]} : false,
+			},
+		},
+	})
+	// eslint-disable-next-line no-console
+	expect(console.error).toHaveBeenCalled()
+	await eSDB.dispatch('TEST')
+	expect(await eSDB.store.old.get(5)).toBeTruthy()
+	// eslint-disable-next-line no-console
+	console.error = prev
 })

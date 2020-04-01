@@ -16,7 +16,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
 const getDuration = ts =>
-	(performance.now() - ts).toLocaleString(undefined, {maximumFractionDigits: 2})
+	(performance.now() - ts).toLocaleString(undefined, {
+		maximumFractionDigits: 2,
+	})
 
 const objToString = o => {
 	const s = inspect(o, {compact: true, breakLength: Infinity})
@@ -119,6 +121,8 @@ class SQLite extends EventEmitter {
 			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
+		// Are we in withTransaction?
+		this.inTransaction = false
 		this.readOnly = readOnly
 		this._isChild = !!_sqlite
 		this._sqlite = _sqlite
@@ -185,7 +189,7 @@ class SQLite extends EventEmitter {
 		})
 
 		// in dev mode, 50% of the time, return unordered selects in reverse order (chosen once per open)
-		if (process.env.NODE_ENV === 'development' && Date.now() & 1)
+		if (process.env.NODE_ENV === 'development' && Math.random() > 0.5)
 			await childDb.exec('PRAGMA reverse_unordered_selects = ON')
 
 		if (!this.readOnly) {
@@ -332,7 +336,7 @@ class SQLite extends EventEmitter {
 			}
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
-			cb = function(err, out) {
+			cb = function (err, out) {
 				if (err) {
 					if (isBusyError(err) && busyRetry--) {
 						return busyWait().then(runQuery)
@@ -511,6 +515,7 @@ class SQLite extends EventEmitter {
 
 	async __withTransaction(fn, busyRetry = RETRY_COUNT) {
 		try {
+			this.inTransaction = true
 			await this.exec(`BEGIN IMMEDIATE`)
 			this.emit('begin')
 		} catch (error) {
@@ -520,6 +525,7 @@ class SQLite extends EventEmitter {
 				await busyWait()
 				return this.__withTransaction(fn, busyRetry - 1)
 			}
+			this.inTransaction = false
 			throw error
 		}
 		let result
@@ -533,11 +539,13 @@ class SQLite extends EventEmitter {
 					error
 				)
 			await this.exec(`ROLLBACK`)
+			this.inTransaction = false
 			this.emit('rollback')
 			this.emit('finally')
 			throw error
 		}
 		await this.exec(`END`)
+		this.inTransaction = false
 		this.emit('end')
 		this.emit('finally')
 		return result
@@ -546,8 +554,9 @@ class SQLite extends EventEmitter {
 	async _vacuumStep() {
 		if (!this._sqlite) return
 		const {vacuumInterval, vacuumPageCount} = this.options
-		// Sadly, you cannot prepare pragma statements
-		const {freelist_count: left} = await this.get('PRAGMA freelist_count')
+		if (!this._freeCountSql)
+			this._freeCountSql = this.prepare('PRAGMA freelist_count', 'freeCount')
+		const {freelist_count: left} = await this._freeCountSql.get()
 		// leave some free pages in there
 		if (left < vacuumPageCount * 20 || !this._sqlite) return
 		await this.exec(`PRAGMA incremental_vacuum(${vacuumPageCount})`)

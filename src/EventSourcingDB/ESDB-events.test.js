@@ -33,7 +33,9 @@ test('dispatch', async () => {
 			ts: 55,
 			data: {woah: true},
 			result: {
-				count: {set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}]},
+				count: {
+					set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}],
+				},
 			},
 		})
 		expect(await event1P).toEqual({
@@ -62,19 +64,19 @@ test('preprocessors', async () => {
 	return withESDB(
 		async eSDB => {
 			await expect(
-				eSDB._preprocessor({type: 'pre type'})
+				eSDB._preprocessor({}, {type: 'pre type'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('type')
 			)
 			await expect(
-				eSDB._preprocessor({type: 'pre version'})
+				eSDB._preprocessor({}, {type: 'pre version'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('version')
 			)
 			await expect(
-				eSDB._preprocessor({type: 'bad event'})
+				eSDB._preprocessor({}, {type: 'bad event'})
 			).resolves.toHaveProperty(
 				'error._preprocess_meep',
 				expect.stringContaining('Yeah, no.')
@@ -87,7 +89,9 @@ test('preprocessors', async () => {
 		},
 		{
 			meep: {
-				preprocessor: async ({event, model, store, dispatch}) => {
+				preprocessor: async ({event, model, store, dispatch, cache}) => {
+					if (typeof cache !== 'object')
+						throw new Error('preprocessor: expecting a cache object')
 					if (!model) throw new Error('expecting my model')
 					if (!store) throw new Error('expecting the store')
 					if (!dispatch) throw new Error('expecting dispatch for subevents')
@@ -108,7 +112,9 @@ test('preprocessors', async () => {
 						return {error: 'Yeah, no.'}
 					}
 				},
-				reducer: (model, event) => {
+				reducer: ({event, cache}) => {
+					if (typeof cache !== 'object')
+						throw new Error('reducer: expecting a cache object')
 					if (event.type === 'set_thing') {
 						return {set: [event.data]}
 					}
@@ -133,7 +139,7 @@ test('reducer, deriver data immutable', async () => {
 		},
 		{
 			meep: {
-				reducer: (model, event) => {
+				reducer: ({event}) => {
 					if (event.type === 'reduce') event.data.foo = 'bar'
 				},
 				deriver: ({event}) => {
@@ -164,7 +170,7 @@ test('preprocessor/reducer for ESModel', async () =>
 				preprocessor: async ({event}) => {
 					if (event.data && event.data.foo) event.data.ok = true
 				},
-				reducer: (model, event) => {
+				reducer: ({event}) => {
 					if (event.type === 'set_thing') {
 						return {set: [event.data]}
 					}

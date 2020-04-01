@@ -8,7 +8,7 @@ test('work', () => {
 				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('hello')
 			},
-			reducer: (model, event, {dispatch, isMainEvent}) => {
+			reducer: ({event, dispatch, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi') dispatch('everybody')
 				return {set: [{id: event.type}]}
@@ -32,7 +32,7 @@ test('work', () => {
 test('depth first order', () => {
 	const models = {
 		foo: {
-			reducer: (model, event, {dispatch}) => {
+			reducer: ({event, dispatch}) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
 				if (event.type === '3') dispatch('4')
 			},

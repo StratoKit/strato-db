@@ -310,10 +310,11 @@ test('preprocessor', () => {
 		{
 			m: {
 				idCol: 'hi',
-				reducer: (model, event) => {
-					if (!model) return false
-					if (event.type === model.TYPE && event.data[1] === 'a') ok = true
-					return ESModel.reducer(model, event)
+				reducer: args => {
+					if (!args.model) return false
+					if (args.event.type === args.model.TYPE && args.event.data[1] === 'a')
+						ok = true
+					return ESModel.reducer(args)
 				},
 			},
 		}
@@ -330,7 +331,7 @@ test('init', () =>
 		{
 			m: {
 				init: true,
-				reducer: (model, event) =>
+				reducer: ({model, event}) =>
 					event.type === model.INIT ? {ins: [{id: 'yey'}]} : false,
 			},
 		}
@@ -361,7 +362,10 @@ test('events updates', () =>
 		async (eSDB, queue) => {
 			const {m} = eSDB.store
 			expect(await m.set({meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
-			expect(await m.set({v: 1, meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, meep: 'moop'})).toEqual({
+				v: 1,
+				meep: 'moop',
+			})
 			expect(await m.set({v: 1, beep: 'boop', a: [null, 3]})).toEqual({
 				v: 1,
 				beep: 'boop',

@@ -2,9 +2,12 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import {JsonModel} from '..'
 import ESDB from '.'
-import {withESDB, testModels} from '../lib/_test-helpers'
+import {withESDB, testModels, DB} from '../lib/_test-helpers'
 
-const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
+const events = [
+	{v: 1, type: 'foo'},
+	{v: 2, type: 'bar', data: {gotBar: true}},
+]
 
 test('create', () =>
 	tmp.withDir(
@@ -31,6 +34,27 @@ test('create', () =>
 			])
 		},
 		{unsafeCleanup: true, prefix: 'esdb-create'}
+	))
+
+test('create with existing version', () =>
+	tmp.withDir(
+		async ({path: dir}) => {
+			const file = sysPath.join(dir, 'db')
+			const db = new DB({file})
+			await db.userVersion(100)
+			const queueFile = sysPath.join(dir, 'q')
+			const eSDB = new ESDB({
+				file,
+				queueFile,
+				name: 'E',
+				models: testModels,
+			})
+			// Note that this only works if you open the db first
+			await eSDB.waitForQueue()
+			const e = await eSDB.dispatch('hi')
+			expect(e.v).toBe(101)
+		},
+		{unsafeCleanup: true}
 	))
 
 test('create in single file', async () => {
@@ -91,7 +115,7 @@ test('create without given queue', async () => {
 
 test('reducer', () => {
 	return withESDB(async eSDB => {
-		const result = await eSDB._reducer(events[0])
+		const result = await eSDB._reducer({}, events[0])
 		expect(result).toEqual({
 			v: 1,
 			type: 'foo',
@@ -99,7 +123,7 @@ test('reducer', () => {
 				count: {set: [{id: 'count', total: 1, byType: {foo: 1}}]},
 			},
 		})
-		const result2 = await eSDB._reducer(events[1])
+		const result2 = await eSDB._reducer({}, events[1])
 		expect(result2).toEqual({
 			v: 2,
 			type: 'bar',
@@ -118,7 +142,7 @@ test('preprocess => reduce', () => {
 				if (event.type !== 'meep') return
 				return {...event, step: 1}
 			},
-			reducer: (model, event) => {
+			reducer: ({event}) => {
 				if (event.type !== 'meep') return
 				expect(event).toHaveProperty('step', 1)
 			},
@@ -169,7 +193,8 @@ test('metadata migration', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},
@@ -200,7 +225,8 @@ test('metadata migration with existing data', async () => {
 			})
 		}
 
-		static reducer() {}
+		// eslint-disable-next-line no-unused-vars
+		static reducer(args) {}
 	}
 	const eSDB = new ESDB({
 		models: {metadata: {Model: M}},

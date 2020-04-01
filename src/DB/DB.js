@@ -45,10 +45,18 @@ const _markMigration = async (db, runKey, up) => {
  * @extends SQLite
  */
 class DB extends SQLite {
-	constructor({migrations = [], ...options} = {}) {
+	/**
+	 * @param {object} options options for DB and SQLite
+	 * @param {boolean} [options.readOnly] open the DB read-only
+	 * @param {Array} [options.migrations] migration definitions
+	 * @param {function} [options.onBeforeMigrations] called with the `db` before migrations run. Not called for read-only
+	 * @param {function} [options.onDidOpen] called with the `db` after migrations ran. If readOnly is set, it runs after opening DB. The DB is open after this function resolves
+	 */
+	constructor({migrations = [], onBeforeMigrations, ...options} = {}) {
 		const onDidOpen = options.readOnly
 			? options.onDidOpen
 			: async db => {
+					if (onBeforeMigrations) await onBeforeMigrations(db)
 					await this.runMigrations(db)
 					if (options.onDidOpen) await options.onDidOpen(db)
 			  }
