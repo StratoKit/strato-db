@@ -4,7 +4,10 @@ import {JsonModel} from '..'
 import ESDB from '.'
 import {withESDB, testModels, DB} from '../lib/_test-helpers'
 
-const events = [{v: 1, type: 'foo'}, {v: 2, type: 'bar', data: {gotBar: true}}]
+const events = [
+	{v: 1, type: 'foo'},
+	{v: 2, type: 'bar', data: {gotBar: true}},
+]
 
 test('create', () =>
 	tmp.withDir(

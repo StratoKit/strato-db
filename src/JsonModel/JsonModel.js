@@ -523,9 +523,10 @@ class JsonModel {
 			rows.length === options.limit
 		) {
 			const last = rows[rows.length - 1]
-			cursor = jsurl.stringify(cursorKeys.map(k => last[k]), {
-				short: true,
-			})
+			cursor = jsurl.stringify(
+				cursorKeys.map(k => last[k]),
+				{short: true}
+			)
 		}
 		const out = {items, cursor}
 		if (totalO) out.total = totalO.t

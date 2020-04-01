@@ -7,7 +7,11 @@ export {DB, JsonModel}
 
 export const getModel = options => {
 	const db = new DB()
-	return db.addModel(JsonModel, {name: 'testing', keepRowId: false, ...options})
+	return db.addModel(JsonModel, {
+		name: 'testing',
+		keepRowId: false,
+		...options,
+	})
 }
 
 export const sharedSetup = getPromise => fn => {

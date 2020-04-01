@@ -34,7 +34,9 @@ test('set without id, INTEGER type', async () => {
 })
 
 test('INTEGER autoIncrement id', async () => {
-	const m = getModel({columns: {id: {type: 'INTEGER', autoIncrement: true}}})
+	const m = getModel({
+		columns: {id: {type: 'INTEGER', autoIncrement: true}},
+	})
 	await m.set({id: 50})
 	await m.remove({id: 50})
 	await m.set({})

@@ -33,7 +33,9 @@ test('dispatch', async () => {
 			ts: 55,
 			data: {woah: true},
 			result: {
-				count: {set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}]},
+				count: {
+					set: [{id: 'count', total: 2, byType: {whattup: 1, dude: 1}}],
+				},
 			},
 		})
 		expect(await event1P).toEqual({

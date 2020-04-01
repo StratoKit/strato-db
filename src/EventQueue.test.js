@@ -15,7 +15,9 @@ const populate = (m, count) => {
 }
 
 test('create w/ extra columns', async () => {
-	const m = getModel({columns: {foo: {real: true, value: () => 5, get: true}}})
+	const m = getModel({
+		columns: {foo: {real: true, value: () => 5, get: true}},
+	})
 	expect(await m.add('hi')).not.toHaveProperty('foo')
 	expect(await m.get(1)).not.toHaveProperty('foo', 5)
 	await m.update({v: 1})

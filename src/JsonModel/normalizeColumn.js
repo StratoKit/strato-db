@@ -24,7 +24,7 @@ export const normalizeColumn = (col, name) => {
 		if (col.value)
 			throw new TypeError(`${name}: slugValue and value can't both be defined`)
 		if (!col.index) throw new TypeError(`${name}: slugValue requires index`)
-		col.value = async function(o) {
+		col.value = async function (o) {
 			if (o[name] != null) return o[name]
 			return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
 		}
@@ -33,7 +33,7 @@ export const normalizeColumn = (col, name) => {
 		col.ignoreNull = false
 		const prev = col.value
 		if (prev) {
-			col.value = async function(o) {
+			col.value = async function (o) {
 				const r = await prev.call(this, o)
 				return r == null ? col.default : r
 			}
@@ -50,7 +50,7 @@ export const normalizeColumn = (col, name) => {
 		col.ignoreNull = false
 		const prev = col.value
 		if (prev) {
-			col.value = async function(o) {
+			col.value = async function (o) {
 				const r = await prev.call(this, o)
 				if (r == null) throw new Error(`${name}: value is required`)
 				return r
@@ -66,7 +66,7 @@ export const normalizeColumn = (col, name) => {
 	if (col.falsyBool) {
 		const prev = col.value
 		if (prev) {
-			col.value = async function(o) {
+			col.value = async function (o) {
 				const r = await prev.call(this, o)
 				return r ? true : undefined
 			}

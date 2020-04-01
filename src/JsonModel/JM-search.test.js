@@ -21,7 +21,12 @@ test('search[One] attrs=null', async () => {
 
 test('cursor id-only', () => {
 	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, c: {type: 'TEXT'}, d: {}, e: {where: '?'}},
+		columns: {
+			id: {type: 'INTEGER'},
+			c: {type: 'TEXT'},
+			d: {},
+			e: {where: '?'},
+		},
 	})
 	expect(m.makeSelect({limit: 5})).toEqual([
 		'SELECT tbl."id" AS _i,tbl."c" AS _0,tbl."json" AS _j FROM "testing" tbl ORDER BY _i LIMIT 5',
@@ -73,7 +78,10 @@ test('search cursor', async () => {
 	})
 	const l = await m.search(null, {...q, cursor: n.cursor})
 	expect(l).toEqual({
-		items: [{id: 6, c: 'c', d: 'd'}, {id: 7, c: 'c', d: 'd'}],
+		items: [
+			{id: 6, c: 'c', d: 'd'},
+			{id: 7, c: 'c', d: 'd'},
+		],
 		cursor: undefined,
 		total: 8,
 	})

@@ -23,7 +23,12 @@ test('toObj derived', () => {
 
 test('toObj array', () => {
 	const m = getModel()
-	expect(m.toObj([{_j: '{"hi":5}', _i: 0}, {_j: '{"ho":6}', _i: 1}])).toEqual([
+	expect(
+		m.toObj([
+			{_j: '{"hi":5}', _i: 0},
+			{_j: '{"ho":6}', _i: 1},
+		])
+	).toEqual([
 		{hi: 5, id: 0},
 		{ho: 6, id: 1},
 	])

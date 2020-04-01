@@ -16,7 +16,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
 const getDuration = ts =>
-	(performance.now() - ts).toLocaleString(undefined, {maximumFractionDigits: 2})
+	(performance.now() - ts).toLocaleString(undefined, {
+		maximumFractionDigits: 2,
+	})
 
 const objToString = o => {
 	const s = inspect(o, {compact: true, breakLength: Infinity})
@@ -334,7 +336,7 @@ class SQLite extends EventEmitter {
 			}
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
-			cb = function(err, out) {
+			cb = function (err, out) {
 				if (err) {
 					if (isBusyError(err) && busyRetry--) {
 						return busyWait().then(runQuery)

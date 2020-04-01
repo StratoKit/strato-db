@@ -362,7 +362,10 @@ test('events updates', () =>
 		async (eSDB, queue) => {
 			const {m} = eSDB.store
 			expect(await m.set({meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
-			expect(await m.set({v: 1, meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
+			expect(await m.set({v: 1, meep: 'moop'})).toEqual({
+				v: 1,
+				meep: 'moop',
+			})
 			expect(await m.set({v: 1, beep: 'boop', a: [null, 3]})).toEqual({
 				v: 1,
 				beep: 'boop',
