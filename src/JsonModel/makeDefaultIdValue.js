@@ -1,9 +1,9 @@
-import uuid from 'uuid'
+import {v1} from 'uuid'
 import {uniqueSlugId} from '../lib/slugify'
 
 const makeDefaultIdValue = idCol => obj => {
 	if (obj[idCol] != null) return obj[idCol]
-	return uuid.v1()
+	return v1()
 }
 
 export const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
