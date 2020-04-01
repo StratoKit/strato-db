@@ -60,6 +60,7 @@ module.exports = {
 		'unicorn/catch-error-name': 0,
 		'unicorn/explicit-length-check': 0,
 		'unicorn/filename-case': 0,
+		'unicorn/no-nested-ternary': 0,
 		'unicorn/prevent-abbreviations': 0,
 		curly: 0,
 		indent: 0,

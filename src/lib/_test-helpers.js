@@ -29,7 +29,9 @@ export const testModels = {
 		migrations: {
 			init: {
 				up({db, model, queue}) {
+					// eslint-disable-next-line jest/no-standalone-expect
 					expect(db).toBeTruthy()
+					// eslint-disable-next-line jest/no-standalone-expect
 					expect(queue).toBeTruthy()
 					return model.set({id: 'count', total: 0, byType: {}})
 				},

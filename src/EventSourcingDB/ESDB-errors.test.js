@@ -67,7 +67,6 @@ test('event emitter', async () => {
 		})
 		await eSDB.dispatch('foo')
 		await eSDB.dispatch('bar')
-		// eslint-disable-next-line require-atomic-updates
 		eSDB.__BE_QUIET = true
 		await expect(eSDB.dispatch('error_reduce')).rejects.toHaveProperty('error')
 		expect(errored).toBe(1)
@@ -109,6 +108,6 @@ test('old reducer signature', async () => {
 	expect(console.error).toHaveBeenCalled()
 	await eSDB.dispatch('TEST')
 	expect(await eSDB.store.old.get(5)).toBeTruthy()
-	// eslint-disable-next-line require-atomic-updates,no-console
+	// eslint-disable-next-line no-console
 	console.error = prev
 })

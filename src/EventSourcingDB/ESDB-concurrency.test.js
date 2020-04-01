@@ -34,7 +34,6 @@ const testModels = {
 				resolveMe()
 				resolveMe = null
 				await waitP
-				// eslint-disable-next-line require-atomic-updates
 				waitP = null
 			}
 		},
@@ -92,7 +91,7 @@ test('multiple ESDB', async () => {
 })
 
 test('subevent handlers see intermediate state', async () => {
-	await db1.dispatch('main')
+	expect(await db1.dispatch('main')).toBeTruthy()
 })
 
 test(`RO and other DB don't see transaction`, async () => {

@@ -226,11 +226,8 @@ test('each', async () => {
 	expect(count).toBe(1)
 	expect(total).toBe(3)
 	expect(maxI).toBe(0)
-	// eslint-disable-next-line require-atomic-updates
 	count = 0
-	// eslint-disable-next-line require-atomic-updates
 	total = 0
-	// eslint-disable-next-line require-atomic-updates
 	maxI = 0
 	await m.each({}, {where: {'id<3': []}, fn})
 	expect(count).toBe(3)

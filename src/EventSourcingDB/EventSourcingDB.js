@@ -274,7 +274,6 @@ class EventSourcingDB extends EventEmitter {
 						const prev = preprocessor
 						preprocessor = async args => {
 							const e = await ESModel.preprocessor(args)
-							// eslint-disable-next-line require-atomic-updates
 							if (e) args.event = e
 							return prev(args)
 						}
@@ -615,7 +614,6 @@ class EventSourcingDB extends EventEmitter {
 						error
 					)
 				}
-				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
@@ -835,13 +833,10 @@ class EventSourcingDB extends EventEmitter {
 			}
 		} catch (error) {
 			if (event.result) {
-				// eslint-disable-next-line require-atomic-updates
 				event.failedResult = event.result
 				delete event.result
 			}
-			// eslint-disable-next-line require-atomic-updates
 			if (!event.error) event.error = {}
-			// eslint-disable-next-line require-atomic-updates
 			event.error[`_apply_${phase}`] = errorToString(error)
 		} finally {
 			for (const model of readWriters) model.setWritable(false)

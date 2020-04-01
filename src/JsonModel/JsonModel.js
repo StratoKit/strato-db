@@ -139,7 +139,7 @@ class JsonModel {
 			if (dbg.enabled) {
 				try {
 					val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
-				} catch (error) {
+				} catch {
 					dbg(
 						`!!! ${this.name}.${k.name}:  parse failed for value ${String(
 							row[k.alias]

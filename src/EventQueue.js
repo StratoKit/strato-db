@@ -230,7 +230,7 @@ class EventQueue extends JsonModel {
 	 * @param  {boolean} [noWait] do not wait for the next event
 	 * @returns {Promise<Event>} the event if found
 	 */
-	async getNext(v = 0, noWait) {
+	async getNext(v = 0, noWait = false) {
 		let event
 		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
 		do {

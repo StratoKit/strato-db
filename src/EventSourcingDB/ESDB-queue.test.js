@@ -72,7 +72,7 @@ test('waitForQueue race', async () =>
 		queue.add('12')
 		const p = eSDB.handledVersion(12)
 		eSDB.startPolling(12)
-		await p
+		expect(await p).toBeTruthy()
 	}))
 
 test('incoming event', async () => {

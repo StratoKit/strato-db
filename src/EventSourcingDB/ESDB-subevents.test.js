@@ -32,7 +32,7 @@ test('work', () => {
 test('depth first order', () => {
 	const models = {
 		foo: {
-			reducer: ({model, event, dispatch}) => {
+			reducer: ({event, dispatch}) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
 				if (event.type === '3') dispatch('4')
 			},

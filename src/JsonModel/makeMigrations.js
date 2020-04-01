@@ -72,24 +72,23 @@ export const makeMigrations = ({
 	}
 	// Wrap the migration functions to provide their arguments
 	const wrappedMigrations = {}
-	const wrapMigration = migration => {
-		const wrap = fn =>
-			fn &&
-			(writeableDb => {
-				if (!writeableDb.store.__madeWriteable) {
-					const {store} = writeableDb
-					writeableDb.store = {__madeWriteable: true}
-					// Create a patched version of all models that uses the migration db
-					Object.values(store).forEach(m => {
-						if (typeof m !== 'object') return
-						writeableDb.store[m.name] = cloneModelWithDb(m, writeableDb)
-					})
-				}
-				const model = writeableDb.store[tableName]
-				return fn({...migrationOptions, db: writeableDb, model})
-			})
-		return wrap(migration.up || migration)
-	}
+	const wrap = fn =>
+		fn &&
+		(writeableDb => {
+			if (!writeableDb.store.__madeWriteable) {
+				const {store} = writeableDb
+				writeableDb.store = {__madeWriteable: true}
+				// Create a patched version of all models that uses the migration db
+				Object.values(store).forEach(m => {
+					if (typeof m !== 'object') return
+					writeableDb.store[m.name] = cloneModelWithDb(m, writeableDb)
+				})
+			}
+			const model = writeableDb.store[tableName]
+			return fn({...migrationOptions, db: writeableDb, model})
+		})
+	const wrapMigration = migration => wrap(migration.up || migration)
+
 	Object.keys(allMigrations).forEach(k => {
 		const m = allMigrations[k]
 		if (m) wrappedMigrations[k] = wrapMigration(m)
