@@ -4,6 +4,7 @@
 
 ### Breaking
 
+- The package builds for NodeJS v10 now.
 - EventSourcingDB events that result in errors now halt processing and have to be fixed before processing continues
 - `waitForP` was removed from DB, use `onWillOpen` instead, if it returns a Promise that will be waited for.
 - The EventSourcingDB version is now stored in the SQLite `user_version` pragma, and the `metadata` model is no longer available by default. If you need it, add `metadata: {}` to the `models` passed to ESDB
