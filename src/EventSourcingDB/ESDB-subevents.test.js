@@ -1,31 +1,47 @@
 // @ts-check
 import {withESDB} from '../lib/_test-helpers'
 
-test('work', () => {
+test('work', async () => {
 	const models = {
 		foo: {
 			preprocessor: ({event, dispatch, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
-				if (event.type === 'hi') dispatch('hello')
+				if (event.type === 'hi' || event.type === 'pre')
+					dispatch('pre-' + event.type)
 			},
 			reducer: ({event, dispatch, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
-				if (event.type === 'hi') dispatch('everybody')
-				return {set: [{id: event.type}]}
+				let events
+				if (event.type === 'hi' || event.type === 'red') {
+					dispatch('red-' + event.type)
+					events = [{type: 'red-out-' + event.type}]
+				}
+				return {set: [{id: event.type}], events}
 			},
 			deriver: ({event, dispatch, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
-				if (event.type === 'hi') dispatch('there')
+				if (event.type === 'hi' || event.type === 'der')
+					dispatch('der-' + event.type)
 			},
 		},
 	}
 	return withESDB(async eSDB => {
+		const checker = async id =>
+			// this way we see the desired value in the output
+			expect((await eSDB.store.foo.get(id)) || false).toHaveProperty('id', id)
 		const event = await eSDB.dispatch('hi')
-		expect(event.events).toHaveLength(3)
-		expect(await eSDB.store.foo.exists({id: 'hi'})).toBeTruthy()
-		expect(await eSDB.store.foo.exists({id: 'hello'})).toBeTruthy()
-		expect(await eSDB.store.foo.exists({id: 'everybody'})).toBeTruthy()
-		expect(await eSDB.store.foo.exists({id: 'there'})).toBeTruthy()
+		expect(event.events).toHaveLength(4)
+		await checker('pre-hi')
+		await checker('red-hi')
+		await checker('red-out-hi')
+		await checker('der-hi')
+		expect((await eSDB.dispatch('pre')).events).toHaveLength(1)
+		await checker('pre-pre')
+		await eSDB.dispatch('red')
+		await checker('red-red')
+		await checker('red-out-red')
+		await eSDB.dispatch('der')
+		await checker('der-der')
 	}, models)
 })
 

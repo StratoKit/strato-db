@@ -674,7 +674,6 @@ class EventSourcingDB extends EventEmitter {
 
 	async _reducer(cache, event, isMainEvent) {
 		const result = {}
-		const events = event.events || []
 
 		if (DEV) {
 			Object.freeze(event.data)
@@ -706,7 +705,10 @@ class EventSourcingDB extends EventEmitter {
 						result[name] = {error: `.events is not an array`}
 						return
 					}
-					events.push(...out.events)
+					// Note that reducers can add/alter event.events
+					// eslint-disable-next-line require-atomic-updates
+					if (!event.events) event.events = []
+					event.events.push(...out.events)
 					delete out.events
 				} else if ('events' in out) {
 					// allow falsy events
@@ -731,7 +733,6 @@ class EventSourcingDB extends EventEmitter {
 			...event,
 			result,
 		}
-		if (events.length) resultEvent.events = events
 		return resultEvent
 	}
 
