@@ -21,7 +21,8 @@ const scripts = {
 			`echo >> API.md`,
 			`jsdoc2md -f src/*.js src/**/*js >> API.md`,
 			`echo >> API.md`,
-			`git log -n1 --format=format:"_Generated from %H, %cI_" >> API.md`
+			`git log -n1 --format=format:"_Generated from %H, %cI_" >> API.md`,
+			`prettier --write API.md`
 		),
 	},
 	test: {
