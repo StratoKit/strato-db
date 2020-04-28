@@ -46,7 +46,6 @@
 
 ### Nice to have
 
-- [ ] rename internal tables to `{sdb} tablename` so they sort last and are easy to ignore
 - [ ] if migration is `{undo:fn}` run the `undo` only if the migration ran before. We never needed `down` migrations so far.
   - to run something only on existing databases, first deploy a `()=>{}` migration and then change it to an `undo`
 
@@ -82,8 +81,8 @@
       So maybe, for sparse index falsybool, only do 'is not null' and throw if false
   - [ ] uuidColumn() -> use buffer stringify/parse to implement efficient UUID by default. See https://stackoverflow.com/questions/20342058/which-uuid-version-to-use
 - [ ] foreign key support
-- [ ] prepared statements
-  - `q = m.prepare(args, options); q.search(args, options) // not allowed to change arg items, where or sort`
+- [ ] prepared statements for .search
+  - `q = m.prepareSearch(args, options); q.search(args, options) // not allowed to change arg items, where or sort`
   - However, `whereVal` values should be allowed to change
   - But `where` should stay the same and should not be recalculated, so best if it is not a function. Most of the time this can be done.
   - Probably `.makeSelect()` would need to return an intermediate query object
@@ -93,7 +92,6 @@
   - it's probably better to always create same object from columns and then assign json if not null
 - Test for `uniqueSlugId`
 - Booleans should be stored as 0/1 if real, except when sparse indexing, then NULL/1. If not real, the index and where clause should be `IFNULL(json..., false)`
-- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers that can't have native code
 
 ## Queue
 
@@ -105,7 +103,7 @@
 
 ### Nice to have
 
-- [ ] split DB into multiple files, per 1GB, automatically attach for queries. (make sure it's multi-process safe - lock the db, make sure new writes are not possible in old files)
+- [ ] split history into multiple files, per 1GB, automatically attach for queries. (make sure it's multi-process safe - lock the db, make sure new writes are not possible in old files)
 - [ ] test multi-process changes
 
 ## ESModel
@@ -124,4 +122,3 @@
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
   - same for preprocessor/deriver
 - [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
-- Support operation without DB, in-memory with initial data, for e.g. Cloudflare workers
