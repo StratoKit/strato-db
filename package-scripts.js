@@ -30,7 +30,7 @@ const scripts = {
 			default: "eslint 'src/**/*.js'",
 			fix: `
 			eslint --fix 'src/**/*.js';
-			prettier --write 'src/**/*.{js,jsx,json,md}'`,
+			prettier --write .`,
 		},
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',

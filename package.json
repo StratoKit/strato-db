@@ -64,15 +64,8 @@
     "jest-cli": "25.2.4",
     "jsdoc-to-markdown": "5.0.3",
     "nps-utils": "^1.7.0",
-    "prettier": "2.0.2",
+    "prettier": "2.0.5",
     "tmp-promise": "2.0.2"
-  },
-  "prettier": {
-    "useTabs": true,
-    "semi": false,
-    "singleQuote": true,
-    "trailingComma": "es5",
-    "bracketSpacing": false
   },
   "jest": {
     "globals": {
