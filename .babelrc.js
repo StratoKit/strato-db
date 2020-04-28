@@ -6,7 +6,7 @@ const dbg = debug('strato-db/babel')
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-module.exports = function(context, opts) {
+module.exports = function (context, opts) {
 	context.cache(true)
 	if (opts == null) {
 		opts = {}
@@ -21,10 +21,6 @@ module.exports = function(context, opts) {
 		!isDev && require.resolve('babel-plugin-lodash'),
 		// class { handleClick = () => { } }
 		require.resolve('@babel/plugin-proposal-class-properties'),
-		// { ...todo, completed: true }
-		require.resolve('@babel/plugin-proposal-object-rest-spread'),
-		// Accessing deeply nested properties: { obj?.foo?.bar?.baz }
-		require.resolve('@babel/plugin-proposal-optional-chaining'),
 	].filter(Boolean)
 
 	const presets = [
@@ -34,7 +30,7 @@ module.exports = function(context, opts) {
 		[
 			require.resolve('@babel/preset-env'),
 			{
-				targets: {node: isDev ? true : '8.0'},
+				targets: {node: isDev ? true : '10.0'},
 				// this is either `false` or `undefined`
 				modules: !noModules && undefined,
 				// uncomment this to verify that we don't need polyfills

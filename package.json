@@ -9,7 +9,7 @@
     "email": "Wout.Mertens@gmail.com"
   },
   "engines": {
-    "node": ">=8"
+    "node": ">=10"
   },
   "scripts": {
     "start": "nps",
@@ -44,14 +44,10 @@
   "devDependencies": {
     "@babel/cli": "latest",
     "@babel/core": "latest",
-    "@babel/plugin-proposal-class-properties": "latest",
-    "@babel/plugin-proposal-object-rest-spread": "latest",
-    "@babel/plugin-proposal-optional-chaining": "7.9.0",
+    "@babel/plugin-proposal-class-properties": "^7.8.3",
     "@babel/polyfill": "7.8.7",
     "@babel/preset-env": "latest",
     "@babel/register": "latest",
-    "@types/jest": "25.1.4",
-    "babel-core": "bridge",
     "babel-eslint": "10.1.0",
     "babel-jest": "25.2.4",
     "babel-plugin-lodash": "^3.3.4",
