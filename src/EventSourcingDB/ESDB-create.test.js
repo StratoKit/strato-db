@@ -183,7 +183,7 @@ test('reducer migration support', async () => {
 
 test('metadata migration', async () => {
 	class M extends JsonModel {
-		constructor({emitter, ...props}) {
+		constructor({emitter: _1, ...props}) {
 			super({
 				...props,
 				migrations: {
@@ -212,7 +212,7 @@ test('metadata migration', async () => {
 
 test('metadata migration with existing data', async () => {
 	class M extends JsonModel {
-		constructor({emitter, ...props}) {
+		constructor({emitter: _1, ...props}) {
 			super({
 				...props,
 				migrations: {

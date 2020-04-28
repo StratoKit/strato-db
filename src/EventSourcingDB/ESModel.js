@@ -10,10 +10,10 @@ import {DEV} from '../lib/warning'
 import {isEqual} from 'lodash'
 import applyResult from './applyResult'
 
-export const undefToNull = (data) => {
+export const undefToNull = data => {
 	if (data == null) return null
 	if (typeof data !== 'object') return data
-	if (Array.isArray(data)) return data.map(undefToNull)
+	if (Array.isArray(data)) return data.map(element => undefToNull(element))
 	if (Object.getPrototypeOf(data) !== Object.prototype) return data
 	const out = {}
 	Object.entries(data).forEach(([key, value]) => {
@@ -228,7 +228,7 @@ class ESModel extends JsonModel {
 	async getNextId() {
 		if (!this._maxId) {
 			if (!this._maxIdP)
-				this._maxIdP = this.max(this.idCol).then((m) => {
+				this._maxIdP = this.max(this.idCol).then(m => {
 					this._maxId = m
 					return m
 				})

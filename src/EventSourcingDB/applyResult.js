@@ -4,6 +4,7 @@ import {settleAll} from '../lib/settleAll'
 const applyResult = async (model, result) => {
 	const {rm, set, ins, upd, sav} = result
 	if (DEV) {
+		// eslint-disable-next-line no-unused-vars
 		const {rm, set, ins, upd, sav, ...rest} = result
 		Object.keys(rest).forEach(
 			k => typeof rest[k] !== 'undefined' && unknown(k, `key ${k} in result`)

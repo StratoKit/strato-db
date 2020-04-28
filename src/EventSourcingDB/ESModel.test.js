@@ -24,7 +24,7 @@ class ESModelIntId extends ESModel {
 					index: true,
 					type: 'INTEGER',
 				},
-				calc: {value: (o) => o.myId || 0},
+				calc: {value: o => o.myId || 0},
 			},
 			idCol: 'myId',
 		})
@@ -69,7 +69,7 @@ test('undefToNull', () => {
 
 test('create', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const result = await eSDB.store.test.all()
 			expect(result).toEqual([])
 		},
@@ -78,7 +78,7 @@ test('create', () =>
 
 test('getId standard settings', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await getId(eSDB.store.test, {top: 'kek'})).toBeTruthy()
 		},
 		{test: {Model: ESModel}}
@@ -86,7 +86,7 @@ test('getId standard settings', () =>
 
 test('getId custom idCol', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await getId(eSDB.store.test, {top: 'kek'})).toBeTruthy()
 		},
 		{test: {Model: ESModelCustomId}}
@@ -94,7 +94,7 @@ test('getId custom idCol', () =>
 
 test('getId integer idCol', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await getId(eSDB.store.test, {top: 'kek'})).toBe(1)
 			expect(await getId(eSDB.store.test, {top: 'kek'})).toBe(2)
 			await eSDB.store.test.set({myId: 7, asd: 'dsa'})
@@ -107,7 +107,7 @@ test('getId integer idCol', () =>
 
 test('set w/ id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await eSDB.store.test.set(sampleObject)).toEqual(sampleObject)
 		},
 		{test: {Model: ESModel}}
@@ -115,7 +115,7 @@ test('set w/ id', () =>
 
 test('set w/o id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const newObject = await eSDB.store.test.set({
 				...sampleObject,
 				id: undefined,
@@ -127,7 +127,7 @@ test('set w/o id', () =>
 
 test('set w/o id int', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const sampleWithoutId = {
 				...sampleObject,
 				id: undefined,
@@ -145,7 +145,7 @@ test('set w/o id int', () =>
 
 test('set w/ calc value', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const sampleWithoutId = {
 				...sampleObject,
 				id: undefined,
@@ -162,7 +162,7 @@ test('set w/ calc value', () =>
 
 test('set insertOnly', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await expect(
 				Promise.all([
 					eSDB.store.test.set(sampleObject, true),
@@ -175,7 +175,7 @@ test('set insertOnly', () =>
 
 test('update', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.store.test.set(sampleObject)
 			const newObject = {
 				id: sampleObject.id,
@@ -192,7 +192,7 @@ test('update', () =>
 
 test('update w/o id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await expect(eSDB.store.test.update({top: 'kek'})).rejects.toThrow(
 				'No ID specified'
 			)
@@ -202,7 +202,7 @@ test('update w/o id', () =>
 
 test('update w/ undefined values', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.store.test.set(sampleObject)
 			expect(
 				await eSDB.store.test.update({id: sampleObject.id, top: undefined})
@@ -213,7 +213,7 @@ test('update w/ undefined values', () =>
 
 test('update non-existent object', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await expect(eSDB.store.test.update(sampleObject)).rejects.toThrow(
 				'ENOENT'
 			)
@@ -223,7 +223,7 @@ test('update non-existent object', () =>
 
 test('update upsert', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await eSDB.store.test.update(sampleObject, true)).toEqual(
 				sampleObject
 			)
@@ -233,7 +233,7 @@ test('update upsert', () =>
 
 test('update upsert w/o id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			expect(await eSDB.store.test.update({top: 'kek'}, true)).toEqual({
 				myId: 1,
 				top: 'kek',
@@ -245,7 +245,7 @@ test('update upsert w/o id', () =>
 
 test('remove by id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.store.test.set(sampleObject)
 			expect(await eSDB.store.test.remove(sampleObject.id)).toEqual(true)
 			expect(await eSDB.store.test.all()).toEqual([])
@@ -255,7 +255,7 @@ test('remove by id', () =>
 
 test('remove by object', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.store.test.set(sampleObject)
 			expect(await eSDB.store.test.remove(sampleObject)).toEqual(true)
 			expect(await eSDB.store.test.all()).toEqual([])
@@ -265,7 +265,7 @@ test('remove by object', () =>
 
 test('remove by object without id', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.store.test.set(sampleObject)
 			await expect(
 				eSDB.store.test.remove({...sampleObject, id: undefined})
@@ -282,7 +282,7 @@ class Foo {
 
 test('ItemClass set', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const {m} = eSDB.store
 			const setted = await m.set({id: 4, f: 'meep'})
 			expect(setted instanceof Foo).toBe(true)
@@ -302,7 +302,7 @@ test('ItemClass set', () =>
 test('preprocessor', () => {
 	let ok
 	return withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			const {m} = eSDB.store
 			await m.set({hi: 'a', meep: 'moop'})
 			expect(ok).toBe(true)
@@ -310,7 +310,7 @@ test('preprocessor', () => {
 		{
 			m: {
 				idCol: 'hi',
-				reducer: (args) => {
+				reducer: args => {
 					if (!args.model) return false
 					if (args.event.type === args.model.TYPE && args.event.data[1] === 'a')
 						ok = true
@@ -323,7 +323,7 @@ test('preprocessor', () => {
 
 test('init', () =>
 	withESDB(
-		async (eSDB) => {
+		async eSDB => {
 			await eSDB.waitForQueue()
 			const {m} = eSDB.store
 			expect(await m.exists({id: 'yey'})).toBeTruthy()
@@ -348,7 +348,7 @@ test('events', () =>
 			await m.remove(3)
 			const events = await queue.all()
 			expect(
-				events.map((e) => {
+				events.map(e => {
 					e.ts = 0
 					return e
 				})
@@ -383,7 +383,7 @@ test('events updates', () =>
 			})
 			const events = await queue.all()
 			expect(
-				events.map((e) => {
+				events.map(e => {
 					e.ts = 0
 					return e
 				})
@@ -407,7 +407,7 @@ test('metadata in event', () =>
 			expect(events[0].data).toHaveLength(4)
 			expect(events[4].data).toHaveLength(3)
 			expect(events[6].data).toHaveLength(2)
-			expect(events.map((e) => e.data[3])).toEqual([
+			expect(events.map(e => e.data[3])).toEqual([
 				{meta: 1},
 				{meta: 2},
 				{meta: 3},
@@ -423,7 +423,7 @@ test('metadata in event', () =>
 describe('getNextId', () => {
 	test('works', () =>
 		withESDB(
-			async (eSDB) => {
+			async eSDB => {
 				const {m} = eSDB.store
 				await expect(m.getNextId()).resolves.toBe(1)
 				await m.set({id: 1})
@@ -436,7 +436,7 @@ describe('getNextId', () => {
 
 	test('concurrent', () =>
 		withESDB(
-			async (eSDB) => {
+			async eSDB => {
 				const {m} = eSDB.store
 				expect(await Promise.all([m.getNextId(), m.getNextId()])).toEqual([
 					1,
