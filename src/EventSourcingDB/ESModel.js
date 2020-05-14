@@ -109,15 +109,17 @@ class ESModel extends JsonModel {
 		})
 		this.dispatch = dispatch
 		this.writable = false
-		const clearMax = () => {
+		this.cache = {}
+		const clearCache = () => {
+			this.cache = {}
 			this._maxId = 0
 		}
 		// Prevent max listeners warning
 		options.db.setMaxListeners(options.db.getMaxListeners() + 1)
-		options.db.on('begin', clearMax)
+		options.db.on('begin', clearCache)
 		emitter.setMaxListeners(emitter.getMaxListeners() + 1)
-		emitter.on('result', clearMax)
-		emitter.on('error', clearMax)
+		emitter.on('result', clearCache)
+		emitter.on('error', clearCache)
 	}
 
 	TYPE = `es/${this.name}`
@@ -331,6 +333,11 @@ class ESModel extends JsonModel {
 	async applyResult(result) {
 		if (result.esFail) return
 		return applyResult(this, {...result, esFail: undefined})
+	}
+
+	async get(id, colName) {
+		if (this.writable) return super.get(id, colName)
+		return super.getCached(this.cache, id, colName)
 	}
 
 	/**
