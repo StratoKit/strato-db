@@ -444,7 +444,7 @@ class SQLite extends EventEmitter {
 	 * Note that node-sqlite3 seems to just fetch all data in one go.
 	 * @param {string} sql - the SQL statement to be executed
 	 * @param {Array<*>} [vars] - the variables to be bound to the statement
-	 * @param {function} cb(row) - the function to call on each row
+	 * @param {function(object): Promise<void>} cb - the function to call on each row
 	 * @returns {Promise<void>} - a promise for execution completion
 	 */
 	each(...args) {

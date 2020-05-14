@@ -94,8 +94,8 @@ An event queue, including history
     * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
     * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
     * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-    * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.clearCache([cache], id, [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+    * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
     * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
 
 <a name="new_EventQueue_new"></a>
@@ -387,7 +387,7 @@ Get several objects by their unique value, like their ID
 
 <a name="JsonModel+getCached"></a>
 
-### eventQueue.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### eventQueue.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
@@ -398,13 +398,13 @@ courtesy of DataLoader.
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
 | id | <code>\*</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### eventQueue.clearCache([cache], id, [colName]) ⇒ <code>DataLoader</code>
+### eventQueue.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
@@ -414,8 +414,8 @@ change only some items
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+update"></a>
@@ -877,8 +877,8 @@ For example: `model.set({foo: true})` would result in the event
         * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
         * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
         * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-        * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-        * [.clearCache([cache], id, [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+        * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+        * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
     * _static_
         * [.preprocessor()](#ESModel.preprocessor)
         * [.reducer(model, event)](#ESModel.reducer) ⇒ <code>Promise.&lt;Object&gt;</code>
@@ -1191,7 +1191,7 @@ Get several objects by their unique value, like their ID
 
 <a name="JsonModel+getCached"></a>
 
-### esModel.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### esModel.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
@@ -1202,13 +1202,13 @@ courtesy of DataLoader.
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
 | id | <code>\*</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### esModel.clearCache([cache], id, [colName]) ⇒ <code>DataLoader</code>
+### esModel.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
@@ -1218,8 +1218,8 @@ change only some items
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="ESModel.preprocessor"></a>
@@ -1277,8 +1277,8 @@ per object (document). Each object must have a unique ID, normally at `obj.id`.
     * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
     * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
     * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-    * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.clearCache([cache], id, [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+    * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
     * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
 
 <a name="new_JsonModel_new"></a>
@@ -1487,7 +1487,7 @@ Get several objects by their unique value, like their ID
 
 <a name="JsonModel+getCached"></a>
 
-### jsonModel.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### jsonModel.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
@@ -1497,13 +1497,13 @@ courtesy of DataLoader.
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
 | id | <code>\*</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### jsonModel.clearCache([cache], id, [colName]) ⇒ <code>DataLoader</code>
+### jsonModel.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
@@ -1512,8 +1512,8 @@ change only some items
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| [cache] | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+update"></a>
@@ -1639,4 +1639,4 @@ is converted to
 | [keepRowId] | <code>boolean</code> |  | preserve row id after vacuum |
 
 
-_Generated from 4d38c44193c153c998d3ce90073300a5a9536a05, 2020-04-28T18:17:13+02:00_
+_Generated from 5cff9088f0e4be9a0cff73530b3de03a0685230c, 2020-04-28T19:37:51+02:00_

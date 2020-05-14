@@ -95,7 +95,7 @@ class DB extends SQLite {
 	/**
 	 * Register an object with migrations
 	 * @param {string} name - the name under which to register these migrations
-	 * @param {object<object<function>>} migrations - the migrations object
+	 * @param {Record<string, function | Record<string, function>>} migrations - the migrations object
 	 * @returns {void}
 	 */
 	registerMigrations(name, migrations) {
