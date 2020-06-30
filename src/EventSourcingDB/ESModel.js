@@ -94,7 +94,12 @@ class ESModel extends JsonModel {
 			...options,
 			migrations: {
 				...options.migrations,
-				'0_init': init && (({queue}) => queue.add(this.INIT)),
+				'0_init':
+					init &&
+					(({queue}) => {
+						// Don't wait for add Promise to prevent deadlock
+						queue.add(this.INIT)
+					}),
 			},
 		})
 		this.dispatch = dispatch
