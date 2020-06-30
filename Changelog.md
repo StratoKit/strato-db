@@ -1,5 +1,16 @@
 # Changelog
 
+## Next
+
+### Breaking
+
+- The `cache` argument to `JsonModel.clearCache(cache, [id], [colName])` is no longer optional, and the method will now always return the `DataLoader` instance
+
+### Changes
+
+- There was a deadlock in some circumstances where the initialization of ESModel could wait on the EventQueue and vice versa
+- `JsonModel.getAll(ids, [colName])` now optimizes getting 0 and 1 objects
+
 ## 3.0.0
 
 ### Breaking

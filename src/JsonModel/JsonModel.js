@@ -24,6 +24,12 @@ const dbg = debug('strato-db/JSON')
  * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
  * per object (document). Each object must have a unique ID, normally at `obj.id`.
  */
+
+/**
+ * @typedef {Record<string>} Row
+ * @typedef {string|number} ID
+ */
+
 class JsonModel {
 	/**
 	 * Creates a new JsonModel instance
@@ -126,7 +132,7 @@ class JsonModel {
 	 * parses a row as returned by sqlite
 	 * @param {object} row - result from sqlite
 	 * @param {object} options - an object possibly containing the `cols` array with the desired column names
-	 * @returns {object} - the resulting object (document)
+	 * @returns {Row} - the resulting object (document)
 	 */
 	parseRow = (row, options) => {
 		const mapCols =
@@ -500,7 +506,7 @@ class JsonModel {
 	 * @param {object} attrs - simple value attributes
 	 * @param {SearchOptions} [options] - search options
 	 * @param {boolean} [options.itemsOnly] - return only the items array
-	 * @returns {Promise<(object|array)>} - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.
+	 * @returns {Promise<({items: Row[], cursor: string}|Row[])>} - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.
 	 */
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
 	async search(attrs, {itemsOnly, ...options} = {}) {
@@ -537,7 +543,7 @@ class JsonModel {
 	 * A shortcut for setting `itemsOnly: true` on {@link search}
 	 * @param {object} attrs - simple value attributes
 	 * @param {SearchOptions} [options] - search options
-	 * @returns {Promise<array<object>>} - the search results
+	 * @returns {Promise<Row[]>} - the search results
 	 */
 	searchAll(attrs, options) {
 		return this.search(attrs, {...options, itemsOnly: true})
@@ -665,7 +671,7 @@ class JsonModel {
 
 	/**
 	 * Get all objects
-	 * @returns {Promise<array<object>>} - the table contents
+	 * @returns {Promise<Row[]>} - the table contents
 	 */
 	all() {
 		if (this._allSql?.db !== this.db)
@@ -678,9 +684,9 @@ class JsonModel {
 
 	/**
 	 * Get an object by a unique value, like its ID
-	 * @param  {*} id - the value for the column
+	 * @param  {ID} id - the value for the column
 	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
-	 * @returns {Promise<(object|null)>} - the object if it exists
+	 * @returns {Promise<(Row|null)>} - the object if it exists
 	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
@@ -700,9 +706,9 @@ class JsonModel {
 
 	/**
 	 * Get several objects by their unique value, like their ID
-	 * @param  {array<*>} ids - the values for the column
+	 * @param  {ID[]} ids - the values for the column
 	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
-	 * @returns {Promise<array<(object|null)>>} - the objects, or null where they don't exist, in order of their requested ID
+	 * @returns {Promise<(Row|null)[]>} - the objects, or null where they don't exist, in order of their requested ID
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -725,43 +731,52 @@ class JsonModel {
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
+	/** @typedef {DataLoader<ID,Row|null>} Loader */
 	/**
-	 * Get an object by a unique value, like its ID, using a cache.
-	 * This also coalesces multiple calls in the same tick into a single query,
-	 * courtesy of DataLoader.
-	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
-	 * @param  {*} id - the value for the column
-	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
-	 * @returns {Promise<(object|null)>} - the object if it exists
+	 * @param {Record<string,Loader>} cache
+	 * @param {string} key
+	 * @param {string} colName
+	 * @returns {Loader}
 	 */
-	getCached(cache, id, colName = this.idCol) {
-		if (!cache) return this.get(id, colName)
+	_ensureLoader(cache, colName) {
+		if (!cache) throw new Error(`cache is required`)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
-			dbg(`creating DataLoader for ${this.name}.${colName}`)
+			dbg(`creating DataLoader ${key}`)
 			// batchSize: max is SQLITE_MAX_VARIABLE_NUMBER, default 999. Lower => less latency
 			cache[key] = new DataLoader(ids => this.getAll(ids, colName), {
 				maxBatchSize: 100,
 			})
 		}
-		return cache[key].load(id)
+		return cache[key]
+	}
+
+	/**
+	 * Get an object by a unique value, like its ID, using a cache.
+	 * This also coalesces multiple calls in the same tick into a single query,
+	 * courtesy of DataLoader.
+	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
+	 * @param  {ID} id - the value for the column
+	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
+	 * @returns {Promise<Row|null>} - the object if it exists. It will be cached.
+	 */
+	getCached(cache, id, colName = this.idCol) {
+		if (!cache) return this.get(id, colName)
+		return this._ensureLoader(cache, colName).load(id)
 	}
 
 	/**
 	 * Lets you clear all the cache or just a key. Useful for when you
 	 * change only some items
-	 * @param  {object} [cache] - the lookup cache. It is managed with DataLoader
-	 * @param  {*} id - the value for the column
+	 * @param  {object} cache - the lookup cache. It is managed with DataLoader
+	 * @param  {ID} [id] - the value for the column
 	 * @param  {string} [colName=this.idCol] - the columnname, defaults to the ID column
-	 * @returns {DataLoader} - the actual cache, you can call `.prime(key, value)` on it to insert a value
+	 * @returns {Loader} - the actual cache, you can call `.prime(key, value)` on it to insert a value
 	 */
 	clearCache(cache, id, colName = this.idCol) {
-		if (!cache) return
-		const key = `_DL_${this.name}_${colName}`
-		const c = cache[key]
-		if (!c) return
-		if (id) return c.clear(id)
-		return c.clearAll()
+		const loader = this._ensureLoader(cache, colName)
+		if (id) return loader.clear(id)
+		return loader.clearAll()
 	}
 
 	async each(attrs, options, fn) {
