@@ -293,7 +293,7 @@ class JsonModel {
 	 * @property {object<array<*>>} [where]: sql expressions as keys with arrays of applicable parameters as values
 	 * @property {string} [join]: arbitrary join clause. Not processed at all
 	 * @property {array<*>} [joinVals]: values needed by the join clause
-	 * @property {Record<string,number} [sort]: object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first
+	 * @property {Record<string,number>} [sort]: object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first
 	 * @property {number} [limit]: max number of rows to return
 	 * @property {number} [offset]: number of rows to skip
 	 * @property {array<string>} [cols]: override the columns to select
@@ -553,13 +553,12 @@ class JsonModel {
 
 	/**
 	 * Check for existence of objects. Returns `true` if the search would yield results
-	 * @type {
-	 (id: ID, options?: SearchOptions) => Promise<boolean> |
-	 (attrs: SearchAttrs, options?: SearchOptions) => Promise<boolean>
-	 }
+	 * @param {ID|SearchAttrs} idOrAttrs the id or simple value attributes
+	 * @param {SearchOptions} [options] search options, only used if attributes are used
+	 * @returns {Promise<boolean>} the search results exist
 	 */
-	exists(attrs, options) {
-		if (attrs && typeof attrs !== 'object') {
+	exists(idOrAttrs, options) {
+		if (idOrAttrs && typeof idOrAttrs !== 'object') {
 			if (this._existsSql?.db !== this.db) {
 				const where = this.columns[this.idCol].sql
 				this._existsSql = this.db.prepare(
@@ -567,10 +566,10 @@ class JsonModel {
 					`existsId ${this.name}`
 				)
 			}
-			return this._existsSql.get([attrs]).then(row => !!row)
+			return this._existsSql.get([idOrAttrs]).then(row => !!row)
 		}
 		const [q, vals] = this.makeSelect({
-			attrs,
+			attrs: idOrAttrs,
 			...options,
 			sort: undefined,
 			limit: 1,
@@ -782,43 +781,48 @@ class JsonModel {
 		return loader.clearAll()
 	}
 
+	// I wish I could use these types
+	// @typedef {(o: Row) => Promise<void>} RowCallback
+	// @typedef {
+	// 	(fn: RowCallback) => Promise<void> |
+	// 	(attrs: SearchAttrs, fn: RowCallback) => Promise<void> |
+	// 	(attrs: SearchAttrs, options: SearchOptions, fn: RowCallback) => Promise<void>
+	// } EachFn
 	/**
 	 * Iterate through search results. Calls `fn` on every result.
 	 * The iteration uses a cursored search, so changes to the model
 	 * during the iteration can influence the iteration.
 	 *
-	 * @typedef {(o: Row) => Promise<void>} RowCallback
-	 * @type {
-		(fn: RowCallback) => Promise<void> |
-		(attrs: SearchAttrs, fn: RowCallback) => Promise<void> |
-		(attrs: SearchAttrs, options: SearchOptions, fn: RowCallback) => Promise<void>
-     }
+	 * @param {SearchAttrs|RowCallback} attrsOrFn
+	 * @param {RowCallback|SearchOptions} [optionsOrFn]
+	 * @param {RowCallback} [fn]
+	 * @returns {Promise<void>} table iteration completed
 	 */
-	async each(attrs, options, fn) {
+	async each(attrsOrFn, optionsOrFn, fn) {
 		if (!fn) {
-			if (options) {
-				if (typeof options === 'function') {
-					fn = options
-					options = undefined
+			if (optionsOrFn) {
+				if (typeof optionsOrFn === 'function') {
+					fn = optionsOrFn
+					optionsOrFn = undefined
 				} else {
-					fn = options.fn
-					delete options.fn
+					fn = optionsOrFn.fn
+					delete optionsOrFn.fn
 				}
-			} else if (typeof attrs === 'function') {
-				fn = attrs
-				attrs = undefined
+			} else if (typeof attrsOrFn === 'function') {
+				fn = attrsOrFn
+				attrsOrFn = undefined
 			}
 			if (!fn) throw new Error('each requires function')
 		}
-		if (!options) options = {}
-		if (!options.limit) options.limit = 10
-		options.noCursor = false
-		options.noTotal = true
+		if (!optionsOrFn) optionsOrFn = {}
+		if (!optionsOrFn.limit) optionsOrFn.limit = 10
+		optionsOrFn.noCursor = false
+		optionsOrFn.noTotal = true
 		let cursor
 		let i = 0
 		do {
 			// eslint-disable-next-line no-await-in-loop
-			const result = await this.search(attrs, {...options, cursor})
+			const result = await this.search(attrsOrFn, {...optionsOrFn, cursor})
 			cursor = result.cursor
 			// eslint-disable-next-line no-await-in-loop
 			await settleAll(result.items, v => fn(v, i++))
