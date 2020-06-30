@@ -263,6 +263,7 @@ class ESModel extends JsonModel {
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
 			// Always overwrite, so repeat events get correct ids
+			// eslint-disable-next-line require-atomic-updates
 			event.data[1] = await getId(model, event.data[2])
 			return event
 		}
