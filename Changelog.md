@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 3.1.0
 
 ### Breaking
 
@@ -8,6 +8,7 @@
 
 ### Changes
 
+- Added TypeScript types generated from the JSDoc, and improved some definitions
 - There was a deadlock in some circumstances where the initialization of ESModel could wait on the EventQueue and vice versa
 - `JsonModel.getAll(ids, [colName])` now optimizes getting 0 and 1 objects
 
