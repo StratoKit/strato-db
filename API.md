@@ -31,9 +31,7 @@ atomically updated based on <a href="#Event">events (free-form messages)</a>.
 This is very similar to how Redux works in React.</p>
 </dd>
 <dt><a href="#JsonModel">JsonModel</a></dt>
-<dd><p>JsonModel is a simple document store. It stores its data in SQLite as a table, one row
-per object (document). Each object must have a unique ID, normally at <code>obj.id</code>.</p>
-</dd>
+<dd></dd>
 </dl>
 
 ## Constants
@@ -55,7 +53,12 @@ per object (document). Each object must have a unique ID, normally at <code>obj.
 <dd></dd>
 <dt><a href="#voidFn">voidFn</a> ⇒ <code>Promise.&lt;*&gt;</code> | <code>*</code></dt>
 <dd></dd>
+<dt><a href="#SearchAttrs">SearchAttrs</a> : <code>Record.&lt;string&gt;</code></dt>
+<dd><p>A stored object. It will always have a value for the <code>id</code> column</p>
+</dd>
 <dt><a href="#SearchOptions">SearchOptions</a> : <code>Object</code></dt>
+<dd></dd>
+<dt><a href="#Loader">Loader</a> : <code>DataLoader.&lt;ID, MaybeRow&gt;</code></dt>
 <dd></dd>
 <dt><a href="#ColumnDef">ColumnDef</a> : <code>Object</code></dt>
 <dd></dd>
@@ -73,7 +76,7 @@ An event queue, including history
 
 * [EventQueue](#EventQueue) ⇐ [<code>JsonModel</code>](#JsonModel)
     * [new EventQueue([name], [forever], [withViews])](#new_EventQueue_new)
-    * [.parseRow](#JsonModel+parseRow) ⇒ <code>object</code>
+    * [.parseRow](#JsonModel+parseRow) ⇒ <code>Row</code>
     * [.set(event)](#EventQueue+set) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.getMaxV()](#EventQueue+getMaxV) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.add(type, [data], [ts])](#EventQueue+add) ⇒ [<code>Promise.&lt;Event&gt;</code>](#Event)
@@ -81,22 +84,26 @@ An event queue, including history
     * [.cancelNext()](#EventQueue+cancelNext)
     * [.setKnownV(v)](#EventQueue+setKnownV)
     * [.makeSelect(options)](#JsonModel+makeSelect)
-    * [.searchOne(attrs, options)](#JsonModel+searchOne) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.search(attrs, [options])](#JsonModel+search) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
-    * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-    * [.exists(attrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    * [.count(attrs, [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
+    * [.searchOne(attrs, [options])](#JsonModel+searchOne) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.search([attrs], [options])](#JsonModel+search) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
+    * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+    * [.exists(idOrAttrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    * [.count([attrs], [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.numAggOp(op, colName, [attrs], [options])](#JsonModel+numAggOp) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.max(colName, [attrs], [options])](#JsonModel+max) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.min(colName, [attrs], [options])](#JsonModel+min) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.sum(colName, [attrs], [options])](#JsonModel+sum) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.avg(colName, [attrs], [options])](#JsonModel+avg) ⇒ <code>Promise.&lt;number&gt;</code>
-    * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-    * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-    * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
-    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+    * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+    * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
+    * [._ensureLoader(cache, key, colName)](#JsonModel+_ensureLoader) ⇒ [<code>Loader</code>](#Loader)
+    * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ [<code>Loader</code>](#Loader)
+    * [.each(attrsOrFn, [optionsOrFn], [fn])](#JsonModel+each) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(Row\|undefined)&gt;</code>
+    * [.remove(idOrObj)](#JsonModel+remove) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.changeId(oldId, newId)](#JsonModel+changeId) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="new_EventQueue_new"></a>
 
@@ -113,12 +120,12 @@ Creates a new EventQueue model, called by DB
 
 <a name="JsonModel+parseRow"></a>
 
-### eventQueue.parseRow ⇒ <code>object</code>
+### eventQueue.parseRow ⇒ <code>Row</code>
 parses a row as returned by sqlite
 
 **Kind**: instance property of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>parseRow</code>](#JsonModel+parseRow)  
-**Returns**: <code>object</code> - - the resulting object (document)  
+**Returns**: <code>Row</code> - - the resulting object (document)  
 
 | Param | Type | Description |
 | --- | --- | --- |
@@ -204,64 +211,64 @@ Parses query options into query parts. Override this function to implement searc
 
 <a name="JsonModel+searchOne"></a>
 
-### eventQueue.searchOne(attrs, options) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### eventQueue.searchOne(attrs, [options]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Search the first matching object
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>searchOne</code>](#JsonModel+searchOne)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the result or null if no match  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the result or null if no match  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
-| options | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+search"></a>
 
-### eventQueue.search(attrs, [options]) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
+### eventQueue.search([attrs], [options]) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
 Search the all matching objects
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>search</code>](#JsonModel+search)  
-**Returns**: <code>Promise.&lt;(object\|array)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
+**Returns**: <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 | [options.itemsOnly] | <code>boolean</code> | return only the items array |
 
 <a name="JsonModel+searchAll"></a>
 
-### eventQueue.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### eventQueue.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 A shortcut for setting `itemsOnly: true` on [search](search)
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>searchAll</code>](#JsonModel+searchAll)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the search results  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the search results  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+exists"></a>
 
-### eventQueue.exists(attrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-Check for existence of objects
+### eventQueue.exists(idOrAttrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
+Check for existence of objects. Returns `true` if the search would yield results
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>exists</code>](#JsonModel+exists)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - - `true` if the search would have results  
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - the search results exist  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> \| <code>string</code> \| <code>number</code> | simple value attributes or the id |
-| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| idOrAttrs | <code>ID</code> \| [<code>SearchAttrs</code>](#SearchAttrs) | the id or simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options, only used if attributes are used |
 
 <a name="JsonModel+count"></a>
 
-### eventQueue.count(attrs, [options]) ⇒ <code>Promise.&lt;number&gt;</code>
+### eventQueue.count([attrs], [options]) ⇒ <code>Promise.&lt;number&gt;</code>
 Count of search results
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
@@ -270,7 +277,7 @@ Count of search results
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+numAggOp"></a>
@@ -286,7 +293,7 @@ Numeric Aggregate Operation
 | --- | --- | --- |
 | op | <code>string</code> | the SQL function, e.g. MAX |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+max"></a>
@@ -301,7 +308,7 @@ Maximum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+min"></a>
@@ -316,7 +323,7 @@ Minimum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+sum"></a>
@@ -331,7 +338,7 @@ Sum values
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+avg"></a>
@@ -346,92 +353,148 @@ Average value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+all"></a>
 
-### eventQueue.all() ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### eventQueue.all() ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 Get all objects
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>all</code>](#JsonModel+all)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the table contents  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the table contents  
 <a name="JsonModel+get"></a>
 
-### eventQueue.get(id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### eventQueue.get(id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>get</code>](#JsonModel+get)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| id | <code>\*</code> |  | the value for the column |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+getAll"></a>
 
-### eventQueue.getAll(ids, [colName]) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
+### eventQueue.getAll(ids, [colName]) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
 Get several objects by their unique value, like their ID
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>getAll</code>](#JsonModel+getAll)  
-**Returns**: <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
+**Returns**: <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| ids | <code>array.&lt;\*&gt;</code> |  | the values for the column |
+| ids | <code>Array.&lt;ID&gt;</code> |  | the values for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+_ensureLoader"></a>
+
+### eventQueue.\_ensureLoader(cache, key, colName) ⇒ [<code>Loader</code>](#Loader)
+**Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
+**Overrides**: [<code>\_ensureLoader</code>](#JsonModel+_ensureLoader)  
+
+| Param | Type |
+| --- | --- |
+| cache | <code>object</code> | 
+| key | <code>string</code> | 
+| colName | <code>string</code> | 
 
 <a name="JsonModel+getCached"></a>
 
-### eventQueue.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### eventQueue.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>getCached</code>](#JsonModel+getCached)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists. It will be cached.  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| [cache] | <code>Record.&lt;string, Loader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### eventQueue.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
+### eventQueue.clearCache(cache, [id], [colName]) ⇒ [<code>Loader</code>](#Loader)
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>clearCache</code>](#JsonModel+clearCache)  
-**Returns**: <code>DataLoader</code> - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
+**Returns**: [<code>Loader</code>](#Loader) - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
+| cache | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+each"></a>
+
+### eventQueue.each(attrsOrFn, [optionsOrFn], [fn]) ⇒ <code>Promise.&lt;void&gt;</code>
+Iterate through search results. Calls `fn` on every result.
+The iteration uses a cursored search, so changes to the model
+during the iteration can influence the iteration.
+
+**Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
+**Overrides**: [<code>each</code>](#JsonModel+each)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - table iteration completed  
+
+| Param | Type |
+| --- | --- |
+| attrsOrFn | [<code>SearchAttrs</code>](#SearchAttrs) \| <code>RowCallback</code> | 
+| [optionsOrFn] | <code>RowCallback</code> \| [<code>SearchOptions</code>](#SearchOptions) | 
+| [fn] | <code>RowCallback</code> | 
 
 <a name="JsonModel+update"></a>
 
-### eventQueue.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+### eventQueue.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(Row\|undefined)&gt;</code>
 Update or upsert an object
 
 **Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
 **Overrides**: [<code>update</code>](#JsonModel+update)  
-**Returns**: <code>Promise.&lt;(object\|undefined)&gt;</code> - A copy of the stored object  
+**Returns**: <code>Promise.&lt;(Row\|undefined)&gt;</code> - A copy of the stored object  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | obj | <code>object</code> | The changes to store, including the id field |
 | [upsert] | <code>boolean</code> | Insert the object if it doesn't exist |
 | [noReturn] | <code>boolean</code> | Do not return the stored object |
+
+<a name="JsonModel+remove"></a>
+
+### eventQueue.remove(idOrObj) ⇒ <code>Promise.&lt;void&gt;</code>
+Remove an object. If the object doesn't exist, this doesn't do anything.
+
+**Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
+**Overrides**: [<code>remove</code>](#JsonModel+remove)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - A promise for the deletion  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| idOrObj | <code>ID</code> \| <code>object</code> | The id or the object itself |
+
+<a name="JsonModel+changeId"></a>
+
+### eventQueue.changeId(oldId, newId) ⇒ <code>Promise.&lt;void&gt;</code>
+"Rename" an object
+
+**Kind**: instance method of [<code>EventQueue</code>](#EventQueue)  
+**Overrides**: [<code>changeId</code>](#JsonModel+changeId)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - A promise for the rename  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| oldId | <code>ID</code> | The current ID. If it doesn't exist this will throw. |
+| newId | <code>ID</code> | The new ID. If this ID is already in use this will throw. |
 
 <a name="DB"></a>
 
@@ -454,7 +517,7 @@ The migration state is kept in the table ""{sdb} migrations"".
     * [.run(sql, [vars])](#SQLite+run) ⇒ <code>Promise.&lt;object&gt;</code>
     * [.exec(sql, [vars])](#SQLite+exec) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.prepare(sql, [name])](#SQLite+prepare) ⇒ <code>Statement</code>
-    * [.each(sql, [vars], cb(row))](#SQLite+each) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.each(sql, [vars], cb)](#SQLite+each) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.dataVersion()](#SQLite+dataVersion) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.userVersion([newV])](#SQLite+userVersion) ⇒ <code>Promise.&lt;(number\|void)&gt;</code>
     * [.withTransaction(fn)](#SQLite+withTransaction) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -495,7 +558,7 @@ Register an object with migrations
 | Param | Type | Description |
 | --- | --- | --- |
 | name | <code>string</code> | the name under which to register these migrations |
-| migrations | <code>object.&lt;object.&lt;function()&gt;&gt;</code> | the migrations object |
+| migrations | <code>Record.&lt;string, (function()\|Record.&lt;string, function()&gt;)&gt;</code> | the migrations object |
 
 <a name="DB+runMigrations"></a>
 
@@ -599,7 +662,7 @@ finalize it when closing the connection.
 
 <a name="SQLite+each"></a>
 
-### dB.each(sql, [vars], cb(row)) ⇒ <code>Promise.&lt;void&gt;</code>
+### dB.each(sql, [vars], cb) ⇒ <code>Promise.&lt;void&gt;</code>
 Run the given query and call the function on each item.
 Note that node-sqlite3 seems to just fetch all data in one go.
 
@@ -611,7 +674,7 @@ Note that node-sqlite3 seems to just fetch all data in one go.
 | --- | --- | --- |
 | sql | <code>string</code> | the SQL statement to be executed |
 | [vars] | <code>Array.&lt;\*&gt;</code> | the variables to be bound to the statement |
-| cb(row) | <code>function</code> | the function to call on each row |
+| cb | <code>function</code> | the function to call on each row |
 
 <a name="SQLite+dataVersion"></a>
 
@@ -674,7 +737,7 @@ and safe ``db.run`select * from foo where bar=${bar}` `` templating.
     * [.run(sql, [vars])](#SQLite+run) ⇒ <code>Promise.&lt;object&gt;</code>
     * [.exec(sql, [vars])](#SQLite+exec) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.prepare(sql, [name])](#SQLite+prepare) ⇒ <code>Statement</code>
-    * [.each(sql, [vars], cb(row))](#SQLite+each) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.each(sql, [vars], cb)](#SQLite+each) ⇒ <code>Promise.&lt;void&gt;</code>
     * [.dataVersion()](#SQLite+dataVersion) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.userVersion([newV])](#SQLite+userVersion) ⇒ <code>Promise.&lt;(number\|void)&gt;</code>
     * [.withTransaction(fn)](#SQLite+withTransaction) ⇒ <code>Promise.&lt;void&gt;</code>
@@ -782,7 +845,7 @@ finalize it when closing the connection.
 
 <a name="SQLite+each"></a>
 
-### sqLite.each(sql, [vars], cb(row)) ⇒ <code>Promise.&lt;void&gt;</code>
+### sqLite.each(sql, [vars], cb) ⇒ <code>Promise.&lt;void&gt;</code>
 Run the given query and call the function on each item.
 Note that node-sqlite3 seems to just fetch all data in one go.
 
@@ -793,7 +856,7 @@ Note that node-sqlite3 seems to just fetch all data in one go.
 | --- | --- | --- |
 | sql | <code>string</code> | the SQL statement to be executed |
 | [vars] | <code>Array.&lt;\*&gt;</code> | the variables to be bound to the statement |
-| cb(row) | <code>function</code> | the function to call on each row |
+| cb | <code>function</code> | the function to call on each row |
 
 <a name="SQLite+dataVersion"></a>
 
@@ -855,7 +918,7 @@ For example: `model.set({foo: true})` would result in the event
 * [ESModel](#ESModel) ⇐ [<code>JsonModel</code>](#JsonModel)
     * [new ESModel(dispatch, [init])](#new_ESModel_new)
     * _instance_
-        * [.parseRow](#JsonModel+parseRow) ⇒ <code>object</code>
+        * [.parseRow](#JsonModel+parseRow) ⇒ <code>Row</code>
         * [.setWritable(state)](#ESModel+setWritable)
         * [.set(obj, [insertOnly], [noReturn], [meta])](#ESModel+set) ⇒ <code>Promise.&lt;Object&gt;</code>
         * [.update(o, [upsert], [noReturn], [meta])](#ESModel+update) ⇒ <code>Promise.&lt;Object&gt;</code>
@@ -864,21 +927,23 @@ For example: `model.set({foo: true})` would result in the event
         * [.getNextId()](#ESModel+getNextId) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.applyResult(result)](#ESModel+applyResult) ⇒ <code>Promise.&lt;void&gt;</code>
         * [.makeSelect(options)](#JsonModel+makeSelect)
-        * [.searchOne(attrs, options)](#JsonModel+searchOne) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-        * [.search(attrs, [options])](#JsonModel+search) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
-        * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-        * [.exists(attrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
-        * [.count(attrs, [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
+        * [.searchOne(attrs, [options])](#JsonModel+searchOne) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+        * [.search([attrs], [options])](#JsonModel+search) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
+        * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+        * [.exists(idOrAttrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
+        * [.count([attrs], [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.numAggOp(op, colName, [attrs], [options])](#JsonModel+numAggOp) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.max(colName, [attrs], [options])](#JsonModel+max) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.min(colName, [attrs], [options])](#JsonModel+min) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.sum(colName, [attrs], [options])](#JsonModel+sum) ⇒ <code>Promise.&lt;number&gt;</code>
         * [.avg(colName, [attrs], [options])](#JsonModel+avg) ⇒ <code>Promise.&lt;number&gt;</code>
-        * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-        * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-        * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-        * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-        * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
+        * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+        * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+        * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
+        * [._ensureLoader(cache, key, colName)](#JsonModel+_ensureLoader) ⇒ [<code>Loader</code>](#Loader)
+        * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+        * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ [<code>Loader</code>](#Loader)
+        * [.each(attrsOrFn, [optionsOrFn], [fn])](#JsonModel+each) ⇒ <code>Promise.&lt;void&gt;</code>
     * _static_
         * [.preprocessor()](#ESModel.preprocessor)
         * [.reducer(model, event)](#ESModel.reducer) ⇒ <code>Promise.&lt;Object&gt;</code>
@@ -897,12 +962,12 @@ Creates a new ESModel model, called by DB
 
 <a name="JsonModel+parseRow"></a>
 
-### esModel.parseRow ⇒ <code>object</code>
+### esModel.parseRow ⇒ <code>Row</code>
 parses a row as returned by sqlite
 
 **Kind**: instance property of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>parseRow</code>](#JsonModel+parseRow)  
-**Returns**: <code>object</code> - - the resulting object (document)  
+**Returns**: <code>Row</code> - - the resulting object (document)  
 
 | Param | Type | Description |
 | --- | --- | --- |
@@ -959,6 +1024,7 @@ update an existing object
 Remove an object
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
+**Overrides**: [<code>remove</code>](#JsonModel+remove)  
 **Returns**: <code>Promise.&lt;boolean&gt;</code> - - always returns true  
 
 | Param | Type | Description |
@@ -972,6 +1038,7 @@ Remove an object
 changeId: not implemented yet, had no need so far
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
+**Overrides**: [<code>changeId</code>](#JsonModel+changeId)  
 <a name="ESModel+getNextId"></a>
 
 ### esModel.getNextId() ⇒ <code>Promise.&lt;number&gt;</code>
@@ -1008,64 +1075,64 @@ Parses query options into query parts. Override this function to implement searc
 
 <a name="JsonModel+searchOne"></a>
 
-### esModel.searchOne(attrs, options) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### esModel.searchOne(attrs, [options]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Search the first matching object
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>searchOne</code>](#JsonModel+searchOne)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the result or null if no match  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the result or null if no match  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
-| options | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+search"></a>
 
-### esModel.search(attrs, [options]) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
+### esModel.search([attrs], [options]) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
 Search the all matching objects
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>search</code>](#JsonModel+search)  
-**Returns**: <code>Promise.&lt;(object\|array)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
+**Returns**: <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 | [options.itemsOnly] | <code>boolean</code> | return only the items array |
 
 <a name="JsonModel+searchAll"></a>
 
-### esModel.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### esModel.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 A shortcut for setting `itemsOnly: true` on [search](search)
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>searchAll</code>](#JsonModel+searchAll)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the search results  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the search results  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+exists"></a>
 
-### esModel.exists(attrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-Check for existence of objects
+### esModel.exists(idOrAttrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
+Check for existence of objects. Returns `true` if the search would yield results
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>exists</code>](#JsonModel+exists)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - - `true` if the search would have results  
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - the search results exist  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> \| <code>string</code> \| <code>number</code> | simple value attributes or the id |
-| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| idOrAttrs | <code>ID</code> \| [<code>SearchAttrs</code>](#SearchAttrs) | the id or simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options, only used if attributes are used |
 
 <a name="JsonModel+count"></a>
 
-### esModel.count(attrs, [options]) ⇒ <code>Promise.&lt;number&gt;</code>
+### esModel.count([attrs], [options]) ⇒ <code>Promise.&lt;number&gt;</code>
 Count of search results
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
@@ -1074,7 +1141,7 @@ Count of search results
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+numAggOp"></a>
@@ -1090,7 +1157,7 @@ Numeric Aggregate Operation
 | --- | --- | --- |
 | op | <code>string</code> | the SQL function, e.g. MAX |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+max"></a>
@@ -1105,7 +1172,7 @@ Maximum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+min"></a>
@@ -1120,7 +1187,7 @@ Minimum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+sum"></a>
@@ -1135,7 +1202,7 @@ Sum values
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+avg"></a>
@@ -1150,77 +1217,106 @@ Average value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+all"></a>
 
-### esModel.all() ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### esModel.all() ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 Get all objects
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>all</code>](#JsonModel+all)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the table contents  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the table contents  
 <a name="JsonModel+get"></a>
 
-### esModel.get(id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### esModel.get(id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>get</code>](#JsonModel+get)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| id | <code>\*</code> |  | the value for the column |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+getAll"></a>
 
-### esModel.getAll(ids, [colName]) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
+### esModel.getAll(ids, [colName]) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
 Get several objects by their unique value, like their ID
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>getAll</code>](#JsonModel+getAll)  
-**Returns**: <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
+**Returns**: <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| ids | <code>array.&lt;\*&gt;</code> |  | the values for the column |
+| ids | <code>Array.&lt;ID&gt;</code> |  | the values for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+_ensureLoader"></a>
+
+### esModel.\_ensureLoader(cache, key, colName) ⇒ [<code>Loader</code>](#Loader)
+**Kind**: instance method of [<code>ESModel</code>](#ESModel)  
+**Overrides**: [<code>\_ensureLoader</code>](#JsonModel+_ensureLoader)  
+
+| Param | Type |
+| --- | --- |
+| cache | <code>object</code> | 
+| key | <code>string</code> | 
+| colName | <code>string</code> | 
 
 <a name="JsonModel+getCached"></a>
 
-### esModel.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### esModel.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>getCached</code>](#JsonModel+getCached)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists. It will be cached.  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| [cache] | <code>Record.&lt;string, Loader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### esModel.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
+### esModel.clearCache(cache, [id], [colName]) ⇒ [<code>Loader</code>](#Loader)
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
 **Kind**: instance method of [<code>ESModel</code>](#ESModel)  
 **Overrides**: [<code>clearCache</code>](#JsonModel+clearCache)  
-**Returns**: <code>DataLoader</code> - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
+**Returns**: [<code>Loader</code>](#Loader) - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
+| cache | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+each"></a>
+
+### esModel.each(attrsOrFn, [optionsOrFn], [fn]) ⇒ <code>Promise.&lt;void&gt;</code>
+Iterate through search results. Calls `fn` on every result.
+The iteration uses a cursored search, so changes to the model
+during the iteration can influence the iteration.
+
+**Kind**: instance method of [<code>ESModel</code>](#ESModel)  
+**Overrides**: [<code>each</code>](#JsonModel+each)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - table iteration completed  
+
+| Param | Type |
+| --- | --- |
+| attrsOrFn | [<code>SearchAttrs</code>](#SearchAttrs) \| <code>RowCallback</code> | 
+| [optionsOrFn] | <code>RowCallback</code> \| [<code>SearchOptions</code>](#SearchOptions) | 
+| [fn] | <code>RowCallback</code> | 
 
 <a name="ESModel.preprocessor"></a>
 
@@ -1255,31 +1351,32 @@ This is very similar to how Redux works in React.
 <a name="JsonModel"></a>
 
 ## JsonModel
-JsonModel is a simple document store. It stores its data in SQLite as a table, one row
-per object (document). Each object must have a unique ID, normally at `obj.id`.
-
 **Kind**: global class  
 
 * [JsonModel](#JsonModel)
     * [new JsonModel(options)](#new_JsonModel_new)
-    * [.parseRow](#JsonModel+parseRow) ⇒ <code>object</code>
+    * [.parseRow](#JsonModel+parseRow) ⇒ <code>Row</code>
     * [.makeSelect(options)](#JsonModel+makeSelect)
-    * [.searchOne(attrs, options)](#JsonModel+searchOne) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.search(attrs, [options])](#JsonModel+search) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
-    * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-    * [.exists(attrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
-    * [.count(attrs, [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
+    * [.searchOne(attrs, [options])](#JsonModel+searchOne) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.search([attrs], [options])](#JsonModel+search) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
+    * [.searchAll(attrs, [options])](#JsonModel+searchAll) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+    * [.exists(idOrAttrs, [options])](#JsonModel+exists) ⇒ <code>Promise.&lt;boolean&gt;</code>
+    * [.count([attrs], [options])](#JsonModel+count) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.numAggOp(op, colName, [attrs], [options])](#JsonModel+numAggOp) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.max(colName, [attrs], [options])](#JsonModel+max) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.min(colName, [attrs], [options])](#JsonModel+min) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.sum(colName, [attrs], [options])](#JsonModel+sum) ⇒ <code>Promise.&lt;number&gt;</code>
     * [.avg(colName, [attrs], [options])](#JsonModel+avg) ⇒ <code>Promise.&lt;number&gt;</code>
-    * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
-    * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
-    * [.getCached(cache, id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
-    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ <code>DataLoader</code>
-    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+    * [.all()](#JsonModel+all) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
+    * [.get(id, [colName])](#JsonModel+get) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.getAll(ids, [colName])](#JsonModel+getAll) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
+    * [._ensureLoader(cache, key, colName)](#JsonModel+_ensureLoader) ⇒ [<code>Loader</code>](#Loader)
+    * [.getCached([cache], id, [colName])](#JsonModel+getCached) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
+    * [.clearCache(cache, [id], [colName])](#JsonModel+clearCache) ⇒ [<code>Loader</code>](#Loader)
+    * [.each(attrsOrFn, [optionsOrFn], [fn])](#JsonModel+each) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.update(obj, [upsert], [noReturn])](#JsonModel+update) ⇒ <code>Promise.&lt;(Row\|undefined)&gt;</code>
+    * [.remove(idOrObj)](#JsonModel+remove) ⇒ <code>Promise.&lt;void&gt;</code>
+    * [.changeId(oldId, newId)](#JsonModel+changeId) ⇒ <code>Promise.&lt;void&gt;</code>
 
 <a name="new_JsonModel_new"></a>
 
@@ -1293,11 +1390,11 @@ Creates a new JsonModel instance
 
 <a name="JsonModel+parseRow"></a>
 
-### jsonModel.parseRow ⇒ <code>object</code>
+### jsonModel.parseRow ⇒ <code>Row</code>
 parses a row as returned by sqlite
 
 **Kind**: instance property of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>object</code> - - the resulting object (document)  
+**Returns**: <code>Row</code> - - the resulting object (document)  
 
 | Param | Type | Description |
 | --- | --- | --- |
@@ -1317,60 +1414,60 @@ Parses query options into query parts. Override this function to implement searc
 
 <a name="JsonModel+searchOne"></a>
 
-### jsonModel.searchOne(attrs, options) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### jsonModel.searchOne(attrs, [options]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Search the first matching object
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the result or null if no match  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the result or null if no match  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
-| options | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+search"></a>
 
-### jsonModel.search(attrs, [options]) ⇒ <code>Promise.&lt;(object\|array)&gt;</code>
+### jsonModel.search([attrs], [options]) ⇒ <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code>
 Search the all matching objects
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;(object\|array)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
+**Returns**: <code>Promise.&lt;({items: Array.&lt;Row&gt;, cursor: string}\|Array.&lt;Row&gt;)&gt;</code> - - `{items[], cursor}`. If no cursor, you got all the results. If `itemsOnly`, returns only the items array.  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 | [options.itemsOnly] | <code>boolean</code> | return only the items array |
 
 <a name="JsonModel+searchAll"></a>
 
-### jsonModel.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### jsonModel.searchAll(attrs, [options]) ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 A shortcut for setting `itemsOnly: true` on [search](search)
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the search results  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the search results  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| attrs | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+exists"></a>
 
-### jsonModel.exists(attrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
-Check for existence of objects
+### jsonModel.exists(idOrAttrs, [options]) ⇒ <code>Promise.&lt;boolean&gt;</code>
+Check for existence of objects. Returns `true` if the search would yield results
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;boolean&gt;</code> - - `true` if the search would have results  
+**Returns**: <code>Promise.&lt;boolean&gt;</code> - the search results exist  
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> \| <code>string</code> \| <code>number</code> | simple value attributes or the id |
-| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
+| idOrAttrs | <code>ID</code> \| [<code>SearchAttrs</code>](#SearchAttrs) | the id or simple value attributes |
+| [options] | [<code>SearchOptions</code>](#SearchOptions) | search options, only used if attributes are used |
 
 <a name="JsonModel+count"></a>
 
-### jsonModel.count(attrs, [options]) ⇒ <code>Promise.&lt;number&gt;</code>
+### jsonModel.count([attrs], [options]) ⇒ <code>Promise.&lt;number&gt;</code>
 Count of search results
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
@@ -1378,7 +1475,7 @@ Count of search results
 
 | Param | Type | Description |
 | --- | --- | --- |
-| attrs | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+numAggOp"></a>
@@ -1393,7 +1490,7 @@ Numeric Aggregate Operation
 | --- | --- | --- |
 | op | <code>string</code> | the SQL function, e.g. MAX |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+max"></a>
@@ -1407,7 +1504,7 @@ Maximum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+min"></a>
@@ -1421,7 +1518,7 @@ Minimum value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+sum"></a>
@@ -1435,7 +1532,7 @@ Sum values
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+avg"></a>
@@ -1449,86 +1546,138 @@ Average value
 | Param | Type | Description |
 | --- | --- | --- |
 | colName | <code>string</code> | column to aggregate |
-| [attrs] | <code>object</code> | simple value attributes |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | simple value attributes |
 | [options] | [<code>SearchOptions</code>](#SearchOptions) | search options |
 
 <a name="JsonModel+all"></a>
 
-### jsonModel.all() ⇒ <code>Promise.&lt;array.&lt;object&gt;&gt;</code>
+### jsonModel.all() ⇒ <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code>
 Get all objects
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;array.&lt;object&gt;&gt;</code> - - the table contents  
+**Returns**: <code>Promise.&lt;Array.&lt;Row&gt;&gt;</code> - - the table contents  
 <a name="JsonModel+get"></a>
 
-### jsonModel.get(id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### jsonModel.get(id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| id | <code>\*</code> |  | the value for the column |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+getAll"></a>
 
-### jsonModel.getAll(ids, [colName]) ⇒ <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code>
+### jsonModel.getAll(ids, [colName]) ⇒ <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code>
 Get several objects by their unique value, like their ID
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;array.&lt;(object\|null)&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
+**Returns**: <code>Promise.&lt;Array.&lt;MaybeRow&gt;&gt;</code> - - the objects, or null where they don't exist, in order of their requested ID  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| ids | <code>array.&lt;\*&gt;</code> |  | the values for the column |
+| ids | <code>Array.&lt;ID&gt;</code> |  | the values for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+_ensureLoader"></a>
+
+### jsonModel.\_ensureLoader(cache, key, colName) ⇒ [<code>Loader</code>](#Loader)
+**Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
+
+| Param | Type |
+| --- | --- |
+| cache | <code>object</code> | 
+| key | <code>string</code> | 
+| colName | <code>string</code> | 
 
 <a name="JsonModel+getCached"></a>
 
-### jsonModel.getCached(cache, id, [colName]) ⇒ <code>Promise.&lt;(object\|null)&gt;</code>
+### jsonModel.getCached([cache], id, [colName]) ⇒ <code>Promise.&lt;MaybeRow&gt;</code>
 Get an object by a unique value, like its ID, using a cache.
 This also coalesces multiple calls in the same tick into a single query,
 courtesy of DataLoader.
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;(object\|null)&gt;</code> - - the object if it exists  
+**Returns**: <code>Promise.&lt;MaybeRow&gt;</code> - - the object if it exists. It will be cached.  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| id | <code>\*</code> |  | the value for the column |
+| [cache] | <code>Record.&lt;string, Loader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
+| id | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
 
 <a name="JsonModel+clearCache"></a>
 
-### jsonModel.clearCache(cache, [id], [colName]) ⇒ <code>DataLoader</code>
+### jsonModel.clearCache(cache, [id], [colName]) ⇒ [<code>Loader</code>](#Loader)
 Lets you clear all the cache or just a key. Useful for when you
 change only some items
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>DataLoader</code> - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
+**Returns**: [<code>Loader</code>](#Loader) - - the actual cache, you can call `.prime(key, value)` on it to insert a value  
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| cache | <code>Record.&lt;string, DataLoader&gt;</code> |  | the lookup cache. It is managed with DataLoader |
-| [id] | <code>\*</code> |  | the value for the column. If not provided, clear entire cache |
+| cache | <code>object</code> |  | the lookup cache. It is managed with DataLoader |
+| [id] | <code>ID</code> |  | the value for the column |
 | [colName] | <code>string</code> | <code>&quot;this.idCol&quot;</code> | the columnname, defaults to the ID column |
+
+<a name="JsonModel+each"></a>
+
+### jsonModel.each(attrsOrFn, [optionsOrFn], [fn]) ⇒ <code>Promise.&lt;void&gt;</code>
+Iterate through search results. Calls `fn` on every result.
+The iteration uses a cursored search, so changes to the model
+during the iteration can influence the iteration.
+
+**Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - table iteration completed  
+
+| Param | Type |
+| --- | --- |
+| attrsOrFn | [<code>SearchAttrs</code>](#SearchAttrs) \| <code>RowCallback</code> | 
+| [optionsOrFn] | <code>RowCallback</code> \| [<code>SearchOptions</code>](#SearchOptions) | 
+| [fn] | <code>RowCallback</code> | 
 
 <a name="JsonModel+update"></a>
 
-### jsonModel.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(object\|undefined)&gt;</code>
+### jsonModel.update(obj, [upsert], [noReturn]) ⇒ <code>Promise.&lt;(Row\|undefined)&gt;</code>
 Update or upsert an object
 
 **Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
-**Returns**: <code>Promise.&lt;(object\|undefined)&gt;</code> - A copy of the stored object  
+**Returns**: <code>Promise.&lt;(Row\|undefined)&gt;</code> - A copy of the stored object  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | obj | <code>object</code> | The changes to store, including the id field |
 | [upsert] | <code>boolean</code> | Insert the object if it doesn't exist |
 | [noReturn] | <code>boolean</code> | Do not return the stored object |
+
+<a name="JsonModel+remove"></a>
+
+### jsonModel.remove(idOrObj) ⇒ <code>Promise.&lt;void&gt;</code>
+Remove an object. If the object doesn't exist, this doesn't do anything.
+
+**Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - A promise for the deletion  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| idOrObj | <code>ID</code> \| <code>object</code> | The id or the object itself |
+
+<a name="JsonModel+changeId"></a>
+
+### jsonModel.changeId(oldId, newId) ⇒ <code>Promise.&lt;void&gt;</code>
+"Rename" an object
+
+**Kind**: instance method of [<code>JsonModel</code>](#JsonModel)  
+**Returns**: <code>Promise.&lt;void&gt;</code> - A promise for the rename  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| oldId | <code>ID</code> | The current ID. If it doesn't exist this will throw. |
+| newId | <code>ID</code> | The new ID. If this ID is already in use this will throw. |
 
 <a name="sql"></a>
 
@@ -1567,6 +1716,12 @@ is converted to
 
 ## voidFn ⇒ <code>Promise.&lt;\*&gt;</code> \| <code>\*</code>
 **Kind**: global typedef  
+<a name="SearchAttrs"></a>
+
+## SearchAttrs : <code>Record.&lt;string&gt;</code>
+A stored object. It will always have a value for the `id` column
+
+**Kind**: global typedef  
 <a name="SearchOptions"></a>
 
 ## SearchOptions : <code>Object</code>
@@ -1575,11 +1730,11 @@ is converted to
 
 | Name | Type | Description |
 | --- | --- | --- |
-| [attrs] | <code>object</code> | literal value search, for convenience |
+| [attrs] | [<code>SearchAttrs</code>](#SearchAttrs) | literal value search, for convenience |
 | [where] | <code>object.&lt;array.&lt;\*&gt;&gt;</code> | sql expressions as keys with arrays of applicable parameters as values |
 | [join] | <code>string</code> | arbitrary join clause. Not processed at all |
 | [joinVals] | <code>array.&lt;\*&gt;</code> | values needed by the join clause |
-| [sort] | <code>object</code> | object with sql expressions as keys and 1/-1 for direction |
+| [sort] | <code>Record.&lt;string, number&gt;</code> | object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first |
 | [limit] | <code>number</code> | max number of rows to return |
 | [offset] | <code>number</code> | number of rows to skip |
 | [cols] | <code>array.&lt;string&gt;</code> | override the columns to select |
@@ -1587,6 +1742,10 @@ is converted to
 | [noCursor] | <code>boolean</code> | do not calculate cursor |
 | [noTotal] | <code>boolean</code> | do not calculate totals |
 
+<a name="Loader"></a>
+
+## Loader : <code>DataLoader.&lt;ID, MaybeRow&gt;</code>
+**Kind**: global typedef  
 <a name="ColumnDef"></a>
 
 ## ColumnDef : <code>Object</code>
@@ -1639,4 +1798,4 @@ is converted to
 | [keepRowId] | <code>boolean</code> |  | preserve row id after vacuum |
 
 
-_Generated from 5cff9088f0e4be9a0cff73530b3de03a0685230c, 2020-04-28T19:37:51+02:00_
+_Generated from fdeba07ed554fc0ff3b287109aad895111e90f31, 2020-06-30T10:36:36+02:00_
