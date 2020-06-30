@@ -718,6 +718,8 @@ class JsonModel {
 			)
 			this.columns[colName]._getAllSql = _getAllSql
 		}
+		if (!ids?.length) return []
+		if (ids.length === 1) return [await this.get(ids[0], colName)]
 		const rows = await _getAllSql.all([JSON.stringify(ids)])
 		const objs = this.toObj(rows)
 		return ids.map(id => objs.find(o => get(o, path) === id))

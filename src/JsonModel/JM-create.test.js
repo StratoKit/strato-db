@@ -131,6 +131,8 @@ test('getAll', async () => {
 	await Promise.all(
 		[0, 1, 2, 3, 4].map(id => m.set({id, slug: id + 10, object: {id}}))
 	)
+	expect(await m.getAll([])).toEqual([])
+	expect(await m.getAll([4])).toEqual([{id: 4, slug: 14, object: {id: 4}}])
 	expect(await m.getAll([4, 'nope', 0])).toEqual([
 		{id: 4, slug: 14, object: {id: 4}},
 		undefined,
