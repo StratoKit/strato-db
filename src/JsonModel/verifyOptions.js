@@ -21,7 +21,7 @@ import PropTypes from 'prop-types'
  * @property {boolean} [index] - should it be indexed? If `unique` is false, NULLs are never indexed
  * @property {boolean} [ignoreNull=!unique] - are null values ignored in the index?
  * @property {boolean} [unique] - should the index enforce uniqueness?
- * @property {function} [whereVal] - a function returning the `vals` give to `where`. It should return falsy or an array of values.
+ * @property {function} [whereVal] - a function receiving `origVals` and returning the `vals` given to `where`. It should return falsy or an array of values.
  * @property {(string|function)} [where] - the where clause for querying, or a function returning one given `(vals, origVals)`
  * @property {boolean} [isArray] - this column contains an array of values
  * @property {boolean} [in] - to query, this column value must match one of the given array items
