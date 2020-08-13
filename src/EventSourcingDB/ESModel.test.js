@@ -445,4 +445,58 @@ describe('getNextId', () => {
 			},
 			{m: {columns: {id: {type: 'INTEGER'}}}}
 		))
+
+	test('run in subevent', () =>
+		withESDB(
+			async eSDB => {
+				await eSDB.store.test.set({name: 'id 1'})
+				await eSDB.store.test.set({name: 'id 2'})
+				await eSDB.store.test.set({name: 'id 3'})
+				await eSDB.store.test.set({name: 'id 4'})
+				await eSDB.store.test.set({name: 'id 5'})
+				await eSDB.store.test.update({id: 1, triggerSub: 'oh yiss'})
+
+				expect(await eSDB.store.test.get(6)).toHaveProperty('fromDeriver', true)
+				expect(await eSDB.store.test.get(7)).toHaveProperty(
+					'fromSubevent',
+					true
+				)
+			},
+			{
+				test: {
+					Model: class ESModelSubevents extends ESModel {
+						constructor(options) {
+							super({
+								...options,
+								columns: {
+									id: {
+										type: 'INTEGER',
+									},
+								},
+							})
+						}
+
+						static async reducer(arg) {
+							const {event, dispatch, model} = arg
+							const result = (await super.reducer(arg)) || event.result || {}
+							if (event.type === 'SUBEVENT') {
+								return {
+									ins: [{id: await model.getNextId(), fromSubevent: true}],
+								}
+							}
+							if (result && result.upd && result.upd.some(e => e.triggerSub)) {
+								dispatch('SUBEVENT')
+							}
+							return result
+						}
+
+						static async deriver({model, result}) {
+							if (result && result.upd && result.upd.some(e => e.triggerSub)) {
+								model.set({fromDeriver: true})
+							}
+						}
+					},
+				},
+			}
+		))
 })

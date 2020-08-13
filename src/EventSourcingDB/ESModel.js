@@ -140,7 +140,7 @@ class ESModel extends JsonModel {
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
 		if (this.writable) {
 			const id = obj[this.idCol]
-			if (id > this._maxId) this._maxId = id
+			if (this._maxId && id > this._maxId) this._maxId = id
 			return super.set(obj, insertOnly, noReturn)
 		}
 
@@ -249,7 +249,6 @@ class ESModel extends JsonModel {
 	 * @returns {Promise<void>} - Promise for completion
 	 */
 	async applyResult(result) {
-		this._maxId = 0
 		if (result.esFail) return
 		return applyResult(this, {...result, esFail: undefined})
 	}
