@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changes
+
+- Renamed `dispatch()` to `addEvent()` inside the event processing flow. `dispatch()` still works but gives a deprecation warning. The `.dispatch()` method is not affected.
+
+### Deprecations
+
+- The `dispatch()` function that is passed to redux methods was renamed to `addEvent()`.
+
 ### Breaking
 
 - JsonModel: `.get()` now uses the column's `where` and `whereVal` like `.search()` does. This means that it will return different results than in v3, but those cases were likely to be unintended.
