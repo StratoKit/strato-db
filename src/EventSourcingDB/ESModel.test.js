@@ -476,7 +476,7 @@ describe('getNextId', () => {
 						}
 
 						static async reducer(arg) {
-							const {event, dispatch, model} = arg
+							const {event, addEvent, model} = arg
 							const result = (await super.reducer(arg)) || event.result || {}
 							if (event.type === 'SUBEVENT') {
 								return {
@@ -484,7 +484,7 @@ describe('getNextId', () => {
 								}
 							}
 							if (result && result.upd && result.upd.some(e => e.triggerSub)) {
-								dispatch('SUBEVENT')
+								addEvent('SUBEVENT')
 							}
 							return result
 						}

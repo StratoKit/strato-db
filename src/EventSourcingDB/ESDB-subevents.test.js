@@ -4,24 +4,24 @@ import {withESDB} from '../lib/_test-helpers'
 test('work', async () => {
 	const models = {
 		foo: {
-			preprocessor: ({event, dispatch, isMainEvent}) => {
+			preprocessor: ({event, addEvent, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi' || event.type === 'pre')
-					dispatch('pre-' + event.type)
+					addEvent('pre-' + event.type)
 			},
-			reducer: ({event, dispatch, isMainEvent}) => {
+			reducer: ({event, addEvent, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
 				let events
 				if (event.type === 'hi' || event.type === 'red') {
-					dispatch('red-' + event.type)
+					addEvent('red-' + event.type)
 					events = [{type: 'red-out-' + event.type}]
 				}
 				return {set: [{id: event.type}], events}
 			},
-			deriver: ({event, dispatch, isMainEvent}) => {
+			deriver: ({event, addEvent, isMainEvent}) => {
 				expect(isMainEvent).not.toBeUndefined()
 				if (event.type === 'hi' || event.type === 'der')
-					dispatch('der-' + event.type)
+					addEvent('der-' + event.type)
 			},
 		},
 	}
@@ -48,17 +48,17 @@ test('work', async () => {
 test('depth first order', () => {
 	const models = {
 		foo: {
-			reducer: ({event, dispatch}) => {
+			reducer: ({event, addEvent}) => {
 				if (event.type === 'hi') return {set: [{id: 'hi', all: ''}]}
-				if (event.type === '3') dispatch('4')
+				if (event.type === '3') addEvent('4')
 			},
-			deriver: async ({model, event, dispatch}) => {
+			deriver: async ({model, event, addEvent}) => {
 				if (event.type === 'hi') {
-					dispatch('1')
-					dispatch('3')
+					addEvent('1')
+					addEvent('3')
 				}
-				if (event.type === '1') dispatch('2')
-				if (event.type === '3') dispatch('5')
+				if (event.type === '1') addEvent('2')
+				if (event.type === '3') addEvent('5')
 				const t = await model.get('hi')
 				return model.set({id: 'hi', all: t.all + event.type})
 			},
@@ -77,8 +77,8 @@ test('depth first order', () => {
 test('no infinite recursion', () => {
 	const models = {
 		foo: {
-			deriver: async ({event, dispatch}) => {
-				if (event.type === 'hi') dispatch('hi')
+			deriver: async ({event, addEvent}) => {
+				if (event.type === 'hi') addEvent('hi')
 			},
 		},
 	}
@@ -97,8 +97,8 @@ test('no infinite recursion', () => {
 test('replay clears subevents', () => {
 	const models = {
 		foo: {
-			deriver: async ({event, dispatch}) => {
-				if (event.type === 'hi') dispatch('ho')
+			deriver: async ({event, addEvent}) => {
+				if (event.type === 'hi') addEvent('ho')
 			},
 		},
 	}

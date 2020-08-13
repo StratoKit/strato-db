@@ -146,6 +146,7 @@ class EventSourcingDB extends EventEmitter {
 			onWillOpen,
 			onBeforeMigrations: async db => {
 				// hacky side-channel to get current version to queue without deadlocks
+				// TODO pass this immediately and let queue handle it itself on open
 				this._knownV = await db.userVersion()
 				if (prevOBM) await prevOBM()
 			},
@@ -417,7 +418,7 @@ class EventSourcingDB extends EventEmitter {
 		return this.handledVersion(event.v)
 	}
 
-	_subDispatch(event, type, data) {
+	_addSubEvent(event, type, data) {
 		if (!event.events) event.events = []
 		event.events.push({type, data})
 		dbg(`${event.type}.${type} queued`)
@@ -639,6 +640,11 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async _preprocessor(cache, event, isMainEvent) {
+		const addEvent = this._addSubEvent.bind(this, event)
+		const dispatch = (...args) => {
+			deprecated('addEvent preprocessor', 'use .addEvent instead of .dispatch')
+			return addEvent(...args)
+		}
 		for (const model of this._preprocModels) {
 			const {name} = model
 			const {v, type} = event
@@ -651,7 +657,8 @@ class EventSourcingDB extends EventEmitter {
 					// subevents must see intermediate state
 					model: isMainEvent ? model : this.rwStore[name],
 					store: isMainEvent ? this.store : this.rwStore,
-					dispatch: this._subDispatch.bind(this, event),
+					addEvent,
+					dispatch,
 					isMainEvent,
 				})
 			} catch (error) {
@@ -691,13 +698,19 @@ class EventSourcingDB extends EventEmitter {
 		await Promise.all(
 			this._reducerNames.map(async name => {
 				const model = this.store[name]
+				const addEvent = this._addSubEvent.bind(this, event)
+				const dispatch = (...args) => {
+					deprecated('addEvent', 'use .addEvent instead of .dispatch')
+					return addEvent(...args)
+				}
 				const helpers = {
 					cache,
 					event,
 					// subevents must see intermediate state
 					model: isMainEvent ? model : this.rwStore[name],
 					store: isMainEvent ? this.store : this.rwStore,
-					dispatch: this._subDispatch.bind(this, event),
+					dispatch,
+					addEvent,
 					isMainEvent,
 				}
 				let out
@@ -829,13 +842,19 @@ class EventSourcingDB extends EventEmitter {
 			// Apply derivers
 			if (!event.error && _deriverModels.length) {
 				phase = 'derive'
-				await settleAll(_deriverModels, async model =>
+				const addEvent = this._addSubEvent.bind(this, event)
+				const dispatch = (...args) => {
+					deprecated('addEvent deriver', 'use .addEvent instead of .dispatch')
+					return addEvent(...args)
+				}
+				await settleAll(this._deriverModels, async model =>
 					model.deriver({
 						event,
 						model,
 						// derivers can write anywhere (carefully)
-						store: rwStore,
-						dispatch: this._subDispatch.bind(this, event),
+						store: this.rwStore,
+						addEvent,
+						dispatch,
 						isMainEvent,
 						result: result[model.name],
 					})

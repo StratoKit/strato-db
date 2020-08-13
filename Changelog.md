@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Renamed `dispatch()` to `addEvent()` inside the event processing flow. `dispatch()` still works but gives a deprecation warning. The `.dispatch()` method is not affected.
+
+### Deprecations
+
+- The `dispatch()` function that is passed to redux methods was renamed to `addEvent()`.
+
 ## 3.2.1
 
 - ESDB: fix rare race condition where read-only connection doesn't see just-committed transaction
