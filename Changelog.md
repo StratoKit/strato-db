@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.1
+
+- ESModel - `getNextId()` fix (was returning incorrect values when run inside a subevent)
+
 ## 3.1.0
 
 ### Breaking

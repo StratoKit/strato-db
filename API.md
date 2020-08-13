@@ -1772,7 +1772,7 @@ A stored object. It will always have a value for the `id` column
 | [index] | <code>boolean</code> |  | should it be indexed? If `unique` is false, NULLs are never indexed |
 | [ignoreNull] | <code>boolean</code> | <code>!unique</code> | are null values ignored in the index? |
 | [unique] | <code>boolean</code> |  | should the index enforce uniqueness? |
-| [whereVal] | <code>function</code> |  | a function returning the `vals` give to `where`. It should return falsy or an array of values. |
+| [whereVal] | <code>function</code> |  | a function receiving `origVals` and returning the `vals` given to `where`. It should return falsy or an array of values. |
 | [where] | <code>string</code> \| <code>function</code> |  | the where clause for querying, or a function returning one given `(vals, origVals)` |
 | [isArray] | <code>boolean</code> |  | this column contains an array of values |
 | [in] | <code>boolean</code> |  | to query, this column value must match one of the given array items |
@@ -1798,4 +1798,4 @@ A stored object. It will always have a value for the `id` column
 | [keepRowId] | <code>boolean</code> |  | preserve row id after vacuum |
 
 
-_Generated from fdeba07ed554fc0ff3b287109aad895111e90f31, 2020-06-30T10:36:36+02:00_
+_Generated from d0d9084d47df9dbabff18b0e174e83ea7c614189, 2020-07-03T14:03:59+02:00_
