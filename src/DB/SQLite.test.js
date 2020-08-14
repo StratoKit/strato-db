@@ -72,9 +72,30 @@ describe('SQLite', () => {
 	test('works', async () => {
 		const db = new SQLite()
 		await expectSqliteWorks(db)
+		expect(db.isOpen).toBe(true)
 		expect(db.dbP).toBeInstanceOf(Promise)
 		expect(db.store).toEqual({})
 		await db.close()
+	})
+
+	test('throws opening errors on any call', async () => {
+		const db = new SQLite({
+			onWillOpen: () => {
+				throw new Error('no')
+			},
+		})
+		await expect(db.exec('SELECT 1')).rejects.toThrow('no')
+		await expect(db.close()).resolves.toBeFalsy()
+	})
+
+	test('closes when onDidOpen fails', async () => {
+		const db = new SQLite({
+			onDidOpen: () => {
+				throw new Error('no')
+			},
+		})
+		await expect(db.exec('SELECT 1')).rejects.toThrow('no')
+		expect(db.isOpen).toBe(false)
 	})
 
 	test('10 simultaneous opens', async () => {
@@ -117,6 +138,65 @@ describe('SQLite', () => {
 		const {hi: hi2} = await db.get(`SELECT * FROM foo`)
 		expect(hi2).toBe(43)
 		await db.close()
+	})
+
+	describe('.runOnceOnOpen()', () => {
+		test('works before open', async () => {
+			const db = new SQLite()
+			const spy = jest.fn()
+			expect(db.runOnceOnOpen(spy)).toBeFalsy()
+			expect(spy).not.toHaveBeenCalled()
+			await db.open()
+			expect(spy).toHaveBeenCalledTimes(1)
+			expect(spy).toHaveBeenCalledWith(expect.any(SQLite))
+			await db.close()
+			await db.open()
+			expect(spy).toHaveBeenCalledTimes(1)
+			await db.close()
+		})
+
+		test('works after open', async () => {
+			const db = new SQLite()
+			await db.open()
+			const spy = jest.fn(() => 'hi')
+			expect(db.runOnceOnOpen(spy)).toEqual('hi')
+			expect(spy).toHaveBeenCalledWith(expect.any(SQLite))
+			await db.close()
+		})
+
+		test('works for multiple', async () => {
+			const db = new SQLite()
+			const spy1 = jest.fn()
+			const spy2 = jest.fn(() => expect(spy1).toHaveBeenCalledTimes(1))
+			expect(db.runOnceOnOpen(spy1)).toBeFalsy()
+			expect(db.runOnceOnOpen(spy2)).toBeFalsy()
+			await db.open()
+			expect(spy2).toHaveBeenCalledTimes(1)
+			await db.close()
+		})
+
+		test('throws immediately when open', async () => {
+			const db = new SQLite()
+			await db.open()
+			expect(() =>
+				db.runOnceOnOpen(() => {
+					// eslint-disable-next-line no-throw-literal
+					throw 'hi'
+				})
+			).toThrow('hi')
+			await db.close()
+		})
+
+		test('throws on open', async () => {
+			const db = new SQLite()
+			expect(() =>
+				db.runOnceOnOpen(() => {
+					throw new Error('hi')
+				})
+			).not.toThrow()
+			await expect(db.open()).rejects.toThrow('queued')
+			await db.close()
+		})
 	})
 
 	describe('options', () => {

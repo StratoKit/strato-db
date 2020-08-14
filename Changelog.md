@@ -4,6 +4,7 @@
 
 ### Changes
 
+- SQLite: added `.runOnceOnOpen()` to register functions that should be run on the open database but shouldn't open the database
 - Renamed `dispatch()` to `addEvent()` inside the event processing flow. `dispatch()` still works but gives a deprecation warning. The `.dispatch()` method is not affected.
 
 ### Deprecations

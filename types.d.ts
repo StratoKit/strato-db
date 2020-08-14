@@ -107,6 +107,10 @@ interface SQLite extends EventEmitter {
 	 */
 	sql(): {quoteId: (id: string) => string} & SqlTag
 	/**
+	 * `true` if an sqlite connection was set up. Mostly useful for tests.
+	 */
+	isOpen: boolean
+	/**
 	 * Force opening the database instead of doing it lazily on first access.
 	 *
 	 * @returns - a promise for the DB being ready to use.
@@ -118,6 +122,17 @@ interface SQLite extends EventEmitter {
 	 * @returns - a promise for the DB being closed.
 	 */
 	close(): Promise<void>
+	/**
+	 * Runs the passed function once, either immediately if the connection is
+	 * already open, or when the database will be opened next.
+	 * Note that if the function runs immediately, its return value is returned.
+	 * If this is a Promise, it is the caller's responsibility to handle errors.
+	 * Otherwise, the function will be run once after onDidOpen, and errors will
+	 * cause the open to fail.
+	 *
+	 * @returns Either the function return value or undefined.
+	 */
+	runOnceOnOpen(fn: (db: SQLite) => void): void
 	/**
 	 * Return all rows for the given query.
 	 *
