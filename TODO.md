@@ -104,7 +104,6 @@
 
 ### Important
 
-- [ ] make `.setKnownV` synchronous and apply the change on open or immediately if the DB is already open
 - [ ] allow marking an event as being processed, by setting worker id `where workerId is null` or something similar
 - [ ] workers should register in a table and write timestamps for a watchdog
 - [ ] while an event is being worked, next event can't be worked on.
