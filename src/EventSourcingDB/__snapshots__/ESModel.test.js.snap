@@ -1,117 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`events 1`] = `
-Array [
-  Object {
-    "data": Array [
-      1,
-      1,
-      Object {
-        "meep": "moop",
-      },
-    ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
-            "id": 1,
-            "meep": "moop",
-          },
-        ],
-      },
-    },
-    "ts": 0,
-    "type": "es/m",
-    "v": 1,
-  },
-  Object {
-    "data": Array [
-      3,
-      1,
-      Object {
-        "beep": "boop",
-        "id": 1,
-      },
-    ],
-    "result": Object {
-      "m": Object {
-        "upd": Array [
-          Object {
-            "beep": "boop",
-            "id": 1,
-          },
-        ],
-      },
-    },
-    "ts": 0,
-    "type": "es/m",
-    "v": 2,
-  },
-  Object {
-    "data": Array [
-      2,
-      2,
-      Object {
-        "meep": "moop",
-      },
-    ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
-            "id": 2,
-            "meep": "moop",
-          },
-        ],
-      },
-    },
-    "ts": 0,
-    "type": "es/m",
-    "v": 3,
-  },
-  Object {
-    "data": Array [
-      4,
-      3,
-      Object {
-        "beep": "boop",
-        "id": 3,
-      },
-    ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
-            "beep": "boop",
-            "id": 3,
-          },
-        ],
-      },
-    },
-    "ts": 0,
-    "type": "es/m",
-    "v": 4,
-  },
-  Object {
-    "data": Array [
-      0,
-      3,
-    ],
-    "result": Object {
-      "m": Object {
-        "rm": Array [
-          3,
-        ],
-      },
-    },
-    "ts": 0,
-    "type": "es/m",
-    "v": 5,
-  },
-]
-`;
-
-exports[`events updates 1`] = `
+exports[`ESModel events are updated 1`] = `
 Array [
   Object {
     "data": Array [
@@ -215,6 +104,117 @@ Array [
             "beep": "foop",
             "v": 1,
           },
+        ],
+      },
+    },
+    "ts": 0,
+    "type": "es/m",
+    "v": 5,
+  },
+]
+`;
+
+exports[`ESModel events work 1`] = `
+Array [
+  Object {
+    "data": Array [
+      1,
+      1,
+      Object {
+        "meep": "moop",
+      },
+    ],
+    "result": Object {
+      "m": Object {
+        "ins": Array [
+          Object {
+            "id": 1,
+            "meep": "moop",
+          },
+        ],
+      },
+    },
+    "ts": 0,
+    "type": "es/m",
+    "v": 1,
+  },
+  Object {
+    "data": Array [
+      3,
+      1,
+      Object {
+        "beep": "boop",
+        "id": 1,
+      },
+    ],
+    "result": Object {
+      "m": Object {
+        "upd": Array [
+          Object {
+            "beep": "boop",
+            "id": 1,
+          },
+        ],
+      },
+    },
+    "ts": 0,
+    "type": "es/m",
+    "v": 2,
+  },
+  Object {
+    "data": Array [
+      2,
+      2,
+      Object {
+        "meep": "moop",
+      },
+    ],
+    "result": Object {
+      "m": Object {
+        "ins": Array [
+          Object {
+            "id": 2,
+            "meep": "moop",
+          },
+        ],
+      },
+    },
+    "ts": 0,
+    "type": "es/m",
+    "v": 3,
+  },
+  Object {
+    "data": Array [
+      4,
+      3,
+      Object {
+        "beep": "boop",
+        "id": 3,
+      },
+    ],
+    "result": Object {
+      "m": Object {
+        "ins": Array [
+          Object {
+            "beep": "boop",
+            "id": 3,
+          },
+        ],
+      },
+    },
+    "ts": 0,
+    "type": "es/m",
+    "v": 4,
+  },
+  Object {
+    "data": Array [
+      0,
+      3,
+    ],
+    "result": Object {
+      "m": Object {
+        "rm": Array [
+          3,
         ],
       },
     },
