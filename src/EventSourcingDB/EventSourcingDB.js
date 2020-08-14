@@ -126,7 +126,7 @@ class EventSourcingDB extends EventEmitter {
 		withViews = true,
 		onWillOpen,
 		onBeforeMigrations: prevOBM,
-		onDidOpen: prevODO,
+		onDidOpen,
 		...dbOptions
 	}) {
 		super()
@@ -145,20 +145,11 @@ class EventSourcingDB extends EventEmitter {
 			...dbOptions,
 			onWillOpen,
 			onBeforeMigrations: async db => {
-				// hacky side-channel to get current version to queue without deadlocks
-				// TODO pass this immediately and let queue handle it itself on open
-				this._knownV = await db.userVersion()
+				const v = await db.userVersion()
+				if (v) this.queue.setKnownV(v)
 				if (prevOBM) await prevOBM()
 			},
-			onDidOpen: async db => {
-				// let's hope nobody added events to the queue with the wrong version
-				const {_knownV} = this
-				if (_knownV) {
-					this._knownV = null
-					await this.queue.setKnownV(_knownV)
-				}
-				if (prevODO) await prevODO(db)
-			},
+			onDidOpen,
 		})
 		const {readOnly} = this.rwDb
 
@@ -183,14 +174,6 @@ class EventSourcingDB extends EventEmitter {
 				...dbOptions,
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
-				onDidOpen: async () => {
-					// let's hope nobody added events to the queue with the wrong version
-					const {_knownV} = this
-					if (_knownV) {
-						this._knownV = null
-						await this.queue.setKnownV(_knownV)
-					}
-				},
 			})
 			this.queue = new EventQueue({
 				db: qDb,
@@ -409,12 +392,7 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async dispatch(type, data, ts) {
-		const {_knownV, queue} = this
-		if (_knownV) {
-			this._knownV = null
-			await queue.setKnownV(_knownV)
-		}
-		const event = await queue.add(type, data, ts)
+		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
 	}
 
