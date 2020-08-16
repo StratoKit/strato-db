@@ -745,7 +745,7 @@ interface EventQueue<
 	setKnownV(v: number): Promise<void>
 }
 
-type ReduceResult = Record<string, any>
+type ReduceResult = {[applyType: string]: any}
 type ReduxArgs<M extends ESDBModel> = {
 	cache: {}
 	model: InstanceType<M>
@@ -768,8 +768,12 @@ type TransactFn<M extends ESDBModel = ESModel<{}>> = (
 	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
 ) => Promise<void>
 
-type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
-type AddEventFn = (type: string, data?: any) => void
+type DispatchFn =
+	| ((type: string, data?: any, ts?: number) => Promise<ESEvent>)
+	| ((arg: {type: string; data?: any; ts?: number}) => Promise<ESEvent>)
+type AddEventFn =
+	| ((type: string, data?: any) => void)
+	| ((arg: {type: string; data?: any}) => void)
 
 // TODO get from models config
 type ESDBModelArgs = {
@@ -826,7 +830,7 @@ interface EventSourcingDB extends EventEmitter {
 
 	stopPolling(): Promise<void>
 
-	dispatch(type: string, data?: any, ts?: number): Promise<ESEvent>
+	dispatch: DispatchFn
 
 	getVersion(): Promise<number>
 

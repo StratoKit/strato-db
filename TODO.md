@@ -136,6 +136,7 @@
 
 ### Nice to have
 
+- [x] allow passing events to dispatch as objects with type
 - [ ] add eventSpy, e.g. `eSDB.debug(boolean|{filter()})`
 - [ ] in non-prod, randomly run preprocessor twice (keep event in memory and restart handling) to verify repeatability
 - [ ] don't store empty result sub-events
