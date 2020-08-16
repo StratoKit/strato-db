@@ -662,6 +662,17 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	setKnownV(v: number): Promise<void>
 }
 
+type DispatchFn = (
+	type: string,
+	data?: any,
+	ts?: number
+) =>
+	| Promise<ESEvent>
+	| ((arg: {type: string; data?: any; ts?: number}) => Promise<ESEvent>)
+type AddEventFn = (
+	type: string,
+	data?: any
+) => void | ((arg: {type: string; data?: any}) => void)
 type ReduceResult = {[applyType: string]: any}
 type ReduxArgs<M extends InstanceType<ESDBModel>> = {
 	model: InstanceType<M>
@@ -684,8 +695,6 @@ type ESEvent = {
 	/** event processing result */
 	result?: Record<string, ReduceResult>
 }
-type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
-type AddEventFn = (type: string, data?: any) => void
 
 type EMOptions<T, U extends string> = JMOptions<T, U> & {
 	/** the ESDB dispatch function */
@@ -861,7 +870,7 @@ interface EventSourcingDB extends EventEmitter {
 
 	stopPolling(): Promise<void>
 
-	dispatch(type: string, data?: any, ts?: number): Promise<ESEvent>
+	dispatch: DispatchFn
 
 	getVersion(): Promise<number>
 

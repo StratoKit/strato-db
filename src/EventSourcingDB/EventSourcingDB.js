@@ -110,6 +110,30 @@ const fixupOldReducer = (name, reducer) => {
 	return reducer
 }
 
+// In subevents ts is silently ignored
+const getDispatchArgs = (name, fn) => (typeOrEvent, data, ts) => {
+	let type
+	if (typeof typeOrEvent === 'string') {
+		type = typeOrEvent
+	} else {
+		if (DEV) {
+			if (data)
+				throw new Error(
+					`${name}: second argument must not be defined when passing the event as an object`
+				)
+			const {type: _1, data: _2, ts: _3, ...rest} = typeOrEvent
+			if (Object.keys(rest).length)
+				throw new Error(`${name}: extra key(s) ${Object.keys(rest).join(',')}`)
+		}
+		data = typeOrEvent.data
+		ts = typeOrEvent.ts
+		type = typeOrEvent.type
+	}
+	if (!type || typeof type !== 'string')
+		throw new Error(`${name}: type is a required string`)
+	return fn(type, data, ts)
+}
+
 /**
  * EventSourcingDB maintains a DB where all data is atomically updated based on
  * {@link Event events (free-form messages)}.
@@ -416,19 +440,29 @@ class EventSourcingDB extends EventEmitter {
 		return this._waitingP || Promise.resolve()
 	}
 
-	async dispatch(type, data, ts) {
+	/**
+	 * @param {string | {type: string; data?: any; ts?: number}} typeOrEvent
+	 * Event type or the entire event.
+	 * @param {any} [data]
+	 * Event data, can be anything.
+	 * @param {number} [ts]
+	 * The timestamp of the event.
+	 * @returns {Promise<Event>} The processed event.
+	 */
+	dispatch = getDispatchArgs('dispatch', async (type, data, ts) => {
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
-	}
+	})
 
 	// Dispatch handler for sub-events, used during transact phase
 	_dispatchSubEvent = null
 
-	_addSubEvent(event, type, data) {
-		if (!event.events) event.events = []
-		event.events.push({type, data})
-		dbg(`${event.type}.${type} queued`)
-	}
+	_makeAddSubEvent = event =>
+		getDispatchArgs('addEvent', (type, data) => {
+			event.events ||= []
+			event.events.push({type, data})
+			dbg(`${event.type}.${type} queued`)
+		})
 
 	_getVersionP = null
 
@@ -651,7 +685,7 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async _preprocessor(cache, event, isMainEvent) {
-		const addEvent = this._addSubEvent.bind(this, event)
+		const addEvent = this._makeAddSubEvent(event)
 		const dispatch = (...args) => {
 			deprecated('addEvent preprocessor', 'use .addEvent instead of .dispatch')
 			return addEvent(...args)
@@ -709,7 +743,7 @@ class EventSourcingDB extends EventEmitter {
 		await Promise.all(
 			this._reducerNames.map(async name => {
 				const model = this.store[name]
-				const addEvent = this._addSubEvent.bind(this, event)
+				const addEvent = this._makeAddSubEvent(event)
 				const dispatch = (...args) => {
 					deprecated('addEvent', 'use .addEvent instead of .dispatch')
 					return addEvent(...args)
@@ -861,7 +895,7 @@ class EventSourcingDB extends EventEmitter {
 		// correct dispatch in each subevent
 
 		let lastP = null
-		const dispatch = async (type, data) => {
+		const dispatch = getDispatchArgs('dispatch', async (type, data) => {
 			const subEventP = this._alsDispatch.run(undefined, handleSubEvent, {
 				type,
 				data,
@@ -873,7 +907,7 @@ class EventSourcingDB extends EventEmitter {
 			if (event.error)
 				throw new Error(`Event ${event.v} errored: ${event.error._handle}`)
 			return subEvent
-		}
+		})
 		event = await this._alsDispatch.run(dispatch, () =>
 			this._transact(event, isMainEvent, dispatch)
 		)
@@ -906,7 +940,7 @@ class EventSourcingDB extends EventEmitter {
 			// Apply derivers
 			if (!event.error && _deriverModels.length) {
 				phase = 'derive'
-				const addEvent = this._addSubEvent.bind(this, event)
+				const addEvent = this._makeAddSubEvent(event)
 				const dispatch = (...args) => {
 					deprecated('addEvent deriver', 'use .addEvent instead of .dispatch')
 					return addEvent(...args)

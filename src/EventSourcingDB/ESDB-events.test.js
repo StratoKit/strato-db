@@ -51,6 +51,81 @@ describe('ESDB events', () => {
 		})
 	})
 
+	test('dispatch object', async () =>
+		withESDB(async eSDB => {
+			const event1P = eSDB.dispatch({type: 'whattup', data: 'indeed', ts: 42})
+			const event2P = eSDB.dispatch({type: 'dude', data: {woah: true}, ts: 55})
+			expect(await event2P).toEqual(
+				expect.objectContaining({
+					v: 2,
+					type: 'dude',
+					ts: 55,
+					data: {woah: true},
+				})
+			)
+			expect(await event1P).toEqual(
+				expect.objectContaining({
+					v: 1,
+					type: 'whattup',
+					ts: 42,
+					data: 'indeed',
+				})
+			)
+		}))
+
+	test('dispatch invalid object', async () =>
+		withESDB(async eSDB => {
+			expect(() => eSDB.dispatch({data: 'indeed', ts: 42})).toThrowError('type')
+			expect(() =>
+				eSDB.dispatch({type: 5, data: 'indeed', ts: 42})
+			).toThrowError('type')
+			expect(() => eSDB.dispatch({type: 'hi', extra: 'indeed'})).toThrowError(
+				'extra'
+			)
+		}))
+
+	test('subdispatch object', async () =>
+		withESDB(
+			{
+				foo: {
+					transact: async ({event, dispatch}) => {
+						if (event.type !== 'hi') return
+						await expect(
+							dispatch({type: 'dude', data: {woah: true}, ts: 55})
+						).resolves.toEqual(
+							expect.objectContaining({type: 'dude', data: {woah: true}})
+						)
+					},
+				},
+			},
+			async eSDB => {
+				await eSDB.dispatch('hi')
+			}
+		))
+
+	test('subdispatch invalid object', async () =>
+		withESDB(
+			{
+				foo: {
+					transact: async ({event, dispatch}) => {
+						if (event.type !== 'hi') return
+						expect(() => dispatch({data: 'indeed', ts: 42})).toThrowError(
+							'type'
+						)
+						expect(() =>
+							dispatch({type: 6, data: 'indeed', ts: 42})
+						).toThrowError('type')
+						expect(() =>
+							dispatch({type: 'indeed', extraMeep: 'foo'})
+						).toThrowError('extraMeep')
+					},
+				},
+			},
+			async eSDB => {
+				await eSDB.dispatch('hi')
+			}
+		))
+
 	test('derivers', async () => {
 		return withESDB(async eSDB => {
 			await eSDB.dispatch('bar')
