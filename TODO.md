@@ -118,8 +118,7 @@
 
 ### Nice to have
 
-- [ ] provide event creators for each type of change
-- [ ] implement `.changeID`. It requires applyEvent to support `mv`
+- [x] provide event creators for each type of change
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId (`mv:[[oldId, newId],…]` apply action?)
 
