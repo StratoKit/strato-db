@@ -461,5 +461,54 @@ describe('ESModel', () => {
 					undefined,
 				])
 			}))
+
+		describe('event creators', () => {
+			const m = new ESModel({
+				name: 'hi',
+				db: {registerMigrations: () => {}, on: () => {}},
+				emitter: {on: () => {}},
+			})
+			test.each([
+				[
+					'set',
+					[{foo: true}],
+					{type: 'es/hi', data: [ESModel.SET, null, {foo: true}]},
+				],
+				[
+					'set',
+					[{id: 'hi', bar: true}, true, {meta: 'hello'}],
+					{
+						type: 'es/hi',
+						data: [
+							ESModel.INSERT,
+							null,
+							{id: 'hi', bar: true},
+							{meta: 'hello'},
+						],
+					},
+				],
+				[
+					'update',
+					[{id: 7, foo: true, bar: undefined}],
+					{
+						type: 'es/hi',
+						data: [ESModel.UPDATE, null, {id: 7, foo: true, bar: null}],
+					},
+				],
+				[
+					'update', // with upsert
+					[{foo: true}, true],
+					{type: 'es/hi', data: [ESModel.SAVE, null, {foo: true}]},
+				],
+				[
+					'remove',
+					[{id: 'hi', f: 1}],
+					{type: 'es/hi', data: [ESModel.REMOVE, 'hi']},
+				],
+				['remove', [7], {type: 'es/hi', data: [ESModel.REMOVE, 7]}],
+			])('.event.%s%O => %O', (action, input, output) =>
+				expect(m.event[action](...input)).toEqual(output)
+			)
+		})
 	})
 })
