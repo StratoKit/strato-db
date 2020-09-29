@@ -2,6 +2,7 @@
 
 ## General
 
+- allow using https://github.com/rqlite/rqlite-js as a backend for a distributed DB
 - Change the multi-access tests to use `"file:memdb1?mode=memory&cache=shared"` for shared access to the same in-memory db (probably when using better-sqlite, it requires file uri support)
 - Give DB and ESDB the same API for registering models (.addModel)
 - Optimize:
@@ -54,8 +55,11 @@
 
 ### Important
 
-- `keepFalsy` option: normally, remove falsy (not '', 0), but with this, store them [breaking]
-- FTS5 support for text searching
+- [ ] .each should get concurrent=5 parameter
+  - limit should apply to total fetched, breaking change
+  - concurrent workers should process in-memory queue
+  - batchCount=50 indicates how many results to load in memory for processing
+- [ ] FTS5 support for text searching
   - Real columns marked `textSearch: true|string|object` generate a FTS5 index
   - one index per textSearch value ("tag")
   - It uses the table as a backing table
@@ -69,6 +73,7 @@
 
 ### Nice to have
 
+- [ ] removeFalsy option: remove falsy elements (except '' and 0) from JSON before storing
 - [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
   - do not change extra columns, that is what migrations are for
@@ -102,6 +107,7 @@
 - [ ] allow marking an event as being processed, by setting worker id `where workerId is null` or something similar
 - [ ] workers should register in a table and write timestamps for a watchdog
 - [ ] while an event is being worked, next event can't be worked on.
+- [ ] it may be better to `INSERT IF NOT EXISTS` a knownV event instead of using the sequence table?
 
 ### Nice to have
 
@@ -120,12 +126,11 @@
 
 ### Important
 
+- [ ] When dispatching an event after an event error, processing sometimes continues with the dispatched event instead of remaining halted
 - [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
   - Ideally, the results go in a different db that can be split at will.
-  - re-processing events clears all subsequent results
-  - for multi-process, make the result db exclusive to worker
-  - attach multiple result dbs for combined debug view
-- [ ] Add `transact` phase after the other phases, in which `dispatch` works as well as ESModel dispatches. This enables easier event handling with ESModel changes.
+  - for multi-process, lock the result db exclusively to worker
+  - re-processing events clears all subevent rows
 - [ ] Add `beforeApply` phase which runs after all reducers ran so it has access to the state of the DB before the changes are applied.
 
 ### Nice to have
@@ -134,5 +139,5 @@
 - [ ] in non-prod, randomly run preprocessor twice (keep event in memory and restart handling) to verify repeatability
 - [ ] don't store empty result sub-events
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
-  - same for preprocessor/deriver
-- [ ] explore read-only DBs that get the event queue changes only, dispatches go to master db
+  - same for preprocessor/deriver/transact
+- [ ] explore read-only clones that get the event queue changes only, dispatches go to primary db. Will need Raft implementation.
