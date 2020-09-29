@@ -2,6 +2,7 @@
 
 ## General
 
+- Change the multi-access tests to use `"file:memdb1?mode=memory&cache=shared"` for shared access to the same in-memory db (probably when using better-sqlite, it requires file uri support)
 - Give DB and ESDB the same API for registering models (.addModel)
 - Optimize:
   - [ ] create benchmark
@@ -110,11 +111,16 @@
 
 ### Nice to have
 
+- [ ] provide event creators for each type of change
 - [ ] implement `.changeID`. It requires applyEvent to support `mv`
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
-- [ ] .changeId (`mv:[[oldId, newId],…]` apply action?)
 
 ## ESDB
+
+### Important
+
+- [ ] Add `transact` phase after the other phases, in which `dispatch` works as well as ESModel dispatches. This enables easier event handling with ESModel changes.
+- [ ] Add `beforeApply` phase which runs after all reducers ran so it has access to the state of the DB before the changes are applied.
 
 ### Nice to have
 

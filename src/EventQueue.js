@@ -269,18 +269,26 @@ class EventQueue extends JsonModel {
 	 * New events will have higher versions.
 	 * @param  {number} v - the last known version
 	 */
-	async setKnownV(v) {
+	setKnownV(v) {
 		// set the sqlite autoincrement value
 		// Try changing current value, and insert if there was no change
-		// This doesn't need a transaction, either one or the other runs
-		// TODO alsoLower flag and only update where seq < v
-		await this.db.exec(
-			`
-				UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
-				INSERT INTO sqlite_sequence (name, seq)
-					SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
-						(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
-			`
+		// This doesn't need a transaction, either one or the other runs and
+		// both are sent in the same command to nothing will run in between
+		this.db.runOnceOnOpen(db =>
+			db
+				.exec(
+					`
+					UPDATE sqlite_sequence SET seq = ${v} WHERE name = ${this.quoted};
+					INSERT INTO sqlite_sequence (name, seq)
+						SELECT ${this.quoted}, ${v} WHERE NOT EXISTS
+							(SELECT changes() AS change FROM sqlite_sequence WHERE change <> 0);
+				`
+				)
+				.catch(error => {
+					// eslint-disable-next-line no-console
+					console.error(`setKnownV: could not update sequence`, error)
+					db.close()
+				})
 		)
 		this.currentV = Math.max(this.currentV, v)
 		this.knownV = v

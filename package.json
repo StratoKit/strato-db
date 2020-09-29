@@ -9,7 +9,7 @@
     "email": "Wout.Mertens@gmail.com"
   },
   "engines": {
-    "node": ">=10"
+    "node": ">=12.17"
   },
   "scripts": {
     "start": "nps",

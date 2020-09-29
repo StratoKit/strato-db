@@ -145,11 +145,15 @@ class SQLite extends EventEmitter {
 
 	sql = sql
 
+	/** @type {{fn:function, stack:string}[]} */
+	_queuedOnOpen = []
+
 	async _openDB() {
 		const {
 			file,
 			readOnly,
 			_isChild,
+			_queuedOnOpen,
 			options: {verbose, onWillOpen, autoVacuum},
 		} = this
 		if (_isChild)
@@ -241,6 +245,20 @@ class SQLite extends EventEmitter {
 			this._optimizerToken.unref()
 
 			if (this.options.onDidOpen) await this.options.onDidOpen(childDb)
+			for (const {fn, stack} of this._queuedOnOpen) {
+				try {
+					// eslint-disable-next-line no-await-in-loop
+					await fn(childDb)
+				} catch (error) {
+					if (error?.message)
+						error.message = `in function queued ${stack?.replace(
+							/^(?:[^\n]*\n){2}\s*/m,
+							''
+						)}: ${error.message}`
+					throw error
+				}
+			}
+			this._queuedOnOpen.length = 0
 			await childDb.close()
 		}
 
@@ -252,20 +270,45 @@ class SQLite extends EventEmitter {
 	}
 
 	/**
+	 * `true` if an sqlite connection was set up. Mostly useful for tests.
+	 */
+	get isOpen() {
+		return Boolean(this._sqlite)
+	}
+
+	/**
 	 * Force opening the database instead of doing it lazily on first access
 	 * @returns {Promise<void>} - a promise for the DB being ready to use
 	 */
 	open() {
 		const {_resolveDbP} = this
 		if (_resolveDbP) {
-			this._resolveDbP = null
-			this._dbP = this._openDB().then(result => {
-				_resolveDbP(result)
-				this._dbP = null
-				return result
+			this._openingDbP = this._openDB().finally(() => {
+				this._openingDbP = null
 			})
+			_resolveDbP(this._openingDbP)
+			this._resolveDbP = null
+			this.dbP.catch(() => this.close())
 		}
 		return this.dbP
+	}
+
+	/**
+	 * Runs the passed function once, either immediately if the connection is
+	 * already open, or when the database will be opened next.
+	 * Note that if the function runs immediately, its return value is returned.
+	 * If this is a Promise, it is the caller's responsibility to handle errors.
+	 * Otherwise, the function will be run once after onDidOpen, and errors
+	 * will cause the open to fail.
+	 * @param {(db: SQLite)=>void} fn
+	 * @returns {*} Either the function return value or undefined
+	 */
+	runOnceOnOpen(fn) {
+		if (this.isOpen) {
+			// note that async errors are not handled
+			return fn(this)
+		}
+		this._queuedOnOpen.push({fn, stack: new Error('').stack})
 	}
 
 	/**
@@ -273,6 +316,14 @@ class SQLite extends EventEmitter {
 	 * @returns {Promise<void>} - a promise for the DB being closed
 	 */
 	async close() {
+		if (this._openingDbP) {
+			dbg(`${this.name} waiting for open to complete before closing`)
+			await this._openingDbP.catch(() => {})
+		}
+		if (!this._sqlite) return
+		const {_sqlite} = this
+		this._sqlite = null
+
 		if (!this._isChild) dbg(`${this.name} closing`)
 
 		this.dbP = new Promise(resolve => {
@@ -286,11 +337,10 @@ class SQLite extends EventEmitter {
 			clearInterval(this._vacuumToken)
 			this._vacuumToken = null
 		}
-		const {_sqlite} = this
-		this._sqlite = null
 
-		// eslint-disable-next-line no-await-in-loop
-		for (const stmt of Object.values(this.statements)) await stmt.finalize()
+		const stmts = Object.values(this.statements)
+		if (stmts.length)
+			await Promise.all(stmts.map(stmt => stmt.finalize().catch(() => {})))
 
 		// We only want to close our own statements, not the db
 		if (this._isChild) {
@@ -298,9 +348,7 @@ class SQLite extends EventEmitter {
 			return
 		}
 
-		clearInterval(this._optimizerToken)
-		if (this._dbP) await this._dbP
-		if (_sqlite) await this._call('close', [], _sqlite, this.name)
+		await this._call('close', [], _sqlite, this.name)
 		dbg(`${this.name} closed`)
 	}
 

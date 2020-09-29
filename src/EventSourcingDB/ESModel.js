@@ -126,6 +126,57 @@ class ESModel extends JsonModel {
 		this.writable = state
 	}
 
+	event = {
+		/**
+		 * Create an event that will insert or replace the given object into the database
+		 *
+		 * @param  {object} obj - the object to store. If there is no `id` value (or whatever the `id` column is named), one is assigned automatically.
+		 * @param  {boolean} [insertOnly] - don't allow replacing existing objects
+		 * @param  {*} [meta] - extra metadata to store in the event but not in the object
+		 * @returns {[string, object?]} - args to pass to addEvent/dispatch
+		 */
+		set: (obj, insertOnly, meta) => {
+			const data = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
+			if (meta) data[3] = meta
+			return {type: this.TYPE, data}
+		},
+		/**
+		 * Create an event that will update an existing object
+		 * @param  {Object} obj - the data to store
+		 * @param  {boolean} [upsert] - if `true`, allow inserting if the object doesn't exist
+		 * @param  {*} [meta] - extra metadata to store in the event at `data[3]` but not in the object
+		 * @returns {[string, object?]} - args to pass to addEvent/dispatch
+		 */
+		update: (obj, upsert, meta) => {
+			const id = obj[this.idCol]
+			if (id == null && !upsert) throw new TypeError('No ID specified')
+
+			const data = [
+				upsert ? ESModel.SAVE : ESModel.UPDATE,
+				null,
+				undefToNull(obj),
+			]
+			if (meta) data.push(meta)
+
+			return {type: this.TYPE, data}
+		},
+		/**
+		 * Create an event that will emove an object
+		 * @param  {(Object|string|integer)} idOrObj - the id or the object itself
+		 * @param  {*} meta - metadata, attached to the event only, at `data[3]`
+		 * @returns {[string, object?]} - args to pass to addEvent/dispatch
+		 */
+		remove: (idOrObj, meta) => {
+			const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
+			if (id == null) throw new TypeError('No ID specified')
+
+			const data = [ESModel.REMOVE, id]
+			if (meta) data[3] = meta
+
+			return {type: this.TYPE, data}
+		},
+	}
+
 	/**
 	 * Insert or replace the given object into the database
 	 *
@@ -144,10 +195,9 @@ class ESModel extends JsonModel {
 			return super.set(obj, insertOnly, noReturn)
 		}
 
-		const d = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
-		if (meta) d[3] = meta
-
-		const {data, result} = await this.dispatch(this.TYPE, d)
+		const {data, result} = await this.dispatch(
+			this.event.set(obj, insertOnly, meta)
+		)
 		const id = data[1]
 
 		const r = result[this.name]
@@ -160,28 +210,25 @@ class ESModel extends JsonModel {
 
 	/**
 	 * update an existing object
-	 * @param  {Object} o - the data to store
+	 * @param  {Object} obj - the data to store
 	 * @param  {boolean} [upsert] - if `true`, allow inserting if the object doesn't exist
 	 * @param  {boolean} [noReturn] - do not return the stored object; an optimization
 	 * @param  {*} [meta] - extra metadata to store in the event at `data[3]` but not in the object
 	 * @returns {Promise<Object>} - if `noReturn` is false, the stored object is fetched from the DB
 	 */
-	async update(o, upsert, noReturn, meta) {
+	async update(obj, upsert, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
 
-		if (this.writable) return super.update(o, upsert, noReturn)
+		if (this.writable) return super.update(obj, upsert, noReturn)
 
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
 			throw new Error(`${this.name}: meta argument is now in fourth position`)
-		let id = o[this.idCol]
-		if (id == null && !upsert) throw new TypeError('No ID specified')
 
-		const d = [upsert ? ESModel.SAVE : ESModel.UPDATE, null, undefToNull(o)]
-		if (meta) d.push(meta)
-
-		const {data, result} = await this.dispatch(this.TYPE, d)
-		id = data[1]
+		const {data, result} = await this.dispatch(
+			this.event.update(obj, upsert, meta)
+		)
+		const id = data[1]
 
 		const r = result[this.name]
 		if (r && r.esFail) throw new Error(`${this.name}.update ${id}: ${r.esFail}`)
@@ -204,13 +251,8 @@ class ESModel extends JsonModel {
 	 */
 	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
-		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
-		if (id == null) throw new TypeError('No ID specified')
 
-		const d = [ESModel.REMOVE, id]
-		if (meta) d[3] = meta
-
-		await this.dispatch(this.TYPE, d)
+		await this.dispatch(this.event.remove(idOrObj, meta))
 		return true
 	}
 
@@ -271,8 +313,11 @@ class ESModel extends JsonModel {
 	/**
 	 * Calculates the desired change
 	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`
-	 * @param {object} model - the model
-	 * @param {Event} event - the event
+	 * @param {object} params
+	 * @param {ESModel} params.model - the model
+	 * @param {Event} params.event - the event
+	 * @param {(type: string, data:*): void} params.dispatch - function to dispatch sub-events
+	 * @param {Record<string, ESModel>} params.store - all the models in the ESDB
 	 * @returns {Promise<Object>} - the result object in the format JsonModel likes
 	 */
 	static async reducer({model, event: {type, data}}) {

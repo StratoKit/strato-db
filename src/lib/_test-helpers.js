@@ -84,6 +84,7 @@ export const testModels = {
 		},
 	},
 }
+
 const withDBs = async fn => {
 	const db = new DB({name: 'D'})
 	const queue = new EQ({
@@ -94,10 +95,26 @@ const withDBs = async fn => {
 	await Promise.all([db.close(), queue.db.close()])
 	return ret
 }
-export const withESDB = (fn, models = testModels) =>
-	withDBs(async (db, queue) => {
+
+/**
+ * @param {Record<string,any>|function} modelsOrFn
+ * @param {function} [fn]
+ */
+export const withESDB = (modelsOrFn, fn) => {
+	let models
+	if (typeof modelsOrFn === 'function') {
+		// eslint-disable-next-line no-throw-literal
+		if (fn) throw 'Use either .withESDB(fn) or .withESDB(models, fn)'
+		fn = modelsOrFn
+	} else {
+		models = modelsOrFn
+	}
+	if (!models) models = testModels
+	if (!fn) throw new Error('no fn passed to withESDB')
+	return withDBs(async (db, queue) => {
 		const eSDB = new ESDB({queue, models, name: 'E'})
 		const out = await fn(eSDB, queue)
 		await eSDB.close()
 		return out
 	})
+}

@@ -36,7 +36,7 @@ Basic ideas from [Turning The Database Inside Out](https://www.confluent.io/blog
     - any other keys: opaque data describing the change, can be informational or used by a custom `applyResult`
   - **Derivers**: Functions that calculate "secondary state" from the changes. They can serve to make the event result smaller
 - **History**: An ordered list of reduced events (so `{v, type, data, result}`). This is not required, and the event can be abridged. It could serve as an audit log. If all the original event data is retained, it can be used to reprocess the database from scratch.
-- **Sub-events**: To make the event processing code simpler, ESDB allows dispatching further events from anywhere in the redux cycle. These events are processed depth-first. For example, a USER_LOGIN event can result in a USER_REGISTERED event if they logged in via OAuth for the first time.
+- **Sub-events**: To make the event processing code simpler, ESDB allows adding derived events from anywhere in the redux cycle. These events are processed depth-first. For example, a USER_LOGIN event can result in a USER_REGISTERED event if they logged in via OAuth for the first time.
 
 ## Flow
 
@@ -76,7 +76,11 @@ Basic ideas from [Turning The Database Inside Out](https://www.confluent.io/blog
     - They change their models as they see fit
     - Failing derivers abort the transaction
   - **SubEvents**
-    - Each subevent undergoes these same steps in the same transaction, with the same version number.
+    - Each added subevent undergoes these same steps in the same transaction, with the same version number.
+  - **Transact**
+    - All `transact` callbacks are called sequentially in undefined order
+    - They receive a `dispatch` function that behaves like the `ESDB.dispatch` method but adds and waits for subevents
+    - This allows working with ESModel in a single transaction and still having an event log
   - **End transaction**
     - The DB is now at the event version.
   - **Listeners**:

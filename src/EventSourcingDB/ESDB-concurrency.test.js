@@ -10,11 +10,11 @@ const testModels = {
 			expect(model).toBe(store.subber)
 			if (event.type === 'sub') expect(await model.get('hey')).toBeTruthy()
 		},
-		reducer: async ({model, event: {type}, dispatch, store}) => {
+		reducer: async ({model, event: {type}, addEvent, store}) => {
 			expect(model).toBe(store.subber)
 			switch (type) {
 				case 'main':
-					dispatch('sub')
+					addEvent('sub')
 					return {ins: [{id: 'hey'}]}
 				case 'sub':
 					expect(await model.get('hey')).toBeTruthy()
@@ -40,7 +40,7 @@ const testModels = {
 	},
 	nexter: {
 		columns: {id: {type: 'INTEGER'}},
-		reducer: async ({model, event: {type, data}, dispatch}) => {
+		reducer: async ({model, event: {type, data}, addEvent}) => {
 			if (type !== 'nexter') return
 			const id = await model.getNextId()
 			await model.getNextId() // skip an id
@@ -48,7 +48,7 @@ const testModels = {
 			// skip an id, shouldn't matter
 			await model.getNextId()
 			if (data) {
-				dispatch('nexter', data - 1)
+				addEvent('nexter', data - 1)
 			}
 			return {ins: [{id}, {id: id2}]}
 		},

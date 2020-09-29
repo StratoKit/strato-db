@@ -30,6 +30,12 @@ const dbg = debug('strato-db/JSON')
  * @typedef {Row|null} MaybeRow A stored object. It will always have a value for the `id` column
  * @typedef {string|number} ID A table-unique identifier
  * @typedef {Record<string, string|number|boolean>} SearchAttrs simple equality lookup values for searching
+ * @prop {SQLite} db the sqlite connection to the database
+ * @prop {string} name name of the table in the database
+ * @prop {string} quoted sql-quoted version of the name
+ * @prop {string} idCol name of the identifier column
+ * @prop {string} idColQ sql-quoted name of the identifier column
+ * @prop {class} [Item] object-like class that should be used for Row instances
  */
 
 class JsonModel {

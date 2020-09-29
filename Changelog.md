@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+The following is a very insignificant breaking change so doesn't warrant a new major version.
+
+- EventQueue: `.setKnownV()` is now synchronous and no longer returns a Promise
+
+### Changes
+
+- ESDB: Renamed `dispatch()` to `addEvent()` inside the event processing flow. `dispatch()` still works but gives a deprecation warning. The `.dispatch()` method is not affected.
+- SQLite: added `.runOnceOnOpen()` to register functions that should be run on the open database but shouldn't open the database
+- ESDB: Added `transact({event, model, store, dispatch})` phase to the event processing flow. In this callback, you can call `dispatch` to generate sub-events, and calling ESModel will work too (any model can use the `dispatch` given via the constructor).
+  This requires the use of `AsyncLocalStorage`, and thus the minimum NodeJS version is now v12.17
+- ESDB: `dispatch({type, data, ts})` is now also possible
+
 ## 3.1.1
 
 - ESModel - `getNextId()` fix (was returning incorrect values when run inside a subevent)
