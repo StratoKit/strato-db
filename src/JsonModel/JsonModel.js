@@ -16,6 +16,7 @@ import {verifyOptions, verifyColumn} from './verifyOptions'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
+import {settleAllFindFirst} from '../lib/settleAllFindFirst'
 import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/JSON')
@@ -827,6 +828,51 @@ class JsonModel {
 			// eslint-disable-next-line no-await-in-loop
 			await settleAll(result.items, v => fn(v, i++))
 		} while (cursor)
+	}
+
+	/**
+	 * Iterate through search results. Calls `fn` on every result.
+	 * Finish on the first positive fn result (in limit portion).
+	 * The iteration uses a cursored search, so changes to the model
+	 * during the iteration can influence the iteration.
+	 *
+	 * @param {SearchAttrs|RowCallback} attrsOrFn
+	 * @param {RowCallback|SearchOptions} [optionsOrFn]
+	 * @param {RowCallback} [fn]
+	 * @returns {Promise<void>} table iteration completed
+	 */
+	async eachFind(attrsOrFn, optionsOrFn, fn) {
+		if (!fn) {
+			if (optionsOrFn) {
+				if (typeof optionsOrFn === 'function') {
+					fn = optionsOrFn
+					optionsOrFn = undefined
+				} else {
+					fn = optionsOrFn.fn
+					delete optionsOrFn.fn
+				}
+			} else if (typeof attrsOrFn === 'function') {
+				fn = attrsOrFn
+				attrsOrFn = undefined
+			}
+			if (!fn) throw new Error('each requires function')
+		}
+		if (!optionsOrFn) optionsOrFn = {}
+		if (!optionsOrFn.limit) optionsOrFn.limit = 10
+		optionsOrFn.noCursor = false
+		optionsOrFn.noTotal = true
+		let cursor
+		let i = 0
+		let stop = false
+
+		do {
+			// eslint-disable-next-line no-await-in-loop
+			const result = await this.search(attrsOrFn, {...optionsOrFn, cursor})
+			cursor = result.cursor
+			// eslint-disable-next-line no-await-in-loop
+			const resFound = await settleAllFindFirst(result.items, v => fn(v, i++))
+			if (resFound) stop = true
+		} while (cursor && !stop)
 	}
 
 	// --- Mutator methods below ---
