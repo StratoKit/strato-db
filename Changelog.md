@@ -14,6 +14,7 @@
 ### Fixes
 
 - ESDB: fix deadlock on queue add in migration (due to version setting)
+- JM: while paging, if the total == the limit, the cursor is now also null, because there is no next page.
 
 ## 3.3.2
 

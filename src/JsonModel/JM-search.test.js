@@ -85,6 +85,8 @@ test('search cursor', async () => {
 		cursor: undefined,
 		total: 8,
 	})
+	const limitEqualToTotal = await m.search(null, {...q, limit: 8})
+	expect(limitEqualToTotal.cursor).toBeFalsy()
 })
 
 test('search itemsOnly', async () => {

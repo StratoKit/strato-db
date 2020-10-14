@@ -500,7 +500,8 @@ class JsonModelImpl {
 			options &&
 			!options.noCursor &&
 			options.limit &&
-			rows.length === options.limit
+			rows.length === options.limit &&
+			(!totalQ || totalO?.t > options.limit)
 		) {
 			const last = rows[rows.length - 1]
 			cursor = jsurl.stringify(
@@ -508,9 +509,7 @@ class JsonModelImpl {
 				{short: true}
 			)
 		}
-		const out = {items, cursor}
-		if (totalO) out.total = totalO.t
-		return out
+		return {items, cursor, total: totalO?.t}
 	}
 
 	searchAll(attrs, options) {
