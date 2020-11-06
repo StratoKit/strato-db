@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.0
+
+### Breaking
+
+- JsonModel: `.get()` now uses the column's `where` and `whereVal` like `.search()` does. This means that it will return different results than in v3, but those cases were likely to be unintended.
+
 ## 3.1.1
 
 - ESModel - `getNextId()` fix (was returning incorrect values when run inside a subevent)

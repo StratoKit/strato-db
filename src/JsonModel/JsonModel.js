@@ -696,14 +696,32 @@ class JsonModel {
 				new Error(`No "${colName}" given for "${this.name}"`)
 			)
 		}
-		if (this.columns[colName]._getSql?.db !== this.db) {
-			const where = this.columns[colName].sql
-			this.columns[colName]._getSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} = ?`,
+		let {where, whereVal, _getSql} = this.columns[colName]
+		if (_getSql?.db !== this.db) {
+			if (typeof where === 'function')
+				throw new Error(
+					`${this.name}.${colName}: Cannot use function-type where column in .get()`
+				)
+			_getSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where}`,
 				`get ${this.name}.${colName}`
 			)
+			this.columns[colName]._getSql = _getSql
 		}
-		return this.columns[colName]._getSql.get([id]).then(this.toObj)
+		let vals
+		if (whereVal) {
+			vals = whereVal(id)
+			if (!Array.isArray(vals)) {
+				if (vals)
+					throw new Error(
+						`${this.name}.${colName}: whereVal should return array or falsy`
+					)
+				return
+			}
+		} else {
+			vals = [id]
+		}
+		return _getSql.get(vals).then(this.toObj)
 	}
 
 	/**
