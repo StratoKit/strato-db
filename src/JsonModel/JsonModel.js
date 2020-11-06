@@ -679,12 +679,30 @@ class JsonModelImpl {
 				new Error(`Unknown column "${colName}" given for "${this.name}"`)
 			)
 		if (col._getSql?.db !== this.db) {
+			const {where} = col
+			if (typeof where === 'function')
+				throw new Error(
+					`${this.name}.${colName}: Cannot use function-type where in .get()`
+				)
 			col._getSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${col.sql} = ?`,
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where}`,
 				`get ${this.name}.${colName}`
 			)
 		}
-		return col._getSql.get([id]).then(this.toObj)
+		let vals
+		if (col.whereVal) {
+			vals = col.whereVal(id)
+			if (!Array.isArray(vals)) {
+				if (vals)
+					throw new Error(
+						`${this.name}.${colName}: whereVal should return array or falsy`
+					)
+				return
+			}
+		} else {
+			vals = [id]
+		}
+		return col._getSql.get(vals).then(this.toObj)
 	}
 
 	/**
