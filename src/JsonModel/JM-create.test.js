@@ -125,6 +125,20 @@ test('get w/ other colName', async () => {
 	expect(await m.get(10, 'slug')).toEqual({id: 0, slug: 10})
 })
 
+test('get w/ where', async () => {
+	const m = getModel({
+		columns: {
+			name: {
+				real: true,
+				where: 'lower(name) = ?',
+				whereVal: v => [v.toLowerCase()],
+			},
+		},
+	})
+	await m.set({name: 'HI'})
+	expect(await m.get('Hi', 'name')).toHaveProperty('name', 'HI')
+})
+
 test('getAll', async () => {
 	const m = getModel({
 		columns: {
