@@ -5,8 +5,12 @@ module.exports = {
 		es6: true,
 		node: true,
 	},
-	parser: 'babel-eslint',
+	parser: '@babel/eslint-parser',
 	plugins: ['jest', 'import', 'promise', 'unicorn'],
+	settings: {
+		// autodetect doesn't work
+		jest: {version: 26},
+	},
 	extends: [
 		'eslint:recommended',
 		'plugin:jest/recommended',
@@ -35,6 +39,8 @@ module.exports = {
 
 		'capitalized-comments': 0,
 		'no-eq-null': 0,
+		'no-promise-executor-return': 0,
+		'unicorn/no-useless-undefined': 0,
 		'one-var': 0,
 		'padding-line-between-statements': 0,
 		'prefer-template': 0,

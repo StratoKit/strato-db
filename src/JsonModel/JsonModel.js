@@ -173,9 +173,9 @@ class JsonModel {
 	}
 
 	_makeSetFn() {
-		const {Item} = this
-		const valueCols = this.columnArr.filter(c => c.value).sort(byPathLength)
-		const realCols = this.columnArr
+		const {db, Item, columnArr, quoted, idCol, name} = this
+		const valueCols = columnArr.filter(c => c.value).sort(byPathLength)
+		const realCols = columnArr
 			.filter(c => c.real)
 			.sort(byPathLengthDesc)
 			.map((c, i) => ({
@@ -207,21 +207,18 @@ class JsonModel {
 			  }
 			: obj => ({...obj})
 		const colSqls = realCols.map(col => col.quoted)
-		const setSql = `INTO ${this.quoted}(${colSqls.join()}) VALUES(${colSqls
+		const setSql = `INTO ${quoted}(${colSqls.join()}) VALUES(${colSqls
 			.map(() => '?')
 			.join()})`
 		return async (o, insertOnly, noReturn) => {
-			if (this._insertSql?.db !== this.db) {
-				this._insertSql = this.db.prepare(
-					`INSERT ${setSql}`,
-					`ins ${this.name}`
-				)
+			if (this._insertSql?.db !== db) {
+				this._insertSql = db.prepare(`INSERT ${setSql}`, `ins ${name}`)
 				const updateSql = colSqls
 					.map((col, i) => `${col} = ?${i + 1}`)
 					.join(', ')
-				this._updateSql = this.db.prepare(
-					`INSERT ${setSql} ON CONFLICT(${this.idCol}) DO UPDATE SET ${updateSql}`,
-					`set ${this.name}`
+				this._updateSql = db.prepare(
+					`INSERT ${setSql} ON CONFLICT(${idCol}) DO UPDATE SET ${updateSql}`,
+					`set ${name}`
 				)
 			}
 			const {_insertSql, _updateSql} = this
@@ -232,16 +229,15 @@ class JsonModel {
 					col.value.call(this, obj)
 				)
 			)
-			results.forEach((r, i) => {
+			for (const [i, r] of results.entries()) {
 				const col = valueCols[i]
 				// realCol values can be different from obj values
 				if (col.path && (!col.real || col.get)) set(obj, col.path, r)
-			})
+			}
 			const colVals = realCols.map(col => {
 				let v
 				if (col.path) {
-					if (col.value) v = results[col.valueI]
-					else v = get(obj, col.path)
+					v = col.value ? results[col.valueI] : get(obj, col.path)
 					if (col.get) set(obj, col.path, undefined)
 				} else {
 					v = obj
@@ -256,12 +252,12 @@ class JsonModel {
 				: P.then(result => {
 						// Return what get(id) would return
 						const newObj = Item ? new Item() : {}
-						setCols.forEach(col => {
+						for (const col of setCols) {
 							const val = colVals[col.i]
 							const v = col.parse ? col.parse(val) : val
 							if (col.path === '') Object.assign(newObj, v)
 							else set(newObj, col.path, v)
-						})
+						}
 						if (newObj[this.idCol] == null) {
 							// This can only happen for integer ids, so we use the last inserted rowid
 							newObj[this.idCol] = result.lastID
@@ -358,7 +354,7 @@ class JsonModel {
 		if (makeCursor || cursor) {
 			let copiedCols = false
 			// We need the sort columns in the output to get the cursor value
-			sortNames.forEach(colName => {
+			for (const colName of sortNames) {
 				if (!cols.includes(colName)) {
 					if (!copiedCols) {
 						cols = [...cols]
@@ -366,7 +362,7 @@ class JsonModel {
 					}
 					cols.push(colName)
 				}
-			})
+			}
 			cursorColNames = sortNames.map(c =>
 				this.columns[c] ? this.columns[c].alias : c
 			)

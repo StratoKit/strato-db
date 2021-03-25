@@ -77,21 +77,22 @@ export const makeMigrations = ({
 		(writeableDb => {
 			if (!writeableDb.store.__madeWriteable) {
 				const {store} = writeableDb
-				writeableDb.store = {__madeWriteable: true}
+				const newStore = {__madeWriteable: true}
 				// Create a patched version of all models that uses the migration db
-				Object.values(store).forEach(m => {
-					if (typeof m !== 'object') return
-					writeableDb.store[m.name] = cloneModelWithDb(m, writeableDb)
-				})
+				for (const m of Object.values(store)) {
+					if (typeof m !== 'object') continue
+					newStore[m.name] = cloneModelWithDb(m, writeableDb)
+				}
+				writeableDb.store = newStore
 			}
 			const model = writeableDb.store[tableName]
 			return fn({...migrationOptions, db: writeableDb, model})
 		})
 	const wrapMigration = migration => wrap(migration.up || migration)
 
-	Object.keys(allMigrations).forEach(k => {
+	for (const k of Object.keys(allMigrations)) {
 		const m = allMigrations[k]
 		if (m) wrappedMigrations[k] = wrapMigration(m)
-	})
+	}
 	return wrappedMigrations
 }

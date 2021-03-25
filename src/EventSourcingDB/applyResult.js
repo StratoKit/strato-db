@@ -6,9 +6,8 @@ const applyResult = async (model, result) => {
 	if (DEV) {
 		// eslint-disable-next-line no-unused-vars
 		const {rm, set, ins, upd, sav, ...rest} = result
-		Object.keys(rest).forEach(
-			k => typeof rest[k] !== 'undefined' && unknown(k, `key ${k} in result`)
-		)
+		for (const k of Object.keys(rest))
+			if (typeof rest[k] !== 'undefined') unknown(k, `key ${k} in result`)
 	}
 	if (rm) await settleAll(rm, item => model.remove(item))
 	if (ins) await settleAll(ins, obj => model.set(obj, true, true))

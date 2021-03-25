@@ -3,6 +3,7 @@
 import {sortBy} from 'lodash'
 import debug from 'debug'
 import SQLite, {sql} from './SQLite'
+import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/DB')
 
@@ -10,14 +11,15 @@ export const _getRanMigrations = async db => {
 	if (
 		!(await db.get(`SELECT 1 FROM sqlite_master WHERE name="{sdb} migrations"`))
 	) {
-		if (await db.get(`SELECT 1 FROM sqlite_master WHERE name="_migrations"`))
-			await db.exec(`ALTER TABLE _migrations RENAME TO "{sdb} migrations"`)
-		else
-			await db.exec(`CREATE TABLE "{sdb} migrations"(
+		await ((await db.get(
+			`SELECT 1 FROM sqlite_master WHERE name="_migrations"`
+		))
+			? db.exec(`ALTER TABLE _migrations RENAME TO "{sdb} migrations"`)
+			: db.exec(`CREATE TABLE "{sdb} migrations"(
 				runKey TEXT,
 				ts DATETIME,
 				up BOOLEAN
-			);`)
+			);`))
 	}
 	const didRun = {}
 	await db.each(
@@ -67,10 +69,7 @@ class DB extends SQLite {
 	static sql = sql
 
 	get models() {
-		if (process.env.NODE_ENV !== 'production' && !this.warnedModel)
-			console.error(
-				new Error('!!! db.models is deprecated, use db.store instead')
-			)
+		if (DEV) deprecated(`use db.store instead of db.models`)
 		return this.store
 	}
 
@@ -126,8 +125,8 @@ class DB extends SQLite {
 	 * @returns {Promise<void>} - promise for completed migrations
 	 */
 	async runMigrations(db) {
-		const {store} = this
-		const migrations = sortBy(this.options.migrations, ({runKey}) => runKey)
+		const {store, options} = this
+		const migrations = sortBy(options.migrations, ({runKey}) => runKey)
 		await db.withTransaction(async () => {
 			const didRun = await _getRanMigrations(db)
 			for (const model of Object.values(store))

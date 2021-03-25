@@ -17,7 +17,7 @@ test('queue in same db', async () =>
 			const {v} = await queue.add('moop')
 			eSDB.checkForEvents()
 			await eSDB.handledVersion(v)
-			const history = await eSDB.queue.all()
+			const history = await queue.all()
 			expect(history).toHaveLength(2)
 			expect(history[0].type).toBe('boop')
 			expect(history[0].result).toBeTruthy()

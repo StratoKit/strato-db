@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/consistent-destructuring */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
@@ -223,17 +224,14 @@ class EventSourcingDB extends EventEmitter {
 				if (!v) return
 				await db.userVersion(v)
 				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
-				if (count === 1) {
-					await db
-						.exec(
-							`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
-						)
-						.catch(() => {
+				await (count === 1
+					? db
+							.exec(
+								`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
+							)
 							/* shrug */
-						})
-				} else {
-					await db.run(`DELETE FROM metadata WHERE id="version"`)
-				}
+							.catch(() => {})
+					: db.run(`DELETE FROM metadata WHERE id="version"`))
 			},
 		})
 
@@ -274,6 +272,7 @@ class EventSourcingDB extends EventEmitter {
 						const prev = preprocessor
 						preprocessor = async args => {
 							const e = await ESModel.preprocessor(args)
+							// eslint-disable-next-line require-atomic-updates
 							if (e) args.event = e
 							return prev(args)
 						}
@@ -297,17 +296,15 @@ class EventSourcingDB extends EventEmitter {
 					hasOne = true
 				}
 
-				let model
-				if (this.db === this.rwDb) {
-					model = rwModel
-				} else {
-					model = this.db.addModel(Model, {
-						name,
-						...rest,
-						dispatch,
-						emitter: this,
-					})
-				}
+				const model =
+					this.db === this.rwDb
+						? rwModel
+						: this.db.addModel(Model, {
+								name,
+								...rest,
+								dispatch,
+								emitter: this,
+						  })
 				model.preprocessor = preprocessor || Model.preprocessor
 				model.reducer = fixupOldReducer(name, reducer || Model.reducer)
 				this.store[name] = model
@@ -411,12 +408,12 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async dispatch(type, data, ts) {
-		const {_knownV} = this
+		const {_knownV, queue} = this
 		if (_knownV) {
 			this._knownV = null
-			await this.queue.setKnownV(_knownV)
+			await queue.setKnownV(_knownV)
 		}
-		const event = await this.queue.add(type, data, ts)
+		const event = await queue.add(type, data, ts)
 		return this.handledVersion(event.v)
 	}
 
@@ -519,7 +516,7 @@ class EventSourcingDB extends EventEmitter {
 	// This should never throw, handling errors can be done in apply
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
-		const {rwDb} = this
+		const {db, rwDb, queue, _resultQueue} = this
 		let lastV = 0
 		let errorCount = 0
 		if (dbg.enabled && this._minVersion)
@@ -530,15 +527,15 @@ class EventSourcingDB extends EventEmitter {
 					throw new Error(`Giving up on processing event ${lastV + 1}`)
 				// These will reopen automatically
 				await Promise.all([
-					this.db.file !== ':memory:' && this.db.close(),
-					this.rwDb.file !== ':memory:' && this.rwDb.close(),
-					this.queue.db.file !== ':memory:' && this.queue.db.close(),
+					db.file !== ':memory:' && db.close(),
+					rwDb.file !== ':memory:' && rwDb.close(),
+					queue.db.file !== ':memory:' && queue.db.close(),
 				])
 				await wait(5000 * errorCount)
 			}
 			let event
 			try {
-				event = await this.queue.getNext(
+				event = await queue.getNext(
 					await this.getVersion(),
 					!(this._isPolling || this._minVersion)
 				)
@@ -573,7 +570,7 @@ class EventSourcingDB extends EventEmitter {
 					} else {
 						await rwDb.run('RELEASE SAVEPOINT handle')
 					}
-					return this._resultQueue.set(result)
+					return _resultQueue.set(result)
 				})
 				.catch(error => {
 					if (!this.__BE_QUIET)
@@ -614,6 +611,7 @@ class EventSourcingDB extends EventEmitter {
 						error
 					)
 				}
+				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
@@ -706,7 +704,6 @@ class EventSourcingDB extends EventEmitter {
 						return
 					}
 					// Note that reducers can add/alter event.events
-					// eslint-disable-next-line require-atomic-updates
 					if (!event.events) event.events = []
 					event.events.push(...out.events)
 					delete out.events
@@ -797,7 +794,7 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async _applyEvent(event, isMainEvent) {
-		const {rwStore, rwDb, _readWriters: readWriters} = this
+		const {rwStore, rwDb, _readWriters: readWriters, _deriverModels} = this
 		let phase = '???'
 		try {
 			for (const model of readWriters) model.setWritable(true)
@@ -818,14 +815,14 @@ class EventSourcingDB extends EventEmitter {
 			}
 
 			// Apply derivers
-			if (!event.error && this._deriverModels.length) {
+			if (!event.error && _deriverModels.length) {
 				phase = 'derive'
-				await settleAll(this._deriverModels, async model =>
+				await settleAll(_deriverModels, async model =>
 					model.deriver({
 						event,
 						model,
 						// derivers can write anywhere (carefully)
-						store: this.rwStore,
+						store: rwStore,
 						dispatch: this._subDispatch.bind(this, event),
 						isMainEvent,
 						result: result[model.name],

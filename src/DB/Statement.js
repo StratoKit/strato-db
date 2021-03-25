@@ -1,4 +1,3 @@
-// @ts-check
 // Implements prepared statements that auto-close and recreate
 // Only a single preparation per sql string
 // No parameter binding at creation for now
@@ -65,6 +64,7 @@ class Statement {
 					delete this._stmt
 					_stmt.finalize(err => {
 						if (err) {
+							// eslint-disable-next-line unicorn/consistent-destructuring
 							if (!this._stmt) this._stmt = _stmt
 							return reject(err)
 						}

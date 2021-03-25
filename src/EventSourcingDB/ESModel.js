@@ -16,9 +16,9 @@ export const undefToNull = data => {
 	if (Array.isArray(data)) return data.map(element => undefToNull(element))
 	if (Object.getPrototypeOf(data) !== Object.prototype) return data
 	const out = {}
-	Object.entries(data).forEach(([key, value]) => {
+	for (const [key, value] of Object.entries(data)) {
 		out[key] = undefToNull(value)
-	})
+	}
 	return out
 }
 

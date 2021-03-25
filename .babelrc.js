@@ -34,8 +34,9 @@ module.exports = function (context, opts) {
 				// this is either `false` or `undefined`
 				modules: !noModules && undefined,
 				// uncomment this to verify that we don't need polyfills
-				// we can ignore the sort polyfill
+				// we can ignore the sort and promise polyfills
 				// useBuiltIns: 'usage',
+				corejs: 3,
 				debug: process.env.NODE_ENV !== 'test',
 			},
 		],
