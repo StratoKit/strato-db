@@ -27,12 +27,13 @@ class Statement {
 
 	/**
 	 * @callback voidFn
-	 * @returns {Promise<*>|*}
+	 * @returns {Promise<any> | any}
 	 */
 	/**
-	 * wrap the function with a refresh call
-	 * @param {voidFn} fn the function to wrap
-	 * @returns {Promise<*>} the result of the function
+	 * Wrap the function with a refresh call.
+	 *
+	 * @param {voidFn} fn  The function to wrap.
+	 * @returns {Promise<any>} The result of the function.
 	 */
 	_wrap(fn) {
 		if (!this._stmt) this.P = this.P.then(this._refresh)
@@ -76,18 +77,20 @@ class Statement {
 	}
 
 	/**
-	 * Run the statement and return the metadata
-	 * @param {Array<*>} [vars] - the variables to be bound to the statement
-	 * @returns {Promise<object>} - an object with `lastID` and `changes`
+	 * Run the statement and return the metadata.
+	 *
+	 * @param {any[]} [vars]  - the variables to be bound to the statement.
+	 * @returns {Promise<Object>} - an object with `lastID` and `changes`
 	 */
 	async run(vars) {
 		return this._wrap(() => this.db._call('run', vars, this, this.name, true))
 	}
 
 	/**
-	 * Return the first row for the statement result
-	 * @param {Array<*>} [vars] - the variables to be bound to the statement
-	 * @returns {Promise<(object|null)>} - the result or falsy if missing
+	 * Return the first row for the statement result.
+	 *
+	 * @param {any[]} [vars]  - the variables to be bound to the statement.
+	 * @returns {Promise<Object | null>} - the result or falsy if missing.
 	 */
 	async get(vars) {
 		return this._wrap(() =>
@@ -104,9 +107,10 @@ class Statement {
 	}
 
 	/**
-	 * Return all result rows for the statement
-	 * @param {Array<*>} [vars] - the variables to be bound to the statement
-	 * @returns {Promise<Array<object>>} - the results
+	 * Return all result rows for the statement.
+	 *
+	 * @param {any[]} [vars]  - the variables to be bound to the statement.
+	 * @returns {Promise<Object[]>} - the results.
 	 */
 	async all(vars) {
 		return this._wrap(() => this.db._call('all', vars, this, this.name))

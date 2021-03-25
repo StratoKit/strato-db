@@ -8,27 +8,30 @@ const dbg = debug('strato-db/queue')
 let warnedLatest
 
 /**
- * An event queue, including history
- * @extends JsonModel
+ * An event queue, including history.
+ *
+ * @augments JsonModel
  */
 class EventQueue extends JsonModel {
 	/**
-	 * @typedef Event
 	 * @type {Object}
-	 * @property {Number} v - the version
-	 * @property {String} type - event type
-	 * @property {Number} ts - ms since epoch of event
-	 * @property {*} [data] - event data
-	 * @property {Object} [result] - event processing result
+	 * @typedef Event
+	 * @property {number} v         - the version.
+	 * @property {string} type      - event type.
+	 * @property {number} ts        - ms since epoch of event.
+	 * @property {*}      [data]    - event data.
+	 * @property {Object} [result]  - event processing result.
 	 */
 
 	/**
-	 * Creates a new EventQueue model, called by DB
-	 * @constructor
-	 * @param  {string} [name='history'] - the table name
-	 * @param  {boolean} [forever] - should getNext poll forever?
-	 * @param  {boolean} [withViews] - add views to the database to assist with inspecting the data
-	 * @param  {Object} [...rest] - other params are passed to JsonModel
+	 * Creates a new EventQueue model, called by DB.
+	 *
+	 * @class
+	 * @param {string}  [name='history']  - the table name.
+	 * @param {boolean} [forever]         - should getNext poll forever?
+	 * @param {boolean} [withViews]       - add views to the database to assist
+	 *                                    with inspecting the data.
+	 * @param {Object}  [...rest]         - other params are passed to JsonModel.
 	 */
 	constructor({name = 'history', forever, withViews, ...rest}) {
 		const columns = {
@@ -110,9 +113,10 @@ class EventQueue extends JsonModel {
 	}
 
 	/**
-	 * Replace existing event data
-	 * @param  {Event} event - the new event
-	 * @returns {Promise<void>} - Promise for set completion
+	 * Replace existing event data.
+	 *
+	 * @param {Event} event  - the new event.
+	 * @returns {Promise<void>} - Promise for set completion.
 	 */
 	set(event) {
 		if (!event.v) {
@@ -135,8 +139,9 @@ class EventQueue extends JsonModel {
 	}
 
 	/**
-	 * Get the highest version stored in the queue
-	 * @returns {Promise<number>} - the version
+	 * Get the highest version stored in the queue.
+	 *
+	 * @returns {Promise<number>} - the version.
 	 */
 	async getMaxV() {
 		if (this._addP) await this._addP
@@ -160,11 +165,12 @@ class EventQueue extends JsonModel {
 	_addP = null
 
 	/**
-	 * Atomically add an event to the queue
-	 * @param  {string} type - event type
-	 * @param  {*} [data] - event data
-	 * @param  {Number} [ts=Date.now()] - event timestamp, ms since epoch
-	 * @returns {Promise<Event>} - Promise for the added event
+	 * Atomically add an event to the queue.
+	 *
+	 * @param {string} type             - event type.
+	 * @param {*}      [data]           - event data.
+	 * @param {number} [ts=Date.now()]  - event timestamp, ms since epoch.
+	 * @returns {Promise<Event>} - Promise for the added event.
 	 */
 	add(type, data, ts) {
 		if (!type || typeof type !== 'string')
@@ -224,11 +230,12 @@ class EventQueue extends JsonModel {
 	}
 
 	/**
-	 Get the next event after v (gaps are ok).
-	 The wait can be cancelled by `.cancelNext()`.
-	 * @param  {number} [v=0] the version
-	 * @param  {boolean} [noWait] do not wait for the next event
-	 * @returns {Promise<Event>} the event if found
+	 * Get the next event after v (gaps are ok).
+	 * The wait can be cancelled by `.cancelNext()`.
+	 *
+	 * @param {number}  [v=0]     The version.
+	 * @param {boolean} [noWait]  Do not wait for the next event.
+	 * @returns {Promise<Event>} The event if found.
 	 */
 	async getNext(v = 0, noWait = false) {
 		let event
@@ -267,7 +274,8 @@ class EventQueue extends JsonModel {
 	/**
 	 * Set the latest known version.
 	 * New events will have higher versions.
-	 * @param  {number} v - the last known version
+	 *
+	 * @param {number} v  - the last known version.
 	 */
 	async setKnownV(v) {
 		// set the sqlite autoincrement value

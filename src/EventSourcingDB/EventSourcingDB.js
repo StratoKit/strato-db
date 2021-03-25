@@ -109,10 +109,11 @@ const fixupOldReducer = (name, reducer) => {
 }
 
 /**
- * EventSourcingDB maintains a DB where all data is
- * atomically updated based on {@link Event events (free-form messages)}.
+ * EventSourcingDB maintains a DB where all data is atomically updated based on
+ * {@link Event events (free-form messages)}.
  * This is very similar to how Redux works in React.
- * @extends EventEmitter
+ *
+ * @augments EventEmitter
  */
 class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour

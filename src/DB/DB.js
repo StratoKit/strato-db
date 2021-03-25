@@ -44,15 +44,22 @@ const _markMigration = async (db, runKey, up) => {
 /**
  * DB adds model management and migrations to Wrapper.
  * The migration state is kept in the table ""{sdb} migrations"".
- * @extends SQLite
+ *
+ * @augments SQLite
  */
 class DB extends SQLite {
 	/**
-	 * @param {object} options options for DB and SQLite
-	 * @param {boolean} [options.readOnly] open the DB read-only
-	 * @param {Array} [options.migrations] migration definitions
-	 * @param {function} [options.onBeforeMigrations] called with the `db` before migrations run. Not called for read-only
-	 * @param {function} [options.onDidOpen] called with the `db` after migrations ran. If readOnly is set, it runs after opening DB. The DB is open after this function resolves
+	 * @param {Object} options
+	 * Options for DB and SQLite.
+	 * @param {boolean} [options.readOnly]
+	 * Open the DB read-only.
+	 * @param {Array} [options.migrations]
+	 * Migration definitions.
+	 * @param {function} [options.onBeforeMigrations]
+	 * Called with the `db` before migrations run. Not called for read-only.
+	 * @param {function} [options.onDidOpen]
+	 * Called with the `db` after migrations ran. If readOnly is set, it runs after
+	 * opening DB. The DB is open after this function resolves.
 	 */
 	constructor({migrations = [], onBeforeMigrations, ...options} = {}) {
 		const onDidOpen = options.readOnly
@@ -74,11 +81,13 @@ class DB extends SQLite {
 	}
 
 	/**
-	 * Add a model to the DB, which will manage one or more tables in the SQLite database.
+	 * Add a model to the DB, which will manage one or more tables in the SQLite
+	 * database.
 	 * The model should use the given `db` instance at creation time.
-	 * @param {Object} Model - a class
-	 * @param {object} options - options passed during Model creation
-	 * @returns {object} - the created Model instance
+	 *
+	 * @param {Object} Model    - a class.
+	 * @param {Object} options  - options passed during Model creation.
+	 * @returns {Object} - the created Model instance.
 	 */
 	addModel(Model, options) {
 		const model = new Model({
@@ -92,9 +101,12 @@ class DB extends SQLite {
 	}
 
 	/**
-	 * Register an object with migrations
-	 * @param {string} name - the name under which to register these migrations
-	 * @param {Record<string, function | Record<string, function>>} migrations - the migrations object
+	 * Register an object with migrations.
+	 *
+	 * @param {string} name
+	 * - the name under which to register these migrations.
+	 * @param {Record<string, function | Record<string, function>>} migrations
+	 * - the migrations object.
 	 * @returns {void}
 	 */
 	registerMigrations(name, migrations) {
@@ -120,9 +132,10 @@ class DB extends SQLite {
 	}
 
 	/**
-	 * Runs the migrations in a transaction and waits for completion
-	 * @param {SQLite} db - an opened SQLite instance
-	 * @returns {Promise<void>} - promise for completed migrations
+	 * Runs the migrations in a transaction and waits for completion.
+	 *
+	 * @param {SQLite} db  - an opened SQLite instance.
+	 * @returns {Promise<void>} - promise for completed migrations.
 	 */
 	async runMigrations(db) {
 		const {store, options} = this
