@@ -107,7 +107,7 @@ class JsonModelImpl {
 			this.columnArr.push(col)
 		}
 		assignJsonParents(this.columnArr)
-		for (const col of this.columnArr) prepareSqlCol(col)
+		for (const col of this.columnArr) prepareSqlCol(col, this.name)
 		this.getCols = this.columnArr.filter(c => c.get).sort(byPathLength)
 
 		this.db.registerMigrations(
