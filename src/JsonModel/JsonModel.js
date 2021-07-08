@@ -86,12 +86,12 @@ class JsonModelImpl {
 		this.columnArr = []
 		this.columns = {}
 		let i = 0
-		for (const name of Object.keys(allColumns)) {
-			const colDef = allColumns[name]
+		for (const colName of Object.keys(allColumns)) {
+			const colDef = allColumns[colName]
 			let col
 			if (typeof colDef === 'function') {
-				col = colDef({columnName: name})
-				verifyColumn(name, col)
+				col = colDef({columnName: colName})
+				verifyColumn(colName, col)
 			} else {
 				col = {...colDef}
 			}
@@ -101,8 +101,8 @@ class JsonModelImpl {
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
 
-			normalizeColumn(col, name)
-			this.columns[name] = col
+			normalizeColumn(col, colName)
+			this.columns[colName] = col
 			this.columns[col.alias] = col
 			this.columnArr.push(col)
 		}
@@ -310,7 +310,7 @@ class JsonModelImpl {
 			attrs,
 			join,
 			joinVals,
-			where,
+			where: extraWhere,
 			limit,
 			offset,
 			sort,
@@ -375,9 +375,9 @@ class JsonModelImpl {
 
 		const vals = []
 		const conds = []
-		if (where) {
-			for (const w of Object.keys(where)) {
-				const val = where[w]
+		if (extraWhere) {
+			for (const w of Object.keys(extraWhere)) {
+				const val = extraWhere[w]
 				if (val) {
 					if (!Array.isArray(val)) {
 						throw new TypeError(
@@ -385,7 +385,7 @@ class JsonModelImpl {
 						)
 					}
 					conds.push(w)
-					vals.push(...where[w])
+					vals.push(...extraWhere[w])
 				}
 			}
 		}
@@ -428,8 +428,12 @@ class JsonModelImpl {
 				.map(k => {
 					const col = this.columns[k]
 					// If we selected we can use the alias
-					const sql = col ? (cols.includes(col.name) ? col.alias : col.sql) : k
-					return `${sql}${sort[k] < 0 ? ` DESC` : ``}`
+					const colSql = col
+						? cols.includes(col.name)
+							? col.alias
+							: col.sql
+						: k
+					return `${colSql}${sort[k] < 0 ? ` DESC` : ``}`
 				})
 				.join(',')}`
 
@@ -575,7 +579,7 @@ class JsonModelImpl {
 	 */
 	numAggOp(op, colName, attrs, options) {
 		const col = this.columns[colName]
-		const sql = (col && col.sql) || colName
+		const colSql = (col && col.sql) || colName
 		const o = {
 			attrs,
 			...options,
@@ -583,11 +587,11 @@ class JsonModelImpl {
 			limit: undefined,
 			offset: undefined,
 			noCursor: true,
-			cols: [`${op}(CAST(${sql} AS NUMERIC)) AS val`],
+			cols: [`${op}(CAST(${colSql} AS NUMERIC)) AS val`],
 		}
 		if (col && col.ignoreNull) {
 			// Make sure we can use the index
-			o.where = {...o.where, [`${sql} IS NOT NULL`]: []}
+			o.where = {...o.where, [`${colSql} IS NOT NULL`]: []}
 		}
 		const [q, vals] = this.makeSelect(o)
 		return this.db.get(q, vals).then(row => row.val)

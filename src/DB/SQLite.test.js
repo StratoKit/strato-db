@@ -3,6 +3,7 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
 
+// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 test('valToSql', () => {
@@ -295,10 +296,10 @@ test('10 simultaneous opens', async () => {
 			await db.exec('CREATE TABLE t(id, v); INSERT INTO t VALUES(1, 0);')
 
 			const openClose = async () => {
-				const db = new SQLite({file})
-				await db.open()
-				await db.exec('UPDATE t SET v=v+1 WHERE id=1')
-				await db.close()
+				const extraDb = new SQLite({file})
+				await extraDb.open()
+				await extraDb.exec('UPDATE t SET v=v+1 WHERE id=1')
+				await extraDb.close()
 			}
 			const Ps = []
 			for (let i = 0; i < 10; i++) {

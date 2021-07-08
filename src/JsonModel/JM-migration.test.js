@@ -48,8 +48,8 @@ test('concurrent migrations', async () => {
 		name: 'a',
 		migrations: {
 			2: {
-				async up({db}) {
-					expect(await db.store.b.searchOne()).toEqual({id: '1'})
+				async up({db: mDb}) {
+					expect(await mDb.store.b.searchOne()).toEqual({id: '1'})
 				},
 			},
 		},

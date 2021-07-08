@@ -11,6 +11,7 @@ const dbgQ = dbg.extend('query')
 
 const RETRY_COUNT = 10
 
+// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
@@ -209,7 +210,6 @@ class SQLiteImpl extends EventEmitter {
 					() => this._vacuumStep(),
 					vacuumInterval * 10 * 1000
 				)
-				// eslint-disable-next-line unicorn/consistent-destructuring
 				this._vacuumToken.unref()
 			}
 			// Some sane settings
@@ -222,7 +222,6 @@ class SQLiteImpl extends EventEmitter {
 				() => this.exec(`PRAGMA optimize`),
 				2 * 3600 * 1000
 			)
-			// eslint-disable-next-line unicorn/consistent-destructuring
 			this._optimizerToken.unref()
 
 			if (onDidOpen) await onDidOpen(childDb)
@@ -251,7 +250,6 @@ class SQLiteImpl extends EventEmitter {
 				return result
 			})
 		}
-		// eslint-disable-next-line unicorn/consistent-destructuring
 		return this.dbP
 	}
 
@@ -343,6 +341,7 @@ class SQLiteImpl extends EventEmitter {
 					)
 			}
 			if (!_sqlite[method])
+				// eslint-disable-next-line no-promise-executor-return
 				return cb({message: `method ${method} not supported`})
 			fnResult = _sqlite[method](...(args || []), cb)
 		})
@@ -428,6 +427,7 @@ class SQLiteImpl extends EventEmitter {
 	 * @param {string} [name]  - a short name to use in debug logs.
 	 * @returns {Statement} - the statement.
 	 */
+	// eslint-disable-next-line no-shadow
 	prepare(sql, name) {
 		if (this.statements[sql]) return this.statements[sql]
 		return new Statement(this, sql, name)

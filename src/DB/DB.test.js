@@ -25,18 +25,18 @@ test('has migration', async () => {
 	})
 	db.registerMigrations('whee', {
 		0: {
-			up: db => {
+			up: mDb => {
 				if (canary === 0) canary = 1
-				expect(db.store).toEqual({})
-				return db.exec(`
+				expect(mDb.store).toEqual({})
+				return mDb.exec(`
 				CREATE TABLE foo(hi NUMBER);
 				INSERT INTO foo VALUES (42);
 			`)
 			},
 		},
-		1: db => {
+		1: mDb => {
 			if (canary === 1) canary = 2
-			return db.exec(`
+			return mDb.exec(`
 				INSERT INTO foo VALUES (42);
 			`)
 		},
@@ -198,11 +198,11 @@ test('10 simultaneous opens', async () =>
 			db.registerMigrations('foo', migrations)
 
 			const openClose = async () => {
-				const db = new DB({file})
-				db.registerMigrations('foo', migrations)
-				await db.open()
-				await db.exec('UPDATE t SET v=v+1 WHERE id=1')
-				await db.close()
+				const extraDb = new DB({file})
+				extraDb.registerMigrations('foo', migrations)
+				await extraDb.open()
+				await extraDb.exec('UPDATE t SET v=v+1 WHERE id=1')
+				await extraDb.close()
 			}
 			const Ps = []
 			for (let i = 0; i < 10; i++) {

@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/consistent-destructuring */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
@@ -48,6 +47,7 @@ import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/ESDB')
 
+// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
 const registerHistoryMigration = (rwDb, queue) => {
@@ -383,7 +383,6 @@ class EventSourcingDB extends EventEmitter {
 					)
 					// Crash program but leave some time to notify
 					if (process.env.NODE_ENV !== 'test')
-						// eslint-disable-next-line unicorn/no-process-exit
 						setTimeout(() => process.exit(100), 500)
 
 					throw new Error(error)
@@ -471,11 +470,13 @@ class EventSourcingDB extends EventEmitter {
 		if (event.v >= this._maxWaitingFor) {
 			// Normally this will be empty but we might encounter a race condition
 			for (const vStr of Object.keys(this._waitingFor)) {
-				const v = Number(vStr)
-				if (v > event.v) continue
+				const prevV = Number(vStr)
+				if (prevV > event.v) continue
 				// Note: if the DB fails for get(), the trigger won't run and it will retry later
 				// eslint-disable-next-line promise/catch-or-return
-				this.queue.get(v).then(event => this._triggerEventListeners(event))
+				this.queue
+					.get(prevV)
+					.then(prevEvent => this._triggerEventListeners(prevEvent))
 			}
 		}
 
