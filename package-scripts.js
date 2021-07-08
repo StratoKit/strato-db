@@ -4,7 +4,7 @@ const {version} = require('./package.json')
 let jestBin
 try {
 	jestBin = getBin('jest-cli', 'jest')
-} catch (err) {
+} catch {
 	jestBin = 'pleaseInstallJest'
 }
 
@@ -33,10 +33,9 @@ const scripts = {
 	test: {
 		default: concurrent.nps('test.lint', 'test.full'),
 		lint: {
-			default: "eslint 'src/**/*.js'",
-			fix: `
-			eslint --fix 'src/**/*.js';
-			prettier --write .`,
+			// This looks nice normally and annotates on github CI
+			default: 'eslint --format github .',
+			fix: `eslint --fix .; prettier --write .`,
 		},
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
