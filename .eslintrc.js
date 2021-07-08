@@ -18,7 +18,7 @@ module.exports = {
 		'plugin:import/warnings',
 		'plugin:promise/recommended',
 		'plugin:unicorn/recommended',
-		'xo/esnext',
+		'xo',
 		'plugin:prettier/recommended',
 	],
 	rules: {
@@ -40,7 +40,6 @@ module.exports = {
 		'capitalized-comments': 0,
 		'no-eq-null': 0,
 		'no-promise-executor-return': 0,
-		'unicorn/no-useless-undefined': 0,
 		'one-var': 0,
 		'padding-line-between-statements': 0,
 		'prefer-template': 0,
@@ -50,6 +49,10 @@ module.exports = {
 		'unicorn/filename-case': 0,
 		'unicorn/no-nested-ternary': 0,
 		'unicorn/no-null': 0,
+		'unicorn/no-useless-undefined': 0,
+		'unicorn/numeric-separators-style': 0,
+		'unicorn/prefer-module': 0,
+		'unicorn/prefer-node-protocol': 0,
 		'unicorn/prevent-abbreviations': 0,
 	},
 }

@@ -221,7 +221,7 @@ test('col.where fn', () => {
 
 test('col.whereVal fn', () => {
 	const m = getModel({
-		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: v => [v.join()]}},
+		columns: {foo: {sql: 'foo', where: 'ohai', whereVal: v => [v.join(',')]}},
 	})
 	expect(m.makeSelect({attrs: {id: 5, foo: ['meep', 'moop']}})).toEqual([
 		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(ohai)',

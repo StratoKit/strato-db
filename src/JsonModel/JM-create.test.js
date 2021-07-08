@@ -1,4 +1,3 @@
-/* eslint-disable require-atomic-updates */
 import {DB, JsonModel, getModel, sharedSetup} from '../lib/_test-helpers'
 
 test('create', () => {

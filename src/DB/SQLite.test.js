@@ -1,3 +1,4 @@
+/* eslint-disable jest/no-conditional-expect */
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
@@ -37,6 +38,7 @@ test('sql`` LIT', () => {
 
 test('sql`` on DB/db/fns', async () => {
 	const db = new SQLite()
+	// eslint-disable-next-line import/no-named-as-default-member
 	expect(typeof SQLite.sql).toBe('function')
 	expect(typeof db.sql).toBe('function')
 	let p

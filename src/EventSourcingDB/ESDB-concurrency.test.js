@@ -34,6 +34,7 @@ const testModels = {
 				resolveMe()
 				resolveMe = null
 				await waitP
+				// eslint-disable-next-line require-atomic-updates
 				waitP = null
 			}
 		},

@@ -439,8 +439,7 @@ describe('getNextId', () => {
 			async eSDB => {
 				const {m} = eSDB.store
 				expect(await Promise.all([m.getNextId(), m.getNextId()])).toEqual([
-					1,
-					2,
+					1, 2,
 				])
 			},
 			{m: {columns: {id: {type: 'INTEGER'}}}}

@@ -203,9 +203,9 @@ class JsonModelImpl {
 			  }
 			: obj => ({...obj})
 		const colSqls = realCols.map(col => col.quoted)
-		const setSql = `INTO ${quoted}(${colSqls.join()}) VALUES(${colSqls
+		const setSql = `INTO ${quoted}(${colSqls.join(',')}) VALUES(${colSqls
 			.map(() => '?')
-			.join()})`
+			.join(',')})`
 		return async (o, insertOnly, noReturn) => {
 			if (this._insertSql?.db !== db) {
 				this._insertSql = db.prepare(`INSERT ${setSql}`, `ins ${name}`)
