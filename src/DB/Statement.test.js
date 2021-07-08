@@ -1,12 +1,10 @@
 import DB from '.'
+import tmp from 'tmp-promise'
 
 test('prepares statement', async () => {
 	const db = new DB()
 	const s = db.prepare('SELECT 5')
 	expect(await s.all()).toEqual([{5: 5}])
-	await db.close()
-	expect(await s.all()).toEqual([{5: 5}])
-	await db.close()
 })
 
 test('get resets', async () => {
@@ -45,5 +43,19 @@ test('each()', async () => {
 	expect(t).toBe('123')
 	await db.close()
 })
+
+test('handles db closure', () =>
+	tmp.withFile(async ({path: file}) => {
+		const db = new DB({file})
+		await db.exec('CREATE TABLE foo(id INTEGER PRIMARY KEY)')
+		const s = db.prepare('SELECT id FROM foo LIMIT 1')
+		await db.exec('INSERT INTO foo VALUES (1)')
+		expect(await s.get()).toEqual({id: 1})
+		await expect(db.exec('INSERT INTO foo VALUES (1)')).rejects.toThrowError(
+			'SQLITE_CONSTRAINT'
+		)
+		await db.close()
+		expect(await s.get()).toEqual({id: 1})
+	}))
 
 // TODO test get, all, run, each with parallel reads (only one should run at a time)
