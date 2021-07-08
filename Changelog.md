@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- JM: Fix small issue with table name in error message on incorrect columns
+
+## 3.2.0
+
+- Improve typings in JSDoc
+- Add TypeScript typing file
+
+This unfortunately means that the automatic API.md creation no longer works, because jsdoc can't parse the TS types.
+
 ## 3.1.1
 
 - ESModel - `getNextId()` fix (was returning incorrect values when run inside a subevent)
