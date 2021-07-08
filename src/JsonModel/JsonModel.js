@@ -32,18 +32,12 @@ const dbg = debug('strato-db/JSON')
  *
  * simple equality lookup values for searching.
  *
- * @typedef {Record<string>} Row
- * @typedef {Row | null} MaybeRow
- * @typedef {string | number} ID
- * @typedef {Record<string, string | number | boolean>} SearchAttrs
+ * @template {Item}
+ * @template {IDCol}
+ * @implements {JsonModel<Item, IDCol>}
  */
-
-class JsonModel {
-	/**
-	 * Creates a new JsonModel instance.
-	 *
-	 * @param {JMOptions} options  - the model declaration.
-	 */
+class JsonModelImpl {
+	/** @param {JMOptions<Item, IDCol>} options  - the model declaration. */
 	constructor(options) {
 		verifyOptions(options)
 		const {
@@ -137,15 +131,8 @@ class JsonModel {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
-	/**
-	 * Parses a row as returned by sqlite.
-	 *
-	 * @param {Object} row      - result from sqlite.
-	 * @param {Object} options  - an object possibly containing the `cols` array
-	 *                          with the desired column names.
-	 * @returns {Row} - the resulting object (document)
-	 */
 	parseRow = (row, options) => {
+		/** @type {JMColumnDef<Item, IDCol>[]} */
 		const mapCols =
 			options && options.cols
 				? options.cols.map(n => this.columns[n])
@@ -292,41 +279,11 @@ class JsonModel {
 	}
 
 	/**
-	 * @type {Object}
-	 * @typedef SearchOptions
-	 * @property {SearchAttrs} [attrs]:
-	 * Literal value search, for convenience.
-	 * @property {Object.<any[]>} [where]:
-	 * Sql expressions as keys with arrays of applicable parameters as values.
-	 * @property {string} [join]:
-	 * Arbitrary join clause. Not processed at all.
-	 * @property {any[]} [joinVals]:
-	 * Values needed by the join clause.
-	 * @property {Record<string, number>} [sort]:
-	 * Object with sql expressions as keys and +/- for direction and precedence.
-	 * Lower number sort the column first.
-	 * @property {number} [limit]:
-	 * Max number of rows to return.
-	 * @property {number} [offset]:
-	 * Number of rows to skip.
-	 * @property {string[]} [cols]:
-	 * Override the columns to select.
-	 * @property {string} [cursor]:
-	 * Opaque value telling from where to continue.
-	 * @property {boolean} [noCursor]:
-	 * Do not calculate cursor.
-	 * @property {boolean} [noTotal]:
-	 * Do not calculate totals.
-	 */
-
-	/**
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
-	 *
-	 * @param {SearchOptions} options  - the query options.
 	 */
 	// eslint-disable-next-line complexity
-	makeSelect(options) {
+	makeSelect(/** @type{JMSearchOptions} */ options) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
 				k =>
@@ -509,9 +466,9 @@ class JsonModel {
 	/**
 	 * Search the first matching object.
 	 *
-	 * @param {SearchAttrs}   attrs      - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
-	 * @returns {Promise<MaybeRow>} - the result or null if no match.
+	 * @param {JMSearchAttrs}   attrs      - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
+	 * @returns {Promise<Item | null>} - the result or null if no match.
 	 */
 	searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
@@ -523,23 +480,6 @@ class JsonModel {
 		return this.db.get(q, vals).then(this.toObj)
 	}
 
-	/**
-	 * Search the all matching objects.
-	 *
-	 * @param {SearchAttrs} [attrs]
-	 * - simple value attributes.
-	 * @param {SearchOptions} [options]
-	 * - search options.
-	 * @param {boolean} [options.itemsOnly]
-	 * - return only the items array.
-	 * @returns {Promise<{items: Row[]; cursor: string} | Row[]>} - `{items[],
-	 *                                                            cursor}`. If no
-	 *                                                            cursor, you got
-	 *                                                            all the results.
-	 *                                                            If `itemsOnly`,
-	 *                                                            returns only the
-	 *                                                            items array.
-	 */
 	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
 	async search(attrs, {itemsOnly, ...options} = {}) {
 		const [q, vals, cursorKeys, totalQ, totalVals] = this.makeSelect({
@@ -571,13 +511,6 @@ class JsonModel {
 		return out
 	}
 
-	/**
-	 * A shortcut for setting `itemsOnly: true` on {@link search}
-	 *
-	 * @param {SearchAttrs}   attrs      - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
-	 * @returns {Promise<Row[]>} - the search results.
-	 */
 	searchAll(attrs, options) {
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
@@ -586,9 +519,6 @@ class JsonModel {
 	 * Check for existence of objects. Returns `true` if the search would yield
 	 * results.
 	 *
-	 * @param {ID | SearchAttrs} idOrAttrs  The id or simple value attributes.
-	 * @param {SearchOptions}    [options]  Search options, only used if attributes
-	 *                                      are used.
 	 * @returns {Promise<boolean>} The search results exist.
 	 */
 	exists(idOrAttrs, options) {
@@ -617,8 +547,8 @@ class JsonModel {
 	/**
 	 * Count of search results.
 	 *
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the count.
 	 */
 	count(attrs, options) {
@@ -637,10 +567,10 @@ class JsonModel {
 	/**
 	 * Numeric Aggregate Operation.
 	 *
-	 * @param {string}        op         - the SQL function, e.g. MAX.
-	 * @param {string}        colName    - column to aggregate.
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {string}          op         - the SQL function, e.g. MAX.
+	 * @param {JMColName}       colName    - column to aggregate.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the result.
 	 */
 	numAggOp(op, colName, attrs, options) {
@@ -666,9 +596,9 @@ class JsonModel {
 	/**
 	 * Maximum value.
 	 *
-	 * @param {string}        colName    - column to aggregate.
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {JMColName}       colName    - column to aggregate.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the result.
 	 */
 	max(colName, attrs, options) {
@@ -678,9 +608,9 @@ class JsonModel {
 	/**
 	 * Minimum value.
 	 *
-	 * @param {string}        colName    - column to aggregate.
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {JMColName}       colName    - column to aggregate.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the result.
 	 */
 	min(colName, attrs, options) {
@@ -690,9 +620,9 @@ class JsonModel {
 	/**
 	 * Sum values.
 	 *
-	 * @param {string}        colName    - column to aggregate.
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {JMColName}       colName    - column to aggregate.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the result.
 	 */
 	sum(colName, attrs, options) {
@@ -702,9 +632,9 @@ class JsonModel {
 	/**
 	 * Average value.
 	 *
-	 * @param {string}        colName    - column to aggregate.
-	 * @param {SearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {SearchOptions} [options]  - search options.
+	 * @param {JMColName}       colName    - column to aggregate.
+	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
+	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<number>} - the result.
 	 */
 	avg(colName, attrs, options) {
@@ -714,7 +644,7 @@ class JsonModel {
 	/**
 	 * Get all objects.
 	 *
-	 * @returns {Promise<Row[]>} - the table contents.
+	 * @returns {Promise<Item[]>} - the table contents.
 	 */
 	all() {
 		if (this._allSql?.db !== this.db)
@@ -728,10 +658,10 @@ class JsonModel {
 	/**
 	 * Get an object by a unique value, like its ID.
 	 *
-	 * @param {ID}     id                    - the value for the column.
-	 * @param {string} [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                       column.
-	 * @returns {Promise<MaybeRow>} - the object if it exists.
+	 * @param {IDValue} id                    - the value for the column.
+	 * @param {string}  [colName=this.idCol]  - the columnname, defaults to the ID
+	 *                                        column.
+	 * @returns {Promise<Item | null>} - the object if it exists.
 	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
@@ -752,11 +682,11 @@ class JsonModel {
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @param {ID[]}   ids                   - the values for the column.
-	 * @param {string} [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                       column.
-	 * @returns {Promise<MaybeRow[]>} - the objects, or null where they don't
-	 *                                exist, in order of their requested ID.
+	 * @param {IDValue[]} ids                   - the values for the column.
+	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
+	 *                                          ID column.
+	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they don't
+	 *                                     exist, in order of their requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -779,14 +709,7 @@ class JsonModel {
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
-	/** @typedef {DataLoader<ID, MaybeRow>} Loader */
-	/**
-	 * @param {Object} cache
-	 * @param {string} key
-	 * @param {string} colName
-	 * @returns {Loader}
-	 */
-	_ensureLoader(cache, colName) {
+	_ensureLoader(/** @type{JMCache<Item,IDCol> */ cache, colName) {
 		if (!cache) throw new Error(`cache is required`)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
@@ -799,19 +722,6 @@ class JsonModel {
 		return cache[key]
 	}
 
-	/**
-	 * Get an object by a unique value, like its ID, using a cache.
-	 * This also coalesces multiple calls in the same tick into a single query,
-	 * courtesy of DataLoader.
-	 *
-	 * @param {Record<string, Loader>} [cache]
-	 * - the lookup cache. It is managed with DataLoader.
-	 * @param {ID} id
-	 * - the value for the column.
-	 * @param {string} [colName=this.idCol]
-	 * - the columnname, defaults to the ID column.
-	 * @returns {Promise<MaybeRow>} - the object if it exists. It will be cached.
-	 */
 	getCached(cache, id, colName = this.idCol) {
 		if (!cache) return this.get(id, colName)
 		return this._ensureLoader(cache, colName).load(id)
@@ -836,19 +746,19 @@ class JsonModel {
 	}
 
 	// I wish I could use these types
-	// @typedef {(o: Row) => Promise<void>} RowCallback
+	// @typedef {(o: Item) => Promise<void>} RowCallback
 	// @typedef {
 	// 	(fn: RowCallback) => Promise<void> |
-	// 	(attrs: SearchAttrs, fn: RowCallback) => Promise<void> |
-	// 	(attrs: SearchAttrs, options: SearchOptions, fn: RowCallback) => Promise<void>
+	// 	(attrs: JMSearchAttrs, fn: RowCallback) => Promise<void> |
+	// 	(attrs: JMSearchAttrs, options: JMSearchOptions, fn: RowCallback) => Promise<void>
 	// } EachFn
 	/**
 	 * Iterate through search results. Calls `fn` on every result.
 	 * The iteration uses a cursored search, so changes to the model during the
 	 * iteration can influence the iteration.
 	 *
-	 * @param {SearchAttrs | RowCallback} attrsOrFn
-	 * @param {RowCallback | SearchOptions} [optionsOrFn]
+	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
+	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
 	 * @param {RowCallback} [fn]
 	 * @returns {Promise<void>} Table iteration completed.
 	 */
@@ -917,7 +827,7 @@ class JsonModel {
 	 * @param {Object}  obj         The changes to store, including the id field.
 	 * @param {boolean} [upsert]    Insert the object if it doesn't exist.
 	 * @param {boolean} [noReturn]  Do not return the stored object.
-	 * @returns {Promise<Row | undefined>} A copy of the stored object.
+	 * @returns {Promise<Item | undefined>} A copy of the stored object.
 	 */
 	update(obj, upsert, noReturn) {
 		// Update needs to read the object to apply the changes, so it needs a transaction
@@ -973,4 +883,4 @@ class JsonModel {
 	}
 }
 
-export default JsonModel
+export default JsonModelImpl

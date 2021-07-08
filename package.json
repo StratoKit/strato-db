@@ -17,9 +17,10 @@
     "prepublishOnly": "nps test.full build"
   },
   "main": "dist/index.js",
-  "types": "dist/types.d.ts",
+  "types": "types.d.ts",
   "files": [
     "dist",
+    "types.d.ts",
     "API.md",
     "Readme.md"
   ],

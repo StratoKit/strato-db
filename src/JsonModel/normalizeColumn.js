@@ -2,6 +2,12 @@ import {sql, valToSql} from '../DB'
 import {uniqueSlugId} from '../lib/slugify'
 import {get} from 'lodash'
 
+/**
+ * @param {JMColumnDef<Row, IDCol>} col
+ * @param {JMColName}               name
+ * @template <Row>
+ * @template <IDCol>
+ */
 // eslint-disable-next-line complexity
 export const normalizeColumn = (col, name) => {
 	col.name = name

@@ -11,7 +11,7 @@ try {
 const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__snapshots__' -d dist/`
 const scripts = {
 	build: {
-		default: `nps build.clean build.babel build.doc build.types`,
+		default: `nps build.clean build.babel`,
 		clean: rimraf('dist/'),
 		babel: `${runBabel} src/`,
 		watch: `${runBabel} --watch src/`,

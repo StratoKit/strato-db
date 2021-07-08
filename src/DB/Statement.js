@@ -7,7 +7,8 @@ import debug from 'debug'
 const dbg = debug('strato-db/DB:stmt')
 
 let id = 0
-class Statement {
+/** @implements {Statement} */
+class StatementImpl {
 	constructor(db, sql, name) {
 		db.statements[sql] = this
 		this._sql = sql
@@ -126,4 +127,4 @@ class Statement {
 	}
 }
 
-export default Statement
+export default StatementImpl

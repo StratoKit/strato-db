@@ -66,7 +66,7 @@ await db.store.things.search({info: 'is a foo'})
 
 ## API
 
-The API is class-based. [You can read it here](./API.md).
+The API is class-based. There are types in JSDoc, which is the only documentation for now.
 
 The design of EventSourcingDB is discussed in [Server Side Redux](./Server Side Redux.md)
 

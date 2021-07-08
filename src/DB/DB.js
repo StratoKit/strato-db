@@ -1,5 +1,3 @@
-// @ts-check
-/* eslint-disable no-console */
 import {sortBy} from 'lodash'
 import debug from 'debug'
 import SQLite, {sql} from './SQLite'
@@ -45,22 +43,10 @@ const _markMigration = async (db, runKey, up) => {
  * DB adds model management and migrations to Wrapper.
  * The migration state is kept in the table ""{sdb} migrations"".
  *
- * @augments SQLite
+ * @implements {DB}
  */
-class DB extends SQLite {
-	/**
-	 * @param {Object} options
-	 * Options for DB and SQLite.
-	 * @param {boolean} [options.readOnly]
-	 * Open the DB read-only.
-	 * @param {Array} [options.migrations]
-	 * Migration definitions.
-	 * @param {function} [options.onBeforeMigrations]
-	 * Called with the `db` before migrations run. Not called for read-only.
-	 * @param {function} [options.onDidOpen]
-	 * Called with the `db` after migrations ran. If readOnly is set, it runs after
-	 * opening DB. The DB is open after this function resolves.
-	 */
+class DBImpl extends SQLite {
+	/** @param {DBOptions} options */
 	constructor({migrations = [], onBeforeMigrations, ...options} = {}) {
 		const onDidOpen = options.readOnly
 			? options.onDidOpen
@@ -162,4 +148,4 @@ class DB extends SQLite {
 	}
 }
 
-export default DB
+export default DBImpl

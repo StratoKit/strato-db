@@ -10,29 +10,12 @@ let warnedLatest
 /**
  * An event queue, including history.
  *
- * @augments JsonModel
+ * @template {T}
+ * @template {U}
+ * @implements {EventQueue<T>}
  */
-class EventQueue extends JsonModel {
-	/**
-	 * @type {Object}
-	 * @typedef Event
-	 * @property {number} v         - the version.
-	 * @property {string} type      - event type.
-	 * @property {number} ts        - ms since epoch of event.
-	 * @property {*}      [data]    - event data.
-	 * @property {Object} [result]  - event processing result.
-	 */
-
-	/**
-	 * Creates a new EventQueue model, called by DB.
-	 *
-	 * @class
-	 * @param {string}  [name='history']  - the table name.
-	 * @param {boolean} [forever]         - should getNext poll forever?
-	 * @param {boolean} [withViews]       - add views to the database to assist
-	 *                                    with inspecting the data.
-	 * @param {Object}  [...rest]         - other params are passed to JsonModel.
-	 */
+class EventQueueImpl extends JsonModel {
+	/** @param {EQOptions<T, U>} */
 	constructor({name = 'history', forever, withViews, ...rest}) {
 		const columns = {
 			v: {
@@ -295,4 +278,4 @@ class EventQueue extends JsonModel {
 	}
 }
 
-export default EventQueue
+export default EventQueueImpl

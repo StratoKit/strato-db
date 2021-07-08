@@ -1,4 +1,3 @@
-// @ts-check
 import path from 'path'
 import debug from 'debug'
 import {performance} from 'perf_hooks'
@@ -47,10 +46,6 @@ const isBusyError = err => err.code === 'SQLITE_BUSY'
  * JSON.stringify(obj)])`
  *
  * @type {{quoteId: quoteSqlId} & SqlTag}
- * @typedef {(
- * 	tpl: string[],
- * 	...interpolations: string[]
- * ) => [string, string[]]} SqlTag
  */
 export const sql = (tpl, ...interpolations) => {
 	let out = tpl[0]
@@ -84,38 +79,10 @@ let connId = 1
  * It provides a Promise API, lazy opening, auto-cleaning prepared statements
  * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
  *
- * @augments EventEmitter
+ * @implements {SQLite}
  */
-class SQLite extends EventEmitter {
-	/**
-	 * @class
-	 * @param {Object} options
-	 * -
-	 * @param {string} [options.file]
-	 * Path to db file.
-	 * @param {boolean} [options.readOnly]
-	 * Open read-only.
-	 * @param {boolean} [options.verbose]
-	 * Verbose errors.
-	 * @param {function} [options.onWillOpen]
-	 * Called before opening.
-	 * @param {function} [options.onDidOpen]
-	 * Called after opened.
-	 * @param {string} [options.name]
-	 * Name for debugging.
-	 * @param {boolean} [options.autoVacuum]
-	 * Run incremental vacuum.
-	 * @param {number} [options.vacuumInterval]
-	 * Seconds between incremental vacuums.
-	 * @param {number} [options.vacuumPageCount]
-	 * Number of pages to clean per vacuum.
-	 * @param {Object} [options._sqlite]
-	 * Sqlite instance for child dbs.
-	 * @param {Object} [options._store={}]
-	 * Models registry for child dbs.
-	 * @param {Object} [options._statements={}]
-	 * Statements registry for child dbs.
-	 */
+class SQLiteImpl extends EventEmitter {
+	/** @param {SQLiteOptions} options */
 	constructor({
 		file,
 		readOnly,
@@ -126,8 +93,11 @@ class SQLite extends EventEmitter {
 		vacuumInterval = 30, // seconds while vacuuming
 		vacuumPageCount = 1024 / 4, // 1MB in 4k pages
 		name,
+		// @ts-ignore
 		_sqlite,
+		// @ts-ignore
 		_store = {},
+		// @ts-ignore
 		_statements = {},
 		...rest
 	} = {}) {
@@ -193,10 +163,11 @@ class SQLite extends EventEmitter {
 				: 1000 + Math.floor(Math.random() * 500)
 		)
 
-		const childDb = new SQLite({
+		const childDb = new SQLiteImpl({
 			file,
 			readOnly,
 			name: this.name,
+			// @ts-ignore
 			_sqlite,
 			_store: store,
 		})
@@ -596,4 +567,4 @@ class SQLite extends EventEmitter {
 	}
 }
 
-export default SQLite
+export default SQLiteImpl
