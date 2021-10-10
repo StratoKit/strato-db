@@ -53,6 +53,7 @@
 
 ### Important
 
+- `keepFalsy` option: normally, remove falsy (not '', 0), but with this, store them [breaking]
 - FTS5 support for text searching
   - Real columns marked `textSearch: true|string|object` generate a FTS5 index
   - one index per textSearch value ("tag")
@@ -116,8 +117,18 @@
 
 ## ESDB
 
+### Important
+
+- [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
+  - Ideally, the results go in a different db that can be split at will.
+  - re-processing events clears all subsequent results
+  - for multi-process, make the result db exclusive to worker
+  - attach multiple result dbs for combined debug view
+
 ### Nice to have
 
+- [ ] add eventSpy, e.g. `eSDB.debug(boolean|{filter()})`
+- [ ] in non-prod, randomly run preprocessor twice (keep event in memory and restart handling) to verify repeatability
 - [ ] don't store empty result sub-events
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
   - same for preprocessor/deriver
