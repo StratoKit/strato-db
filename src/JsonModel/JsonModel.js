@@ -670,17 +670,21 @@ class JsonModelImpl {
 	get(id, colName = this.idCol) {
 		if (id == null) {
 			return Promise.reject(
-				new Error(`No "${colName}" given for "${this.name}"`)
+				new Error(`No id given for "${this.name}.${colName}"`)
 			)
 		}
-		if (this.columns[colName]._getSql?.db !== this.db) {
-			const where = this.columns[colName].sql
-			this.columns[colName]._getSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} = ?`,
+		const col = this.columns[colName]
+		if (!col)
+			return Promise.reject(
+				new Error(`Unknown column "${colName}" given for "${this.name}"`)
+			)
+		if (col._getSql?.db !== this.db) {
+			col._getSql = this.db.prepare(
+				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${col.sql} = ?`,
 				`get ${this.name}.${colName}`
 			)
 		}
-		return this.columns[colName]._getSql.get([id]).then(this.toObj)
+		return col._getSql.get([id]).then(this.toObj)
 	}
 
 	/**

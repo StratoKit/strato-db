@@ -105,8 +105,15 @@ test(
 test(
 	'get w/ null id',
 	withObjs(async m => {
-		await expect(m.get(null)).rejects.toThrow()
-		await expect(m.get(undefined)).rejects.toThrow()
+		await expect(m.get(null)).rejects.toThrow('No id')
+		await expect(m.get(undefined)).rejects.toThrow('No id')
+	})
+)
+
+test(
+	'get w/ unknown column',
+	withObjs(async m => {
+		await expect(m.get(1, 'foo')).rejects.toThrow('column "foo"')
 	})
 )
 

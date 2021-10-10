@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- JM: Better error message on wrong colName in `.get()`
 - JM: Fix small issue with table name in error message on incorrect columns
 
 ## 3.2.0
