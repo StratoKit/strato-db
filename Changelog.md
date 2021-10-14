@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.2.1
 
 - ESDB: fix rare race condition where read-only connection doesn't see just-committed transaction
 - JM: Better error message on wrong colName in `.get()`
