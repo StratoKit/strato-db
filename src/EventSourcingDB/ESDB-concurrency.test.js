@@ -1,10 +1,21 @@
+/* eslint-disable no-await-in-loop */
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'
 
+jest.setTimeout(60000)
+
+const payload = JSON.stringify(require('../../package.json')).repeat(50)
+
 let resolveMe, waitP
 
 const testModels = {
+	storer: {
+		reducer: ({event}) => {
+			if (event.type === 'ins') return {ins: [event.data]}
+			if (event.type === 'upd') return {upd: [{...event.data, payload}]}
+		},
+	},
 	subber: {
 		preprocessor: async ({model, store, event}) => {
 			expect(model).toBe(store.subber)
@@ -56,21 +67,18 @@ const testModels = {
 	},
 }
 
-let dir
-let db1
-let db2
-beforeAll(async () => {
-	dir = await tmp.dir({unsafeCleanup: true, prefix: 'esdb-concurrent-'})
+const withDbs = fn => async () => {
+	const dir = await tmp.dir({unsafeCleanup: true, prefix: 'esdb-concurrent-'})
 	const {path} = dir
 	const file = sysPath.join(path, 'db')
 	const queueFile = sysPath.join(path, 'q')
-	db1 = new ESDB({
+	const db1 = new ESDB({
 		file,
 		queueFile,
 		name: 'E',
 		models: testModels,
 	})
-	db2 = new ESDB({
+	const db2 = new ESDB({
 		file,
 		queueFile,
 		name: 'E',
@@ -78,66 +86,112 @@ beforeAll(async () => {
 	})
 	await db1.waitForQueue()
 	await db2.waitForQueue()
-})
-afterAll(async () => {
-	await dir.cleanup()
-	await db1.close()
-	await db2.close()
-})
 
-test('multiple ESDB', async () => {
-	expect(await db2.getVersion()).toBe(0)
-	await db1.dispatch('foo')
-	expect(await db2.getVersion()).toBe(1)
-})
+	try {
+		await fn({db1, db2})
+	} finally {
+		await db1.close()
+		await db2.close()
+		await dir.cleanup()
+	}
+}
 
-test('subevent handlers see intermediate state', async () => {
-	expect(await db1.dispatch('main')).toBeTruthy()
-})
-
-test(`RO and other DB don't see transaction`, async () => {
-	const firstP = new Promise(resolve => {
-		resolveMe = resolve
+test(
+	'multiple ESDB',
+	withDbs(async ({db1, db2}) => {
+		let i = 1
+		let v = 0
+		do {
+			let evP = db1.dispatch('ins', {id: i})
+			expect(await db2.getVersion()).toBe(v)
+			v = (await evP).v
+			expect(await db2.getVersion()).toBe(v)
+			evP = db1.dispatch('upd', {id: i++, hi: i})
+			v = (await evP).v
+			expect(await db2.getVersion()).toBe(v)
+		} while (i <= 100)
+		expect(v).toBe(200)
 	})
-	let resolveSecond
-	waitP = new Promise(resolve => {
-		resolveSecond = resolve
-	})
-	const eventP = db1.dispatch('waiter', {id: 'w'})
-	await firstP
-	const v = await db1.getVersion()
-	expect(await db1.rwStore.waiter.get('w')).toBeTruthy()
-	expect(await db1.store.waiter.get('w')).toBeFalsy()
-	expect(await db1.getVersion()).toBe(v)
-	expect(await db2.rwStore.waiter.get('w')).toBeFalsy()
-	expect(await db2.getVersion()).toBe(v)
-	resolveSecond()
-	const {v: v2} = await eventP
-	expect(await db2.store.waiter.get('w')).toBeTruthy()
-	await expect(v2).toBeGreaterThan(v)
-})
+)
 
-test(`getNextId should work across main and subevents`, async () => {
-	await db1.dispatch('nexter', 1)
-	await db1.dispatch('nexter', 1)
-	expect(await db1.store.nexter.all()).toEqual([
-		{id: 1},
-		// skipped
-		{id: 3},
-		// skipped but recovered within transaction
-		{id: 4},
-		// skipped
-		{id: 6},
-		// skipped but recovered outside transaction
-		{id: 7},
-		// skipped
-		{id: 9},
-		// skipped but recovered within transaction
-		{id: 10},
-		// skipped
-		{id: 12},
-	])
-})
+// Sadly this test doesn't reproduce an issue seen in the wild:
+// db not seeing the changes from rwDb right after they
+// were committed. We have a fix but no repro.
+// Leaving this test in anyway, just in case
+test(
+	'ro/rw db events',
+	withDbs(async ({db1}) => {
+		let i = 1
+		let v = 0
+		do {
+			let evP = db1.dispatch('ins', {id: i})
+			expect(await db1.db.userVersion()).toBe(v)
+			v = (await evP).v
+			expect(await db1.db.userVersion()).toBe(v)
+			evP = db1.dispatch('upd', {id: i++, hi: i})
+			v = (await evP).v
+			expect(await db1.db.userVersion()).toBe(v)
+		} while (i <= 200)
+		expect(v).toBe(400)
+	})
+)
+
+test(
+	'subevent handlers see intermediate state',
+	withDbs(async ({db1}) => {
+		expect(await db1.dispatch('main')).toBeTruthy()
+	})
+)
+
+test(
+	`RO and other DB don't see transaction`,
+	withDbs(async ({db1, db2}) => {
+		const firstP = new Promise(resolve => {
+			resolveMe = resolve
+		})
+		let resolveSecond
+		waitP = new Promise(resolve => {
+			resolveSecond = resolve
+		})
+		const eventP = db1.dispatch('waiter', {id: 'w'})
+		await firstP
+		const v = await db1.getVersion()
+		expect(await db1.rwStore.waiter.get('w')).toBeTruthy()
+		expect(await db1.store.waiter.get('w')).toBeFalsy()
+		expect(await db1.getVersion()).toBe(v)
+		expect(await db2.rwStore.waiter.get('w')).toBeFalsy()
+		expect(await db2.getVersion()).toBe(v)
+		resolveSecond()
+		const {v: v2} = await eventP
+		expect(await db2.store.waiter.get('w')).toBeTruthy()
+		await expect(v2).toBeGreaterThan(v)
+	})
+)
+
+test(
+	`getNextId should work across main and subevents`,
+	withDbs(async ({db1}) => {
+		await db1.dispatch('nexter', 1)
+		await db1.dispatch('nexter', 1)
+		expect(await db1.store.nexter.all()).toEqual([
+			{id: 1},
+			// skipped
+			{id: 3},
+			// skipped but recovered within transaction
+			{id: 4},
+			// skipped
+			{id: 6},
+			// skipped but recovered outside transaction
+			{id: 7},
+			// skipped
+			{id: 9},
+			// skipped but recovered within transaction
+			{id: 10},
+			// skipped
+			{id: 12},
+		])
+	})
+)
 
 // TODO 10 simultaneous opens of existing db file
 // TODO 10 simultaneous opens of new db file/new queue file with >1 version

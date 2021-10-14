@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- ESDB: fix rare race condition where read-only connection doesn't see just-committed transaction
 - JM: Better error message on wrong colName in `.get()`
 - JM: Fix small issue with table name in error message on incorrect columns
 

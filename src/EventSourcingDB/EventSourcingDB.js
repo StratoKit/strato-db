@@ -516,6 +516,7 @@ class EventSourcingDB extends EventEmitter {
 	// It would be nice to not have to poll, but sqlite triggers only work on
 	// the connection that makes the change
 	// This should never throw, handling errors can be done in apply
+	// eslint-disable-next-line complexity
 	_waitForEvent = async () => {
 		/* eslint-disable no-await-in-loop */
 		const {db, rwDb, queue, _resultQueue} = this
@@ -616,6 +617,15 @@ class EventSourcingDB extends EventEmitter {
 				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
+
+			// Make sure the RO connection caught up with the RW connection
+			// Rare but it happens
+			if (db !== rwDb) {
+				let roV
+				do {
+					roV = await db.userVersion()
+				} while (roV < event.v)
+			}
 
 			this._triggerEventListeners(resultEvent)
 
