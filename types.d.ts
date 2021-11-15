@@ -764,6 +764,9 @@ type ApplyResultFn = (result: ReduceResult) => Promise<void>
 type DeriverFn<M extends ESDBModel = ESModel<{}>> = (
 	args: ReduxArgs<M> & {result: ReduceResult}
 ) => Promise<void>
+type TransactFn<M extends ESDBModel = ESModel<{}>> = (
+	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
+) => Promise<void>
 
 type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
 type AddEventFn = (type: string, data?: any) => void
@@ -783,6 +786,7 @@ interface ESDBModel {
 	reducer?: ReducerFn<this>
 	applyResult?: ApplyResultFn
 	deriver?: DeriverFn<this>
+	transact?: TransactFn<this>
 }
 
 type ESDBOptions = DBOptions & {

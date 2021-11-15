@@ -131,6 +131,7 @@
   - Ideally, the results go in a different db that can be split at will.
   - for multi-process, lock the result db exclusively to worker
   - re-processing events clears all subevent rows
+- [x] Add `transact` phase after the other phases, in which `dispatch` works as well as ESModel dispatches. This enables easier event handling with ESModel changes.
 - [ ] Add `beforeApply` phase which runs after all reducers ran so it has access to the state of the DB before the changes are applied.
 
 ### Nice to have

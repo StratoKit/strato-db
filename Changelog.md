@@ -6,6 +6,8 @@
 
 - `sqlite.userVersion(v?: number)` now always returns the user version, also when setting it. This makes more sense from an API perspective and has as good as no performance impact.
 - EventQueue: `.setKnownV()` is now synchronous and no longer returns a Promise. This is only a breaking change if you were using `.then()` instead of `await`.
+- ESDB: Added `transact({event, model, store, dispatch})` phase to the event processing flow. In this callback, you can call `dispatch` to generate and await sub-events, and calling ESModel will work too (any model can use the `dispatch` given via the constructor).
+  This requires the use of `AsyncLocalStorage`, and thus the minimum NodeJS version is now v12.17
 
 ### Fixes
 
