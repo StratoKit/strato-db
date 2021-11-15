@@ -103,3 +103,17 @@ test('column add', () =>
 		},
 		{unsafeCleanup: true, prefix: 'jm-coladd'}
 	))
+
+test('failed migration', async () => {
+	const m = getModel({
+		name: 'test',
+		migrations: {
+			fail: async ({model}) => {
+				await model.set({id: 'hi'})
+				throw new Error('oh no')
+			},
+		},
+	})
+	await expect(m.db.store.test.get('id')).rejects.toThrow('oh no')
+	expect(m.db.isOpen).toBe(false)
+})

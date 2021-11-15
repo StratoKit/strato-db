@@ -38,7 +38,7 @@ class StatementImpl {
 	 */
 	_wrap(fn) {
 		if (!this._stmt) this.P = this.P.then(this._refresh)
-		this.P = this.P.then(fn, fn)
+		this.P = this.P.then(fn)
 		return this.P
 	}
 
