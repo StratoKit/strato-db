@@ -112,3 +112,166 @@ describe('subevents', () => {
 		})
 	})
 })
+
+describe('transact', () => {
+	test('gets called', async () => {
+		const models = {
+			foo: {transact: jest.fn()},
+		}
+		return withESDB(models, async eSDB => {
+			await eSDB.dispatch('hi')
+			expect(models.foo.transact).toHaveBeenCalledTimes(1)
+			expect(models.foo.transact).toHaveBeenCalledWith(
+				expect.objectContaining({
+					event: expect.any(Object),
+					model: expect.any(Object),
+					dispatch: expect.any(Function),
+					store: expect.any(Object),
+					isMainEvent: true,
+				})
+			)
+		})
+	})
+
+	test('sync error stops transaction', async () => {
+		const models = {
+			foo: {
+				transact: ({event: {type}}) => {
+					// eslint-disable-next-line no-throw-literal
+					if (type === 'sync') throw 'oops sync'
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			eSDB.__BE_QUIET = true
+			await expect(eSDB.dispatch('sync')).rejects.toHaveProperty('error', {
+				// eslint-disable-next-line camelcase
+				_transact_foo: 'oops sync',
+			})
+		})
+	})
+
+	test('rejection stops transaction', async () => {
+		const models = {
+			foo: {
+				transact: ({event: {type}}) => {
+					// eslint-disable-next-line prefer-promise-reject-errors
+					if (type === 'reject') return Promise.reject('oops reject')
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			eSDB.__BE_QUIET = true
+			await expect(eSDB.dispatch('reject')).rejects.toHaveProperty('error', {
+				// eslint-disable-next-line camelcase
+				_transact_foo: 'oops reject',
+			})
+		})
+	})
+
+	test('throws when dispatching outside transact', async () => {
+		const models = {
+			foo: {
+				reducer: ({model}) => model.set({id: 'hi'}),
+			},
+		}
+		return withESDB(models, async eSDB => {
+			eSDB.__BE_QUIET = true
+			await expect(eSDB.dispatch('hi')).rejects.toHaveProperty('error', {
+				// eslint-disable-next-line camelcase
+				_reduce_foo: expect.stringContaining('only allowed in transact'),
+			})
+		})
+	})
+
+	test('can dispatch', async () => {
+		const models = {
+			foo: {
+				transact: async ({event, dispatch}) => {
+					if (event.type === 'hi')
+						await expect(dispatch('sub-hi')).resolves.toEqual(
+							expect.objectContaining({
+								type: 'sub-hi',
+								result: expect.any(Object),
+							})
+						)
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			expect(await eSDB.dispatch('hi')).toHaveProperty(
+				'events.0.type',
+				'sub-hi'
+			)
+		})
+	})
+
+	test('can use dispatch via model', async () => {
+		const models = {
+			foo: {
+				transact: async ({event, model}) => {
+					if (event.type === 'hi')
+						expect(await model.set({id: 'hi'})).toEqual({id: 'hi'})
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			expect(await eSDB.dispatch('hi')).toHaveProperty(
+				'events.0.type',
+				'es/foo'
+			)
+		})
+	})
+
+	test('can transact in sub-event', async () => {
+		const models = {
+			foo: {
+				transact: async ({event, dispatch}) => {
+					if (event.type === 'hi')
+						await expect(dispatch('sub-hi')).resolves.toEqual(
+							expect.objectContaining({
+								type: 'sub-hi',
+								result: expect.any(Object),
+							})
+						)
+					if (event.type === 'sub-hi')
+						await expect(dispatch('sub-sub-hi')).resolves.toEqual(
+							expect.objectContaining({
+								type: 'sub-sub-hi',
+								result: expect.any(Object),
+							})
+						)
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			expect(await eSDB.dispatch('hi')).toHaveProperty(
+				'events.0.events.0.type',
+				'sub-sub-hi'
+			)
+		})
+	})
+
+	test('handles sub-events in order', async () => {
+		let lastSeen = 0
+		const models = {
+			foo: {
+				reducer: ({event: {type, data}}) => {
+					if (type === 'sub') {
+						expect(lastSeen).toBeLessThan(data)
+						lastSeen = data
+					}
+				},
+				transact: async ({event, dispatch}) => {
+					if (event.type === 'hi') {
+						for (let i = 1; i < 9; i++) dispatch('sub', i)
+						await dispatch('sub', 9)
+					}
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			await eSDB.dispatch('hi')
+		})
+	})
+})

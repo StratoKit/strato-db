@@ -1,3 +1,4 @@
+/* eslint-disable require-atomic-updates */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
@@ -37,6 +38,7 @@
 // * => make changing event easy, e.g. call queue.set from graphql or delete it by changing it to type 'HANDLE_FAILED' and rename .error
 
 import debug from 'debug'
+import {AsyncLocalStorage} from 'async_hooks'
 import {isEmpty} from 'lodash'
 import DB from '../DB'
 import ESModel from './ESModel'
@@ -220,17 +222,35 @@ class EventSourcingDB extends EventEmitter {
 			},
 		})
 
+		/** @type{Record<string, InstanceType<ESDBModel>>} */
 		this.store = {}
+		/** @type{Record<string, InstanceType<ESDBModel>>} */
 		this.rwStore = {}
+		// Used for transact keeping track of call stacks
+		this._alsDispatch = new AsyncLocalStorage()
 
-		this._reducerNames = []
-		this._deriverModels = []
+		/** @type {InstanceType<ESDBModel>[]} */
 		this._preprocModels = []
+		/** @type {string[]} */
+		this._reducerNames = []
+		/** @type {InstanceType<ESDBModel>[]} */
+		this._deriverModels = []
+		/** @type {InstanceType<ESDBModel>[]} */
+		this._transactModels = []
 		this._readWriters = []
 		const reducers = {}
 		const migrationOptions = {queue: this.queue}
 
-		const dispatch = this.dispatch.bind(this)
+		const dispatch = async (type, data, ts) => {
+			if (this._processing) {
+				const dispatchSubEvent = this._alsDispatch.getStore()
+				if (!dispatchSubEvent)
+					throw new Error(`Dispatching is only allowed in transact phase`)
+				return dispatchSubEvent(type, data)
+			}
+			return this.dispatch(type, data, ts)
+		}
+
 		for (const [name, modelDef] of Object.entries(models)) {
 			try {
 				if (!modelDef) throw new Error('model missing')
@@ -238,6 +258,7 @@ class EventSourcingDB extends EventEmitter {
 					reducer,
 					preprocessor,
 					deriver,
+					transact,
 					Model = ESModel,
 					RWModel = Model,
 					...rest
@@ -257,7 +278,6 @@ class EventSourcingDB extends EventEmitter {
 						const prev = preprocessor
 						preprocessor = async args => {
 							const e = await ESModel.preprocessor(args)
-							// eslint-disable-next-line require-atomic-updates
 							if (e) args.event = e
 							return prev(args)
 						}
@@ -292,6 +312,7 @@ class EventSourcingDB extends EventEmitter {
 						  })
 				model.preprocessor = preprocessor || Model.preprocessor
 				model.reducer = fixupOldReducer(name, reducer || Model.reducer)
+				if (!model.transact) model.transact = transact || Model.transact
 				this.store[name] = model
 				if (model.preprocessor) {
 					this._preprocModels.push(model)
@@ -300,6 +321,10 @@ class EventSourcingDB extends EventEmitter {
 				if (model.reducer) {
 					this._reducerNames.push(name)
 					reducers[name] = model.reducer
+					hasOne = true
+				}
+				if (model.transact) {
+					this._transactModels.push(model)
 					hasOne = true
 				}
 
@@ -396,6 +421,9 @@ class EventSourcingDB extends EventEmitter {
 		return this.handledVersion(event.v)
 	}
 
+	// Dispatch handler for sub-events, used during transact phase
+	_dispatchSubEvent = null
+
 	_addSubEvent(event, type, data) {
 		if (!event.events) event.events = []
 		event.events.push({type, data})
@@ -490,6 +518,8 @@ class EventSourcingDB extends EventEmitter {
 		}
 	}
 
+	_processing = false
+
 	// This is the loop that applies events from the queue. Use startPolling(false) to always poll
 	// so that events from other processes are also handled
 	// It would be nice to not have to poll, but sqlite triggers only work on
@@ -534,6 +564,7 @@ class EventSourcingDB extends EventEmitter {
 
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
+					this._processing = true
 					lastV = event.v
 
 					// It could be that it was processed elsewhere due to racing
@@ -566,6 +597,9 @@ class EventSourcingDB extends EventEmitter {
 						error: {_SQLite: errorToString(error)},
 					}
 				})
+				.finally(() => {
+					this._processing = false
+				})
 			if (!resultEvent) continue // Another process handled the event
 
 			if (resultEvent.error) {
@@ -593,7 +627,6 @@ class EventSourcingDB extends EventEmitter {
 						error
 					)
 				}
-				// eslint-disable-next-line require-atomic-updates
 				lastV = resultEvent.v - 1
 			} else errorCount = 0
 
@@ -736,6 +769,34 @@ class EventSourcingDB extends EventEmitter {
 		return resultEvent
 	}
 
+	async _transact(event, isMainEvent, dispatch) {
+		for (const model of this._transactModels) {
+			const {name} = model
+			const {v, type} = event
+			try {
+				// eslint-disable-next-line no-await-in-loop
+				await model.transact({
+					event,
+					// subevents must see intermediary state
+					model: isMainEvent ? model : this.rwStore[name],
+					store: isMainEvent ? this.store : this.rwStore,
+					dispatch,
+					isMainEvent,
+				})
+			} catch (error) {
+				return {
+					...event,
+					v,
+					type,
+					error: {
+						[`_transact_${name}`]: errorToString(error),
+					},
+				}
+			}
+		}
+		return event
+	}
+
 	async _handleEvent(origEvent, depth = 0) {
 		const isMainEvent = depth === 0
 		let event
@@ -767,31 +828,56 @@ class EventSourcingDB extends EventEmitter {
 		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event
 
-		// handle sub-events in order
-		if (event.events) {
-			for (let i = 0; i < event.events.length; i++) {
-				const subEvent = event.events[i]
-				// eslint-disable-next-line no-await-in-loop
-				const doneEvent = await this._handleEvent(
-					{...subEvent, v: event.v},
-					depth + 1
-				)
-				delete doneEvent.v
-				event.events[i] = doneEvent
-				const {error} = doneEvent
-				if (error) {
-					if (depth && error._handle)
-						// pass the error upwards but leave on bottom-most
-						delete doneEvent.error
-					event.error = {
-						_handle: `.${subEvent.type}${
-							error._handle ? error._handle : ` failed`
-						}`,
-					}
-					return event
+		// handle sub-events in order and allow adding in transact
+		const events = event.events || []
+		const handleSubEvent = async subEvent => {
+			// We need to add and remove v so subEvents have v too
+			const doneEvent = await this._handleEvent(
+				{...subEvent, v: event.v},
+				depth + 1
+			)
+			delete doneEvent.v
+			// If an error occurs, signal via parent event error
+			const {error} = doneEvent
+			if (error) {
+				// pass the error upwards but leave on bottom-most
+				if (depth && error._handle) delete doneEvent.error
+				event.error = {
+					_handle: `.${subEvent.type}${
+						error._handle ? error._handle : ` failed`
+					}`,
 				}
 			}
+			return doneEvent
 		}
+
+		for (let i = 0; i < events.length; i++) {
+			// eslint-disable-next-line no-await-in-loop
+			events[i] = await handleSubEvent(events[i])
+			if (event.error) return event
+		}
+
+		// We need AsyncLocalStorage below to make sure models use the
+		// correct dispatch in each subevent
+
+		let lastP = null
+		const dispatch = async (type, data) => {
+			const subEventP = this._alsDispatch.run(undefined, handleSubEvent, {
+				type,
+				data,
+			})
+			// Make sure we handle the dispatches in order
+			lastP = lastP ? lastP.then(subEventP) : subEventP
+			const subEvent = await lastP
+			events.push(subEvent)
+			if (event.error)
+				throw new Error(`Event ${event.v} errored: ${event.error._handle}`)
+			return subEvent
+		}
+		event = await this._alsDispatch.run(dispatch, () =>
+			this._transact(event, isMainEvent, dispatch)
+		)
+		if (events.length) event.events = events
 
 		return event
 	}

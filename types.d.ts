@@ -2,30 +2,6 @@ declare module 'strato-db'
 
 type EventEmitter = import('events').EventEmitter
 
-type ReduceResult = Record<string, any>
-type ReduxArgs<M extends InstanceType<ESDBModel>> = {
-	model: InstanceType<M>
-	event: ESEvent
-	store: Models
-	dispatch: AddEventFn
-}
-type ReducerFn<M extends InstanceType<ESDBModel>> = (
-	args: ReduxArgs<M>
-) => Promise<ReduceResult> | ReduceResult | undefined | null | false
-type ESEvent = {
-	/** the version */
-	v: number
-	/** event type */
-	type: string
-	/** ms since epoch of event */
-	ts: number
-	/** event data */
-	data?: any
-	/** event processing result */
-	result?: Record<string, ReduceResult>
-}
-type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
-type AddEventFn = (type: string, data?: any) => void
 type DBCallback = (db: DB) => Promise<void> | void
 /** The types that SQLite can handle as parameter values */
 type SQLiteValue = string | number | null
@@ -686,6 +662,31 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	setKnownV(v: number): Promise<void>
 }
 
+type ReduceResult = {[applyType: string]: any}
+type ReduxArgs<M extends InstanceType<ESDBModel>> = {
+	model: InstanceType<M>
+	event: ESEvent
+	store: M['store']
+	addEvent: AddEventFn
+}
+type ReducerFn<M extends InstanceType<ESDBModel>> = (
+	args: ReduxArgs<M>
+) => Promise<?ReduceResult> | ?(ReduceResult | false)
+type ESEvent = {
+	/** the version */
+	v: number
+	/** event type */
+	type: string
+	/** ms since epoch of event */
+	ts: number
+	/** event data */
+	data?: any
+	/** event processing result */
+	result?: Record<string, ReduceResult>
+}
+type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
+type AddEventFn = (type: string, data?: any) => void
+
 type EMOptions<T, U extends string> = JMOptions<T, U> & {
 	/** the ESDB dispatch function */
 	dispatch: DispatchFn
@@ -811,12 +812,17 @@ type ESDBModelArgs = {
 }
 interface ESDBModel<Args extends ESDBModelArgs = ESDBModelArgs> {
 	new (args: Args): ESDBModel<Args>
-	reducer?: (args: {
-		model: ESDBModel<Args>
+	preprocessor?: (
+		args: ReduxArgs<ESDBModel<Args>>
+	) => ?(Event | Promise<?Event>)
+	reducer?: ReducerFn<ESDBModel<Args>>
+	deriver?: (args: ReduxArgs<ESDBModel<Args>>) => ?Promise<void>
+	transact?: (args: {
+		model: InstanceType<ESDBModel<Args>>
 		event: ESEvent
-		dispatch: AddEventFn
-		store: EventSourcingDB['store']
-	}) => Record<string, any>
+		store: ESDBModel<Args>['store']
+		dispatch: DispatchFn
+	}) => ?Promise<void>
 }
 type ESDBOptions = DBOptions & {
 	models: any // TODO
