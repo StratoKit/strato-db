@@ -1,15 +1,19 @@
 # Changelog
 
-## Unreleased
+## 3.3.0
+
+### Deprecations
+
+- The `dispatch()` function that is passed to redux methods was renamed to `addEvent()`.
 
 ### Changes
 
 - SQLite: added `.runOnceOnOpen()` to register functions that should be run on the open database but shouldn't open the database
 - Renamed `dispatch()` to `addEvent()` inside the event processing flow. `dispatch()` still works but gives a deprecation warning. The `.dispatch()` method is not affected.
 
-### Deprecations
+### Fixes
 
-- The `dispatch()` function that is passed to redux methods was renamed to `addEvent()`.
+- Statement: fixed an issue with error propagation on opening the database
 
 ## 3.2.1
 
