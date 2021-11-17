@@ -386,14 +386,14 @@ describe('ESModel', () => {
 
 	describe('events', () => {
 		test('work', () =>
-			withESDB({m: {columns: {id: {type: 'INTEGER'}}}}, async (eSDB, queue) => {
+			withESDB({m: {columns: {id: {type: 'INTEGER'}}}}, async eSDB => {
 				const {m} = eSDB.store
 				await m.set({meep: 'moop'})
 				await m.update({id: 1, beep: 'boop'})
 				await m.set({meep: 'moop'}, true)
 				await m.update({id: 3, beep: 'boop'}, true)
 				await m.remove(3)
-				const events = await queue.all()
+				const events = await eSDB.results.all()
 				expect(
 					events.map(e => {
 						e.ts = 0
@@ -405,7 +405,7 @@ describe('ESModel', () => {
 		test('are updated', () =>
 			withESDB(
 				{m: {idCol: 'v', columns: {v: {type: 'INTEGER'}}}},
-				async (eSDB, queue) => {
+				async eSDB => {
 					const {m} = eSDB.store
 					expect(await m.set({meep: 'moop'})).toEqual({v: 1, meep: 'moop'})
 					expect(await m.set({v: 1, meep: 'moop'})).toEqual({
@@ -427,7 +427,7 @@ describe('ESModel', () => {
 						beep: 'foop',
 						a: [null, 3],
 					})
-					const events = await queue.all()
+					const events = await eSDB.results.all()
 					expect(
 						events.map(e => {
 							e.ts = 0
@@ -438,7 +438,7 @@ describe('ESModel', () => {
 			))
 
 		test('hold metadata', () =>
-			withESDB({m: {columns: {id: {type: 'INTEGER'}}}}, async (eSDB, queue) => {
+			withESDB({m: {columns: {id: {type: 'INTEGER'}}}}, async eSDB => {
 				const {m} = eSDB.store
 				await m.set({meep: 'moop'}, null, true, {meta: 1})
 				await m.update({id: 1, beep: 'boop'}, null, true, {meta: 2})
@@ -447,7 +447,7 @@ describe('ESModel', () => {
 				await m.set({})
 				await m.remove(3, {meta: 4})
 				await m.remove(2)
-				const events = await queue.all()
+				const events = await eSDB.results.all()
 				expect(events[0].data).toHaveLength(4)
 				expect(events[4].data).toHaveLength(3)
 				expect(events[6].data).toHaveLength(2)

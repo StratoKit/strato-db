@@ -85,7 +85,10 @@ test('event replay', async () =>
 			error: {test: true},
 		})
 
-		await expect(eSDB.handledVersion(1)).resolves.not.toHaveProperty('error')
+		await expect(eSDB.handledVersion(1)).resolves.toHaveProperty(
+			'error',
+			undefined
+		)
 	}))
 
 test('model fail shows name', () => {

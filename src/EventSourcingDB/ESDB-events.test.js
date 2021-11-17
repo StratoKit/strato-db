@@ -246,7 +246,7 @@ describe('ESDB events', () => {
 					ok: true,
 				})
 				await eSDB.rwStore.meep.set({id: 2})
-				const event = await eSDB.queue.get(2)
+				const event = await eSDB.results.getEvent(2)
 				expect(event.data).toEqual([1, 2, {id: 2}])
 				expect(event.result).toEqual({meep: {ins: [{id: 2}]}})
 			}

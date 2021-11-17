@@ -46,6 +46,7 @@ import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
+import EventResults from '../EventResults'
 
 const dbg = debug('strato-db/ESDB')
 
@@ -157,8 +158,10 @@ class EventSourcingDB extends EventEmitter {
 
 	constructor({
 		queue,
+		results,
 		models,
 		queueFile,
+		resultsFile,
 		withViews = true,
 		onWillOpen,
 		onBeforeMigrations: prevOBM,
@@ -173,6 +176,8 @@ class EventSourcingDB extends EventEmitter {
 		if (!models) throw new TypeError('models are required')
 		if (queueFile && queue)
 			throw new TypeError('Either pass queue or queueFile')
+		if (resultsFile && results)
+			throw new TypeError('Either pass results or resultsFile')
 
 		this.rwDb = new DB({
 			...dbOptions,
@@ -208,24 +213,33 @@ class EventSourcingDB extends EventEmitter {
 				name: `${dbOptions.name || ''}Queue`,
 				file: queueFile || this.rwDb.file,
 			})
-			this.queue = new EventQueue({
-				db: qDb,
-				withViews,
-				columns: {events: {type: 'JSON'}},
-			})
+			this.queue = new EventQueue({db: qDb})
 		}
-		const qDbFile = this.queue.db.file
+		if (results) {
+			this.results = results
+		} else {
+			const resultsDb = resultsFile
+				? new DB({
+						...dbOptions,
+						name: `${dbOptions.name || ''}Results`,
+						file: resultsFile,
+				  })
+				: this.queue.db
+			this.results = new EventResults({db: resultsDb, withViews})
+		}
+		const resultsDbFile = this.results.db.file
 		// If queue is in same file as rwDb, share the connection
 		// for writing results during transaction - no deadlocks
 		this._resultQueue =
-			this.rwDb.file === qDbFile && qDbFile !== ':memory:'
-				? new EventQueue({db: this.rwDb})
-				: this.queue
+			this.rwDb.file === resultsDbFile && resultsDbFile !== ':memory:'
+				? new EventResults({db: this.rwDb, withViews})
+				: this.results
 
 		// Move old history data to queue DB
-		if (this.rwDb.file !== qDbFile) {
+		if (this.rwDb.file !== this.results.db.file) {
 			registerHistoryMigration(this.rwDb, this.queue)
 		}
+		// TODO results migration
 		this.rwDb.registerMigrations('ESDB', {
 			// Move v2 metadata version to DB user_version
 			userVersion: async db => {
@@ -387,6 +401,7 @@ class EventSourcingDB extends EventEmitter {
 			this.rwDb && this.rwDb.close(),
 			this.db !== this.rwDb && this.db.close(),
 			this.queue.db.close(),
+			this.results.db.close(),
 		])
 	}
 
@@ -527,8 +542,8 @@ class EventSourcingDB extends EventEmitter {
 				if (prevV > event.v) continue
 				// Note: if the DB fails for get(), the trigger won't run and it will retry later
 				// eslint-disable-next-line promise/catch-or-return
-				this.queue
-					.get(prevV)
+				this.results
+					.getEvent(prevV)
 					.then(prevEvent => this._triggerEventListeners(prevEvent))
 			}
 		}
@@ -607,6 +622,7 @@ class EventSourcingDB extends EventEmitter {
 			}
 			if (!event) return lastV
 
+			// TODO grab lock on results for multiprocess (except when same db)
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
 					this._processing = true
@@ -632,7 +648,7 @@ class EventSourcingDB extends EventEmitter {
 					} else {
 						await rwDb.run('RELEASE SAVEPOINT handle')
 					}
-					return _resultQueue.set(result)
+					return result
 				})
 				.catch(error => {
 					// @ts-ignore
@@ -873,24 +889,33 @@ class EventSourcingDB extends EventEmitter {
 		}
 		let cache = {}
 		event = await this._preprocessor(cache, event, isMainEvent)
-		if (event.error) return event
 
-		event = await this._reducer(cache, event, isMainEvent)
-		if (event.error) return event
+		if (!event.error) event = await this._reducer(cache, event, isMainEvent)
 
 		// Allow GC
 		// @ts-ignore
 		cache = null
 
-		event = await this._applyEvent(event, isMainEvent)
+		if (!event.error) event = await this._applyEvent(event, isMainEvent)
+
+		// We're done processing this event, store the intermediate result before subevents
+		// TODO delete everything with >=v on main event
+		await this._resultQueue.set({
+			...event,
+			events: undefined,
+			version: event.version || `${event.v}`,
+		})
+
 		if (event.error) return event
 
 		// handle sub-events in order and allow adding in transact
 		const events = event.events || []
-		const handleSubEvent = async subEvent => {
+		const handleSubEvent = async (subEvent, i) => {
+			const {v} = event
+			const version = `${event.version || event.v}.${i}`
 			// We need to add and remove v so subEvents have v too
 			const doneEvent = await this._handleEvent(
-				{...subEvent, v: event.v},
+				{...subEvent, v, version},
 				depth + 1
 			)
 			delete doneEvent.v
@@ -907,7 +932,8 @@ class EventSourcingDB extends EventEmitter {
 		}
 
 		for (let i = 0; i < events.length; i++) {
-			events[i] = await handleSubEvent(events[i])
+			const version = `${event.version || event.v}.${i}`
+			events[i] = await handleSubEvent({...events[i], version}, i)
 			if (event.error) return event
 		}
 
@@ -916,17 +942,21 @@ class EventSourcingDB extends EventEmitter {
 
 		let lastP = null
 		const dispatch = makeDispatcher('dispatch', async (type, data) => {
+			const index = events.length
+			const version = `${event.version || event.v}.${index}`
 			// We run the "thread" with an empty store to signify processing
-			const subEventP = this._alsDispatch.run({}, handleSubEvent, {
-				type,
-				data,
-			})
+			const subEventP = this._alsDispatch.run(
+				{},
+				handleSubEvent,
+				{type, data, version},
+				index
+			)
 			// Make sure we handle the dispatches in order
 			lastP = lastP ? lastP.then(() => subEventP) : subEventP
 			const subEvent = await lastP
-			events.push(subEvent)
-			if (event.error)
-				throw new Error(`Event ${event.v} errored: ${event.error._handle}`)
+			events[index] = subEvent
+			if (subEvent.error)
+				throw new Error(`Event ${version} errored: ${subEvent.error._handle}`)
 			return subEvent
 		})
 		// During transact, the "thread" has dispatch

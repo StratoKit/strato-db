@@ -22,6 +22,8 @@ export const makeMigrations = ({
 		0: async ({db}) => {
 			const {quoted, type, autoIncrement} = columns[idCol]
 			const isIntegerId = type === 'INTEGER'
+			// If the singular primary key is integer, it's also the rowid
+			// Otherwise, we can make it explicitly accessible
 			const addRowId = !isIntegerId && keepRowId
 			// The NOT NULL is a SQLite bug, otherwise it allows NULL as id
 			const rowIdCol = addRowId

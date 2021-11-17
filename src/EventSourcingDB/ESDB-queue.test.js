@@ -12,12 +12,12 @@ test('queue in same db', async () =>
 				name: 'E',
 				models: testModels,
 			})
-			const {queue} = eSDB
+			const {queue, results} = eSDB
 			queue.add('boop')
 			const {v} = await queue.add('moop')
 			eSDB.checkForEvents()
 			await eSDB.handledVersion(v)
-			const history = await queue.all()
+			const history = await results.all()
 			expect(history).toHaveLength(2)
 			expect(history[0].type).toBe('boop')
 			expect(history[0].result).toBeTruthy()

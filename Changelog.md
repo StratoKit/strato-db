@@ -5,6 +5,7 @@
 ### Breaking
 
 - JsonModel: `.get()` now uses the column's `where` and `whereVal` like `.search()` does. This means that it will return different results than in v3, but those cases were likely to be unintended.
+- EventSourceDB: Moved event results into separate table `results."{esdb} results"`. Each event/subevent is on a row by itself. This makes debugging and administration easier. This also means that the original `event.data` object is stored unchanged by the preprocessor.
 
 ## 3.6.1
 
