@@ -4,6 +4,7 @@
 
 ### Changes
 
+- ESModel: allow changeId while writable
 - deprecations are printed as console.warn
 
 ## 3.3.0

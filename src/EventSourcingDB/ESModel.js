@@ -234,7 +234,8 @@ class ESModel extends JsonModel {
 	}
 
 	/** changeId: not implemented yet, had no need so far */
-	changeId() {
+	changeId(oldId, newId) {
+		if (this.writable) return super.changeId(oldId, newId)
 		throw new Error(`ESModel doesn't support changeId yet`)
 	}
 
