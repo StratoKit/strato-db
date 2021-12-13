@@ -7,7 +7,7 @@ if (DEV) {
 		if (warned[tag]) return
 		warned[tag] = true
 		// eslint-disable-next-line no-console
-		console.error(new Error(`!!! ${type} ${msg}`))
+		console.warn(new Error(`!!! ${type} ${msg}`))
 	}
 	deprecated = warner('DEPRECATED')
 	unknown = warner('UNKNOWN')

@@ -94,9 +94,9 @@ test('model fail shows name', () => {
 
 test('old reducer signature', async () => {
 	// eslint-disable-next-line no-console
-	const prev = console.error
+	const prev = console.warn
 	// eslint-disable-next-line no-console
-	console.error = jest.fn()
+	console.warn = jest.fn()
 	const eSDB = new ESDB({
 		models: {
 			old: {
@@ -106,9 +106,9 @@ test('old reducer signature', async () => {
 		},
 	})
 	// eslint-disable-next-line no-console
-	expect(console.error).toHaveBeenCalled()
+	expect(console.warn).toHaveBeenCalled()
 	await eSDB.dispatch('TEST')
 	expect(await eSDB.store.old.get(5)).toBeTruthy()
 	// eslint-disable-next-line no-console
-	console.error = prev
+	console.warn = prev
 })
