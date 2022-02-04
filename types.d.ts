@@ -2,30 +2,6 @@ declare module 'strato-db'
 
 type EventEmitter = import('events').EventEmitter
 
-type ReduceResult = Record<string, any>
-type ReduxArgs<M extends InstanceType<ESDBModel>> = {
-	model: InstanceType<M>
-	event: ESEvent
-	store: Models
-	dispatch: AddEventFn
-}
-type ReducerFn<M extends InstanceType<ESDBModel>> = (
-	args: ReduxArgs<M>
-) => Promise<ReduceResult> | ReduceResult | undefined | null | false
-type ESEvent = {
-	/** the version */
-	v: number
-	/** event type */
-	type: string
-	/** ms since epoch of event */
-	ts: number
-	/** event data */
-	data?: any
-	/** event processing result */
-	result?: Record<string, ReduceResult>
-}
-type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
-type AddEventFn = (type: string, data?: any) => void
 type DBCallback = (db: DB) => Promise<void> | void
 /** The types that SQLite can handle as parameter values */
 type SQLiteValue = string | number | null
@@ -185,7 +161,7 @@ interface SQLite extends EventEmitter {
 	 * @param cb      - the function to call on each row.
 	 * @returns - a promise for execution completion.
 	 */
-	each(sql: string, cb: (SQLiteRow) => any): Promise<void>
+	each(sql: string, cb: (row: SQLiteRow) => any): Promise<void>
 	each(sql: string, vars: SQLiteParam[], cb: DBEachCallback): Promise<void>
 	/**
 	 * Returns the data_version, which increases when other connections write to
@@ -236,7 +212,7 @@ interface DB extends SQLite {
 	new (options: DBOptions): DB
 
 	/** The models. */
-	store: Record<string, InstanceType<ESDBModel>>
+	store: Record<string, InstanceType<DBModel>>
 
 	/**
 	 * Add a model to the DB, which will manage one or more tables in the SQLite
@@ -274,20 +250,21 @@ type ItemCallback<Item> = (obj: Item) => Promise<void>
 type IDValue = string | number
 
 /** Search for simple values. Keys are column names, values are what they should equal */
-type JMSearchAttrs = Record<string, any>
+type JMSearchAttrs<Columns> = {
+	[attr in keyof Columns]: any
+}
 
 /** The key for the column definition */
 type JMColName = string
 
 type Loader<T, U> = import('dataloader')<U, T | null>
 /** A lookup cache, managed by DataLoader */
-type JMCache<
-	Item extends {[id in IDCol]: IDValue},
-	IDCol extends string
-> = Record<string, Loader<Item, Item[IDCol]>>
+type JMCache<Item extends {[id in IDCol]: IDValue}, IDCol extends string> = {
+	[name: string]: Loader<Item, Item[IDCol]>
+}
 
 /** A real or virtual column definition in the created sqlite table */
-type JMColumnDef<T, U extends string> = {
+type JMColumnDef = {
 	/** the column key, used for the column name if it's a real column.  */
 	name?: JMColName
 	/** is this a real table column. */
@@ -303,7 +280,7 @@ type JMColumnDef<T, U extends string> = {
 	/** should the column be included in search results. */
 	get?: boolean
 	/** process the value after getting from DB. */
-	parse?: (SQLiteValue) => any
+	parse?: (val: SQLiteValue) => any
 	/** process the value before putting into DB. */
 	stringify?: (any) => SQLiteParam
 	/** the value is an object and must always be there. If this is a real column, a NULL column value will be replaced by `{}` and vice versa. */
@@ -341,30 +318,38 @@ type JMColumnDef<T, U extends string> = {
 	/** alias for isArray+inAll. */
 	isAnyOfArray?: boolean
 }
+type JMColumnDefOrFn = (({name: string}) => JMColumnDef) | JMColumnDef
 
 /** A function that performs a migration before the DB is opened */
-type JMMigration<T, U extends string> = (
-	args: Record<string, any> & {db: DB; model: JsonModel<T, U>}
+type JMMigration<T, IDCol extends string> = (
+	args: Record<string, any> & {db: DB; model: JsonModel<T, IDCol>}
 ) => Promise<void>
 
-type JMOptions<T, U extends string> = {
+type JMColums<IDCol extends string = 'id'> = {
+	[colName: string]: JMColumnDefOrFn
+} & {
+	[id in IDCol]: JMColumnDef
+}
+
+type JMOptions<
+	T,
+	IDCol extends string = 'id',
+	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}}
+> = {
 	/** a DB instance, normally passed by DB  */
 	db: DB
 	/** the table name  */
 	name: string
 	/** an object with migration functions. They are run in alphabetical order  */
-	migrations?: {[tag: string]: JMMigration<T, U>}
+	migrations?: {[tag: string]: JMMigration<T, IDCol>}
 	/** free-form data passed to the migration functions  */
 	migrationOptions?: Record<string, any>
 	/** the column definitions */
-	columns?: Record<
-		string,
-		JMColumnDef<T, U> | (({name: string}) => JMColumnDef<T, U>)
-	>
+	columns?: Columns
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
 	ItemClass?: Object
-	/** the key of the ID column  */
-	idCol?: string
+	/** the key of the IDCol column  */
+	idCol: IDCol
 	/** preserve row id after vacuum  */
 	keepRowId?: boolean
 }
@@ -379,9 +364,9 @@ type JMWhereClauses = {
 	[key: string]: (string | number | boolean)[] | null | false
 }
 
-type JMSearchOptions = {
+type JMSearchOptions<Columns> = {
 	/** literal value search, for convenience. */
-	attrs?: JMSearchAttrs
+	attrs?: JMSearchAttrs<Columns>
 	/** sql expressions as keys with arrays of applicable parameters as values. */
 	where?: JMWhereClauses
 	/** arbitrary join clause. Not processed at all. */
@@ -409,9 +394,12 @@ type JMSearchOptions = {
  */
 interface JsonModel<
 	Item extends {[id in IDCol]?: IDValue},
-	IDCol extends string = 'id'
+	IDCol extends string = 'id',
+	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}},
+	SearchAttrs = JMSearchAttrs<Columns>,
+	SearchOptions = JMSearchOptions<Columns>
 > {
-	new (options: JMOptions<Item, IDCol>): JsonModel<Item, IDCol>
+	new (options: JMOptions<Item, IDCol, Columns>): JsonModel<Item, IDCol>
 	/** The DB instance storing this model */
 	db: DB
 	/** The table name */
@@ -425,20 +413,18 @@ interface JsonModel<
 	/** The prototype of returned Items */
 	Item: Object
 	/** The column definitions */
-	columnArr: JMColumnDef<Item, IDCol>[]
+	columnArr: JMColumnDef[]
 	/** The column definitions keyed by name */
-	columns: Record<JMColName, JMColumnDef<Item, IDCol>>
-	/**
-	 * Parses a row as returned by sqlite.
-	 */
-	parseRow: (row: SQLiteRow, options?: JMSearchOptions) => Item
+	columns: {[name in keyof Columns]: JMColumnDef}
+	/** Parses a row as returned by sqlite */
+	parseRow: (row: SQLiteRow, options?: SearchOptions) => Item
 	/**
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
 	 */
 	makeSelect(
 		/** The query options. */
-		options: JMSearchOptions
+		options: SearchOptions
 	): [string, SQLiteParam[], string[], string, SQLiteParam[]]
 	/**
 	 * Search the first matching object.
@@ -447,8 +433,8 @@ interface JsonModel<
 	 */
 	searchOne(
 		/** Simple value attributes. */
-		attrs: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs: SearchAttrs,
+		options?: SearchOptions
 	): Promise<Item | null>
 	/**
 	 * Search the all matching objects.
@@ -458,12 +444,19 @@ interface JsonModel<
 	 */
 	search(
 		/** Simple value attributes. */
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions & {
-			/** Return only the items array. */
-			itemsOnly?: boolean
+		attrs?: SearchAttrs,
+		options?: SearchOptions & {
+			itemsOnly?: false
 		}
-	): Promise<{items: Item[]; cursor: string} | Item[]>
+	): Promise<{items: Item[]; cursor: string}>
+	search(
+		/** Simple value attributes. */
+		attrs: SearchAttrs | null,
+		options: SearchOptions & {
+			/** Return only the items array. */
+			itemsOnly: true
+		}
+	): Promise<Item[]>
 	/**
 	 * A shortcut for setting `itemsOnly: true` on {@link search}.
 	 *
@@ -471,7 +464,7 @@ interface JsonModel<
 	 * @param [options]  - search options.
 	 * @returns - the search results.
 	 */
-	searchAll(attrs: JMSearchAttrs, options?: JMSearchOptions): Promise<Item[]>
+	searchAll(attrs: SearchAttrs, options?: SearchOptions): Promise<Item[]>
 	/**
 	 * Check for existence of objects. Returns `true` if the search would yield
 	 * results.
@@ -479,13 +472,13 @@ interface JsonModel<
 	 * @returns The search results exist.
 	 */
 	exists(id: Item[IDCol]): Promise<boolean>
-	exists(attrs: JMSearchAttrs, options?: JMSearchOptions): Promise<boolean>
+	exists(attrs: SearchAttrs, options?: SearchOptions): Promise<boolean>
 	/**
 	 * Count of search results.
 	 *
 	 * @returns - the count.
 	 */
-	count(attrs?: JMSearchAttrs, options?: JMSearchOptions): Promise<number>
+	count(attrs?: SearchAttrs, options?: SearchOptions): Promise<number>
 	/**
 	 * Numeric Aggregate Operation.
 	 */
@@ -494,40 +487,40 @@ interface JsonModel<
 		op: string,
 		/** The column to aggregate. */
 		colName: JMColName,
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs?: SearchAttrs,
+		options?: SearchOptions
 	): Promise<number>
 	/**
 	 * Maximum value.
 	 */
 	max(
 		colName: JMColName,
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs?: SearchAttrs,
+		options?: SearchOptions
 	): Promise<number>
 	/**
 	 * Minimum value.
 	 */
 	min(
 		colName: JMColName,
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs?: SearchAttrs,
+		options?: SearchOptions
 	): Promise<number>
 	/**
 	 * Sum values.
 	 */
 	sum(
 		colName: JMColName,
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs?: SearchAttrs,
+		options?: SearchOptions
 	): Promise<number>
 	/**
 	 * Average value.
 	 */
 	avg(
 		colName: JMColName,
-		attrs?: JMSearchAttrs,
-		options?: JMSearchOptions
+		attrs?: SearchAttrs,
+		options?: SearchOptions
 	): Promise<number>
 	/**
 	 * Get all objects. This can result in out-of-memory errors.
@@ -595,10 +588,10 @@ interface JsonModel<
 	 * @returns Table iteration completed.
 	 */
 	each(cb: ItemCallback<Item>): Promise<void>
-	each(attrs: JMSearchAttrs, cb: ItemCallback<Item>): Promise<void>
+	each(attrs: SearchAttrs, cb: ItemCallback<Item>): Promise<void>
 	each(
-		attrs: JMSearchAttrs,
-		opts: JMSearchOptions,
+		attrs: SearchAttrs,
+		opts: SearchOptions,
 		cb: ItemCallback<Item>
 	): Promise<void>
 	/**
@@ -636,6 +629,18 @@ interface JsonModel<
 	changeId(oldId: Item[IDCol], newId: Item[IDCol]): Promise<void>
 }
 
+type ESEvent = {
+	/** the version */
+	v: number
+	/** event type */
+	type: string
+	/** ms since epoch of event */
+	ts: number
+	/** event data */
+	data?: any
+	/** event processing result */
+	result?: Record<string, ReduceResult>
+}
 type EQOptions<T, U extends string> = JMOptions<T, U> & {
 	/** the table name, defaults to `"history"` */
 	name?: string
@@ -648,7 +653,7 @@ type EQOptions<T, U extends string> = JMOptions<T, U> & {
  * Creates a new EventQueue model, called by DB.
  */
 interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
-	new (EQOptions): EventQueue<T>
+	new (options: EQOptions<T, 'v'>): EventQueue<T>
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -663,7 +668,7 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	 * @param [ts=Date.now()]  - event timestamp, ms since epoch.
 	 * @returns - Promise for the added event.
 	 */
-	add(type: string, data?: any, ts?: number): Promise<Event>
+	add(type: string, data?: any, ts?: number): Promise<ESEvent>
 	/**
 	 * Get the next event after v (gaps are ok).
 	 * The wait can be cancelled by `.cancelNext()`.
@@ -672,7 +677,7 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	 * @param [noWait=false]  - do not wait for the next event.
 	 * @returns The event if found.
 	 */
-	getNext(v?: number, noWait?: boolean): Promise<Event>
+	getNext(v?: number, noWait?: boolean): Promise<ESEvent>
 	/**
 	 * Cancel any pending `.getNext()` calls
 	 */
@@ -684,6 +689,83 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	 * @param v  - the last known version.
 	 */
 	setKnownV(v: number): Promise<void>
+}
+
+type ReduceResult = Record<string, any>
+type ReduxArgs<Name extends string,ESDBConfig,D=InstanceType<EventSourcingDB<ESDBConfig>>
+ = {
+	model: InstanceType<M>
+	event: ESEvent
+	store: {[name: string]: InstanceType<ESDBModel<ESDBModelArgs<IDCol>>>}
+	addEvent: AddEventFn
+}
+type ReducerFn<
+	M extends InstanceType<ESDBModel<ESDBModelArgs<IDCol>>>,
+	IDCol extends string
+> = (
+	args: ReduxArgs<M, IDCol>
+) => Promise<ReduceResult> | ReduceResult | undefined | null | false
+type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
+type AddEventFn = (type: string, data?: any) => void
+
+// TODO get from models config
+type ESDBModelArgs<IDCol extends string = 'id'> = {
+	name: string
+	db: DB
+	dispatch: DispatchFn
+	migrationOptions: Record<string, any> & {queue: EventQueue}
+	emitter: EventEmitter
+	idCol: IDCol
+}
+interface ESDBModel<
+	Args extends ESDBModelArgs<IDCol>,
+	IDCol extends string = 'id'
+> {
+	new (args: Args): ESDBModel<Args, IDCol>
+	reducer?: ReducerFn<this, IDCol>
+}
+type ESDBOptions = DBOptions & {
+	models: {[name: string]: ESDBModel}
+	queue?: InstanceType<EventQueue>
+	queueFile?: string
+	withViews?: boolean
+	onWillOpen?: DBCallback
+	onBeforeMigrations?: DBCallback
+	onDidOpen?: DBCallback
+}
+interface EventSourcingDB<O extends ESDBOptions> extends EventEmitter {
+	new (options: O): EventSourcingDB
+
+	/** The read-only models. Use these freely, they don't "see" transactions */
+	store: Record<string, InstanceType<ESDBModel>>
+	/** The writable models. Do not use. */
+	rwStore: Record<string, InstanceType<ESDBModel>>
+	/** DB instance for the read-only models */
+	db: DB
+	/** DB instance for the writable models */
+	rwDb: DB
+	/** Queue instance holding the events */
+	queue: EventQueue
+
+	/** Open the DBs */
+	open(): Promise<void>
+
+	/** Close the DBs */
+	close(): Promise<void>
+
+	checkForEvents(): Promise<void>
+
+	waitForQueue(): Promise<void>
+
+	startPolling(wantVersion?: number): Promise<void>
+
+	stopPolling(): Promise<void>
+
+	dispatch(type: string, data?: any, ts?: number): Promise<ESEvent>
+
+	getVersion(): Promise<number>
+
+	handledVersion(v: number): Promise<void>
 }
 
 type EMOptions<T, U extends string> = JMOptions<T, U> & {
@@ -727,6 +809,7 @@ interface ESModelI<
 	Item extends {[id in IDCol]?: IDValue},
 	IDCol extends string = 'id'
 > extends JsonModel<Item, IDCol> {
+	dispatch: DispatchFn
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
 	 * This makes deriver and migrations work without changes.
@@ -800,64 +883,4 @@ interface ESModelI<
 	 * @returns - Promise for completion.
 	 */
 	applyResult(result: any): Promise<void>
-}
-
-type ESDBModelArgs = {
-	name: string
-	db: DB
-	dispatch: DispatchFn
-	migrationOptions: Record<string, any> & {queue: EventQueue}
-	emitter: EventEmitter
-}
-interface ESDBModel<Args extends ESDBModelArgs = ESDBModelArgs> {
-	new (args: Args): ESDBModel<Args>
-	reducer?: (args: {
-		model: ESDBModel<Args>
-		event: ESEvent
-		dispatch: AddEventFn
-		store: EventSourcingDB['store']
-	}) => Record<string, any>
-}
-type ESDBOptions = DBOptions & {
-	models: any // TODO
-	queue?: InstanceType<EventQueue>
-	queueFile?: string
-	withViews?: boolean
-	onWillOpen?: DBCallback
-	onBeforeMigrations?: DBCallback
-	onDidOpen?: DBCallback
-}
-interface EventSourcingDB extends EventEmitter {
-	new (options: ESDBOptions): EventSourcingDB
-
-	/** The read-only models. Use these freely, they don't "see" transactions */
-	store: Record<string, InstanceType<ESDBModel>>
-	/** The writable models. Do not use. */
-	rwStore: Record<string, InstanceType<ESDBModel>>
-	/** DB instance for the read-only models */
-	db: DB
-	/** DB instance for the writable models */
-	rwDb: DB
-	/** Queue instance holding the events */
-	queue: EventQueue
-
-	/** Open the DBs */
-	open(): Promise<void>
-
-	/** Close the DBs */
-	close(): Promise<void>
-
-	checkForEvents(): Promise<void>
-
-	waitForQueue(): Promise<void>
-
-	startPolling(wantVersion?: number): Promise<void>
-
-	stopPolling(): Promise<void>
-
-	dispatch(type: string, data?: any, ts?: number): Promise<ESEvent>
-
-	getVersion(): Promise<number>
-
-	handledVersion(v: number): Promise<void>
 }

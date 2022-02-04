@@ -128,6 +128,7 @@
 
 ### Important
 
+- [ ] on broken event there's no error visible and handleevent goes into a rapid polling loop
 - [ ] When dispatching an event after an event error, processing sometimes continues with the dispatched event instead of remaining halted
 - [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
   - Ideally, the results go in a different db that can be split at will.
