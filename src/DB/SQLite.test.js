@@ -3,7 +3,6 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
 
-// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('valToSql', () => {
@@ -60,6 +59,7 @@ describe('sql helper function', () => {
 			p = db.get`SELECT * FROM ${'foo'}ID WHERE ${'id'}ID = ${5}`
 		}).not.toThrow()
 		const row = await p
+		if (!row) throw new Error('row is not defined')
 		expect(row.id).toBe(5)
 		await db.close()
 	})
@@ -180,7 +180,6 @@ describe('SQLite', () => {
 			await db.open()
 			expect(() =>
 				db.runOnceOnOpen(() => {
-					// eslint-disable-next-line no-throw-literal
 					throw 'hi'
 				})
 			).toThrow('hi')
@@ -281,7 +280,6 @@ describe('SQLite', () => {
 					expect(rollback).not.toHaveBeenCalled()
 					expect(end).toHaveBeenCalledTimes(1)
 					expect(fnl).toHaveBeenCalledTimes(1)
-					// eslint-disable-next-line no-throw-literal
 					throw 'foo'
 				})
 				.catch(e => {
@@ -320,7 +318,7 @@ describe('SQLite', () => {
 	test('.userVersion()', async () => {
 		const db = new SQLite()
 		await expect(db.userVersion()).resolves.toBe(0)
-		await expect(db.userVersion(5)).resolves.toBe()
+		await expect(db.userVersion(5)).resolves.toBe(undefined)
 		await expect(db.userVersion()).resolves.toBe(5)
 	})
 

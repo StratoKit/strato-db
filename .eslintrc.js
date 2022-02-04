@@ -81,6 +81,7 @@ module.exports = {
 	parser: '@babel/eslint-parser',
 	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
 	rules,
+	reportUnusedDisableDirectives: 'error',
 	settings: {
 		// autodetect doesn't work
 		jest: {version: '26'},

@@ -1,6 +1,7 @@
+/* eslint-disable no-dupe-class-members */
 declare module 'strato-db'
-
-type EventEmitter = import('events').EventEmitter
+type EventEmitter<M> =
+	import('strongly-typed-event-emitter').StronglyTypedEventEmitter<M>
 
 type DBCallback = (db: DB) => Promise<void> | void
 /** The types that SQLite can handle as parameter values */
@@ -18,7 +19,10 @@ type SQLiteColumnType =
 
 type DBEachCallback = (row: SQLiteRow) => Promise<void> | void
 
-type SqlTag = (tpl: string[], ...interpolations: string[]) => [string, string[]]
+type SqlTag = (
+	tpl: TemplateStringsArray,
+	...interpolations: SQLiteParam[]
+) => [string, SQLiteParam[]]
 
 interface Statement {
 	isStatement: true
@@ -56,6 +60,11 @@ type SQLiteOptions = {
 	vacuumPageCount?: number
 }
 
+// @ts-ignore - we need to convert the type to a class declaration
+declare class SQLiteEE
+	implements
+		EventEmitter<{begin: void; rollback: void; end: void; finally: void}> {}
+
 /**
  * SQLite is a wrapper around a single SQLite connection (via node-sqlite3).
  * It provides a Promise API, lazy opening, auto-cleaning prepared statements
@@ -66,8 +75,8 @@ type SQLiteOptions = {
  * * 'end': transaction finished successfully
  * * 'finally': transaction finished
  */
-interface SQLite extends EventEmitter {
-	new (options?: SQLiteOptions)
+declare class SQLite extends SQLiteEE {
+	constructor(options?: SQLiteOptions)
 
 	/**
 	 * Template Tag for SQL statements.
@@ -81,7 +90,7 @@ interface SQLite extends EventEmitter {
 	 * JSON.stringify(obj)])`
 	 *
 	 */
-	sql(): {quoteId: (id: string) => string} & SqlTag
+	sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
 	/**
 	 * `true` if an sqlite connection was set up. Mostly useful for tests.
 	 */
@@ -116,7 +125,7 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	all(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow[]>
-	all(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteRow[]>
+	all(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteRow[]>
 	/**
 	 * Return the first row for the given query.
 	 *
@@ -124,7 +133,10 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	get(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow | null>
-	get(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteRow | null>
+	get(
+		sql: TemplateStringsArray,
+		...vars: SQLiteParam[]
+	): Promise<SQLiteRow | null>
 	/**
 	 * Run the given query and return the metadata.
 	 *
@@ -132,7 +144,7 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	run(sql: string, vars?: SQLiteParam[]): Promise<SQLiteMeta>
-	run(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteMeta>
+	run(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteMeta>
 	/**
 	 * Run the given query and return nothing. Slightly more efficient than
 	 * {@link run}.
@@ -142,7 +154,7 @@ interface SQLite extends EventEmitter {
 	 * @returns - a promise for execution completion.
 	 */
 	exec(sql: string, vars?: SQLiteParam[]): Promise<void>
-	exec(sql: string[], ...vars: SQLiteParam[]): Promise<void>
+	exec(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<void>
 	/**
 	 * Register an SQL statement for repeated running. This will store the SQL and
 	 * will prepare the statement with SQLite whenever needed, as well as finalize
@@ -208,8 +220,8 @@ type DBOptions = {
  * DB adds model management and migrations to Wrapper.
  * The migration state is kept in the table ""{sdb} migrations"".
  */
-interface DB extends SQLite {
-	new (options: DBOptions): DB
+declare class DB extends SQLite {
+	constructor(options: DBOptions)
 
 	/** The models. */
 	store: Record<string, InstanceType<DBModel>>
@@ -325,7 +337,7 @@ type JMMigration<T, IDCol extends string> = (
 	args: Record<string, any> & {db: DB; model: JsonModel<T, IDCol>}
 ) => Promise<void>
 
-type JMColums<IDCol extends string = 'id'> = {
+type JMColumns<IDCol extends string = 'id'> = {
 	[colName: string]: JMColumnDefOrFn
 } & {
 	[id in IDCol]: JMColumnDef
@@ -334,7 +346,7 @@ type JMColums<IDCol extends string = 'id'> = {
 type JMOptions<
 	T,
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}}
+	Columns extends JMColumns<IDCol> = {[id in IDCol]: {type: 'TEXT'}}
 > = {
 	/** a DB instance, normally passed by DB  */
 	db: DB
@@ -392,14 +404,14 @@ type JMSearchOptions<Columns> = {
 /**
  * Stores Item objects in a SQLite table.
  */
-interface JsonModel<
+declare class JsonModel<
 	Item extends {[id in IDCol]?: IDValue},
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}},
+	Columns extends JMColumns<IDCol> = {[id in IDCol]: {type: 'TEXT'}},
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>
 > {
-	new (options: JMOptions<Item, IDCol, Columns>): JsonModel<Item, IDCol>
+	constructor(options: JMOptions<Item, IDCol, Columns>)
 	/** The DB instance storing this model */
 	db: DB
 	/** The table name */
@@ -439,8 +451,8 @@ interface JsonModel<
 	/**
 	 * Search the all matching objects.
 	 *
-	 * @returns - `{items[], cursor}`. If no cursor, you got all the results. If
-	 *          `options.itemsOnly`, returns only the items array.
+	 * @returns - `{items[], cursor}`. If no cursor, you got all the results.
+	 *          If `options.itemsOnly`, returns only the items array.
 	 */
 	search(
 		/** Simple value attributes. */
@@ -652,8 +664,11 @@ type EQOptions<T, U extends string> = JMOptions<T, U> & {
 /**
  * Creates a new EventQueue model, called by DB.
  */
-interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
-	new (options: EQOptions<T, 'v'>): EventQueue<T>
+declare class EventQueue<T extends ESEvent = ESEvent> extends JsonModel<
+	T,
+	'v'
+> {
+	constructor(options: EQOptions<T, 'v'>)
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -691,55 +706,55 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	setKnownV(v: number): Promise<void>
 }
 
+type ESDBStore = {[name: string]: ESDBModel}
 type ReduceResult = Record<string, any>
-type ReduxArgs<Name extends string,ESDBConfig,D=InstanceType<EventSourcingDB<ESDBConfig>>
- = {
-	model: InstanceType<M>
+type ReduxArgs<Model, Store> = {
+	model: Model
 	event: ESEvent
-	store: {[name: string]: InstanceType<ESDBModel<ESDBModelArgs<IDCol>>>}
+	store: Store
 	addEvent: AddEventFn
 }
 type ReducerFn<
-	M extends InstanceType<ESDBModel<ESDBModelArgs<IDCol>>>,
-	IDCol extends string
+	Model extends ESDBModel = ESModel<{}>,
+	Store extends ESDBStore = {}
 > = (
-	args: ReduxArgs<M, IDCol>
+	args: ReduxArgs<Model, Store>
 ) => Promise<ReduceResult> | ReduceResult | undefined | null | false
 type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
 type AddEventFn = (type: string, data?: any) => void
 
 // TODO get from models config
-type ESDBModelArgs<IDCol extends string = 'id'> = {
+type ESDBModelArgs = {
 	name: string
 	db: DB
 	dispatch: DispatchFn
 	migrationOptions: Record<string, any> & {queue: EventQueue}
-	emitter: EventEmitter
-	idCol: IDCol
+	emitter: ESDBEE
 }
-interface ESDBModel<
-	Args extends ESDBModelArgs<IDCol>,
-	IDCol extends string = 'id'
-> {
-	new (args: Args): ESDBModel<Args, IDCol>
-	reducer?: ReducerFn<this, IDCol>
+declare class ESDBModel {
+	constructor(args: ESDBModelArgs)
+	static reducer?: ReducerFn
 }
 type ESDBOptions = DBOptions & {
 	models: {[name: string]: ESDBModel}
-	queue?: InstanceType<EventQueue>
+	queue?: EventQueue
 	queueFile?: string
 	withViews?: boolean
 	onWillOpen?: DBCallback
 	onBeforeMigrations?: DBCallback
 	onDidOpen?: DBCallback
 }
-interface EventSourcingDB<O extends ESDBOptions> extends EventEmitter {
-	new (options: O): EventSourcingDB
+
+// @ts-ignore - we need to convert the type to a class declaration
+declare class ESDBEE
+	implements EventEmitter<{result: ESEvent; error: ESEvent}> {}
+declare class EventSourcingDB<O extends ESDBOptions> extends ESDBEE {
+	constructor(options: O)
 
 	/** The read-only models. Use these freely, they don't "see" transactions */
-	store: Record<string, InstanceType<ESDBModel>>
+	store: Record<string, ESDBModel>
 	/** The writable models. Do not use. */
-	rwStore: Record<string, InstanceType<ESDBModel>>
+	rwStore: Record<string, ESDBModel>
 	/** DB instance for the read-only models */
 	db: DB
 	/** DB instance for the writable models */
@@ -774,6 +789,7 @@ type EMOptions<T, U extends string> = JMOptions<T, U> & {
 	/** emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers.*/
 	init?: boolean
 }
+
 /**
  * ESModel is a drop-in wrapper around JsonModel to turn changes into events.
  *
@@ -789,26 +805,11 @@ type EMOptions<T, U extends string> = JMOptions<T, U> & {
  * true}]`
  * Item is the type of object stored. It is indexed by IDCol.
  */
-interface ESModel<
-	Item extends {[id in IDCol]?: IDValue},
-	IDCol extends string = 'id'
-> {
-	new (options: EMOptions<Item, IDCol>): ESModelI<Item, IDCol>
-	/**
-	 * Assigns the object id to the event at the start of the cycle.
-	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
-	 */
-	preprocessor(args: ReduxArgs<ESModelI<Item, IDCol>>): Promise<ESEvent | void>
-	/**
-	 * Calculates the desired change.
-	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
-	 */
-	reducer: ReducerFn<ESModelI<Item, IDCol>>
-}
-interface ESModelI<
+declare class ESModel<
 	Item extends {[id in IDCol]?: IDValue},
 	IDCol extends string = 'id'
 > extends JsonModel<Item, IDCol> {
+	constructor(options: EMOptions<Item, IDCol>)
 	dispatch: DispatchFn
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
@@ -883,4 +884,14 @@ interface ESModelI<
 	 * @returns - Promise for completion.
 	 */
 	applyResult(result: any): Promise<void>
+	/**
+	 * Assigns the object id to the event at the start of the cycle.
+	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+	 */
+	static preprocessor(args: ReduxArgs<ESModel<{}>, {}>): Promise<ESEvent | void>
+	/**
+	 * Calculates the desired change.
+	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+	 */
+	static reducer: ReducerFn
 }

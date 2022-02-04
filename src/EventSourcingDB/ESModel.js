@@ -75,7 +75,9 @@ const calcUpd = (idCol, prev, obj, complete) => {
  * For example: `model.set({foo: true})` would result in the event `[1, 1, {foo:
  * true}]`
  *
- * @augments JsonModel
+ * @type {ESModel<Item, IDCol>}
+ * @template Item
+ * @template {string} IDCol
  */
 class ESModel extends JsonModel {
 	static REMOVE = 0
@@ -84,16 +86,6 @@ class ESModel extends JsonModel {
 	static UPDATE = 3
 	static SAVE = 4
 
-	/**
-	 * Creates a new ESModel model, called by DB.
-	 *
-	 * @class
-	 * @param {function} dispatch      - the {@link ESDB} dispatch function.
-	 * @param {boolean}  [init]        - emit an event with type
-	 *                                 `es/INIT:${modelname}` at table creation
-	 *                                 time, to be used by custom reducers.
-	 * @param {Object}   [...options]  - other params are passed to JsonModel.
-	 */
 	constructor({dispatch, init, emitter, ...options}) {
 		super({
 			...options,
@@ -215,7 +207,7 @@ class ESModel extends JsonModel {
 	/**
 	 * Remove an object.
 	 *
-	 * @param {Object | string | integer} idOrObj
+	 * @param {Object | string | number} idOrObj
 	 * - the id or the object itself.
 	 * @param {*} meta
 	 * - metadata, attached to the event only, at `data[3]`

@@ -25,6 +25,7 @@ const objToString = o => {
 	return s.length > 250 ? `${s.slice(0, 250)}… (${s.length}b)` : s
 }
 
+/** @type {(id: SQLiteParam)=> string} */
 const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
 
 export const valToSql = v => {
@@ -80,7 +81,7 @@ let connId = 1
  * It provides a Promise API, lazy opening, auto-cleaning prepared statements
  * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
  *
- * @implements {SQLite}
+ * @type {SQLite}
  */
 class SQLiteImpl extends EventEmitter {
 	/** @param {SQLiteOptions} options */
@@ -341,7 +342,6 @@ class SQLiteImpl extends EventEmitter {
 		return this._sqlite
 	}
 
-	// eslint-disable-next-line max-params
 	async _call(method, args, obj, name, returnThis, returnFn) {
 		const isStmt = obj && obj.isStatement
 		let _sqlite
@@ -353,14 +353,13 @@ class SQLiteImpl extends EventEmitter {
 
 		// Template strings
 		if (!isStmt && Array.isArray(args[0])) {
-			args = sql(.../** @type{[string[], */ (args))
+			args = sql(.../** @type{[TemplateStringsArray]} */ (args))
 			if (!args[1].length) args.pop()
 		}
 
 		const now = dbgQ.enabled ? performance.now() : undefined
 		let fnResult
 		const result = new Promise((resolve, reject) => {
-			// eslint-disable-next-line prefer-const
 			let cb
 			const runQuery = () => {
 				fnResult = _sqlite[method](...(args || []), cb)
@@ -386,7 +385,6 @@ class SQLiteImpl extends EventEmitter {
 					)
 			}
 			if (!_sqlite[method])
-				// eslint-disable-next-line no-promise-executor-return
 				return cb({message: `method ${method} not supported`})
 			fnResult = _sqlite[method](...(args || []), cb)
 		})
@@ -420,10 +418,6 @@ class SQLiteImpl extends EventEmitter {
 
 	/**
 	 * Return all rows for the given query.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object[]>} - the results.
 	 */
 	all(...args) {
 		return this._call('all', args, this._sqlite, this.name)
@@ -431,10 +425,6 @@ class SQLiteImpl extends EventEmitter {
 
 	/**
 	 * Return the first row for the given query.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object | null>} - the result or falsy if missing.
 	 */
 	get(...args) {
 		return this._call('get', args, this._sqlite, this.name)
@@ -442,10 +432,6 @@ class SQLiteImpl extends EventEmitter {
 
 	/**
 	 * Run the given query and return the metadata.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object>} - an object with `lastID` and `changes`
 	 */
 	run(...args) {
 		return this._call('run', args, this._sqlite, this.name, true)
@@ -454,10 +440,6 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Run the given query and return nothing. Slightly more efficient than
 	 * {@link run}
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<void>} - a promise for execution completion.
 	 */
 	async exec(...args) {
 		await this._call('exec', args, this._sqlite, this.name)
@@ -481,14 +463,6 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Run the given query and call the function on each item.
 	 * Note that node-sqlite3 seems to just fetch all data in one go.
-	 *
-	 * @param {string} sql
-	 * - the SQL statement to be executed.
-	 * @param {any[]} [vars]
-	 * - the variables to be bound to the statement.
-	 * @param {function(Object): Promise<void>} cb
-	 * - the function to call on each row.
-	 * @returns {Promise<void>} - a promise for execution completion.
 	 */
 	each(...args) {
 		const lastIdx = args.length - 1

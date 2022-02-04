@@ -32,9 +32,9 @@ const dbg = debug('strato-db/JSON')
  *
  * simple equality lookup values for searching.
  *
- * @template {Item}
- * @template {IDCol}
- * @implements {JsonModel<Item, IDCol>}
+ * @type {JsonModel<Item, IDCol>}
+ * @template Item
+ * @template {string} IDCol
  */
 class JsonModelImpl {
 	/** @param {JMOptions<Item, IDCol>} options  - the model declaration. */
@@ -54,11 +54,14 @@ class JsonModelImpl {
 		this.db = db
 		this.name = name
 		this.quoted = sql.quoteId(name)
+		// @ts-ignore
 		this.idCol = idCol
 		this.idColQ = sql.quoteId(idCol)
 		this.Item = ItemClass
 
+		// @ts-ignore
 		const idColDef = (columns && columns[idCol]) || {}
+		// @ts-ignore
 		const jsonColDef = (columns && columns.json) || {}
 		const allColumns = {
 			...columns,
@@ -84,6 +87,7 @@ class JsonModelImpl {
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
+		// @ts-ignore
 		this.columns = {}
 		let i = 0
 		for (const colName of Object.keys(allColumns)) {
@@ -132,7 +136,7 @@ class JsonModelImpl {
 	}
 
 	parseRow = (row, options) => {
-		/** @type {JMColumnDef<Item, IDCol>[]} */
+		/** @type {JMColumnDef[]} */
 		const mapCols =
 			options && options.cols
 				? options.cols.map(n => this.columns[n])
@@ -283,7 +287,7 @@ class JsonModelImpl {
 	 * search behaviors.
 	 */
 	// eslint-disable-next-line complexity
-	makeSelect(/** @type{JMSearchOptions} */ options) {
+	makeSelect(/** @type{JMSearchOptions<Columns>} */ options) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
 				k =>

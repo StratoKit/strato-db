@@ -1,0 +1,30 @@
+{
+	"compilerOptions": {
+		"target": "ES2021",
+		"module": "commonJS",
+		"allowSyntheticDefaultImports": true,
+		"experimentalDecorators": true,
+		"resolveJsonModule": true,
+		"downlevelIteration": true,
+		"jsx": "preserve",
+		// Check JS files too
+		"allowJs": true,
+		"checkJs": true,
+		// Used for temp builds
+		"outDir": "build",
+		"moduleResolution": "node",
+
+		"baseUrl": ".",
+		"paths": {
+			"app/*": ["src/*"],
+			"assets/*": ["assets/*"],
+			"icons/*": ["assets/icons/*"],
+			"components/*": ["src/components/*"],
+			"stratokit/*": ["lib/*"],
+			"plugins/*": ["plugins/*"],
+			"state/*": ["src/redux/*"],
+			"*": ["node_modules/*"]
+		}
+	},
+	"exclude": ["node_modules", "build", "assets", "data", "coverage"]
+}
