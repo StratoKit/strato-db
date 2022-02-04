@@ -25,7 +25,6 @@ const nicest = {
 	'unicorn/consistent-function-scoping': 1,
 	'unicorn/expiring-todo-comments': [2, {allowWarningComments: true}],
 	'unicorn/no-fn-reference-in-iterator': 1,
-	'valid-typeof': [2, {requireStringLiterals: true}],
 }
 
 // Would be nice to make these error
@@ -55,15 +54,15 @@ const suck = {
 	'unicorn/no-process-exit': 0,
 	'unicorn/no-useless-undefined': 0,
 	'unicorn/number-literal-case': 0,
-	'unicorn/numeric-separators-style': 0,
 	'unicorn/prefer-module': 0,
 	'unicorn/prefer-node-protocol': 0,
 	'unicorn/prevent-abbreviations': 0,
 }
 
+const rules = {...nicest, ...maybe, ...suck}
+
 module.exports = {
 	env: {
-		browser: false,
 		commonjs: true,
 		es6: true,
 		node: true,
@@ -75,16 +74,27 @@ module.exports = {
 		'plugin:import/warnings',
 		'plugin:promise/recommended',
 		'plugin:unicorn/recommended',
-		'xo',
 		// Keep this last, it overrides all style rules
 		'plugin:prettier/recommended',
 	],
 	ignorePatterns: ['/dist/**/*', '/coverage/**/*'],
+	overrides: [
+		{
+			files: ['**/*.ts'],
+			parser: '@typescript-eslint/parser',
+			plugins: ['@typescript-eslint'],
+			rules: {
+				// don't treat type definitions as unused vars
+				'@typescript-eslint/no-unused-vars': rules['no-unused-vars'],
+				'no-unused-vars': 0,
+			},
+		},
+	],
 	parser: '@babel/eslint-parser',
-	plugins: ['jest', 'import', 'promise', 'unicorn'],
-	rules: {...nicest, ...maybe, ...suck},
+	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
+	rules,
 	settings: {
 		// autodetect doesn't work
-		jest: {version: 26},
+		jest: {version: '26'},
 	},
 }
