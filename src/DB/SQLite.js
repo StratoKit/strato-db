@@ -11,7 +11,6 @@ const dbgQ = dbg.extend('query')
 
 const RETRY_COUNT = 10
 
-// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
@@ -72,6 +71,11 @@ export const sql = (tpl, ...interpolations) => {
 	return [out, vars]
 }
 sql.quoteId = quoteSqlId
+
+const argsToString = (args, isStmt) =>
+	args ? (isStmt ? objToString(args) : objToString(args[1])) : ''
+const outputToString = (output, method) =>
+	method !== 'exec' && method !== 'prepare' ? `-> ${objToString(output)}` : ''
 
 let connId = 1
 
@@ -230,7 +234,6 @@ class SQLiteImpl extends EventEmitter {
 			if (onDidOpen) await onDidOpen(childDb)
 			for (const {fn, stack} of this._queuedOnOpen) {
 				try {
-					// eslint-disable-next-line no-await-in-loop
 					await fn(childDb)
 				} catch (error) {
 					if (error?.message)
@@ -341,7 +344,6 @@ class SQLiteImpl extends EventEmitter {
 		return this._sqlite
 	}
 
-	// eslint-disable-next-line max-params
 	async _call(method, args, obj, name, returnThis, returnFn) {
 		const isStmt = obj && obj.isStatement
 		let _sqlite
@@ -357,10 +359,10 @@ class SQLiteImpl extends EventEmitter {
 			if (!args[1].length) args.pop()
 		}
 
-		const now = dbgQ.enabled ? performance.now() : undefined
+		const shouldDebug = dbgQ.enabled || this.listenerCount('call')
+		const now = shouldDebug ? performance.now() : undefined
 		let fnResult
 		const result = new Promise((resolve, reject) => {
-			// eslint-disable-next-line prefer-const
 			let cb
 			const runQuery = () => {
 				fnResult = _sqlite[method](...(args || []), cb)
@@ -386,32 +388,52 @@ class SQLiteImpl extends EventEmitter {
 					)
 			}
 			if (!_sqlite[method])
-				// eslint-disable-next-line no-promise-executor-return
 				return cb({message: `method ${method} not supported`})
 			fnResult = _sqlite[method](...(args || []), cb)
 		})
-		if (dbgQ.enabled) {
-			const what = `${name}.${method}`
-			const q = isStmt ? `` : String(args[0]).replace(/\s+/g, ' ')
-			const v = args
-				? isStmt
-					? objToString(args)
-					: objToString(args[isStmt ? 0 : 1])
-				: ''
+		if (shouldDebug) {
+			const query = isStmt ? `` : String(args[0]).replace(/\s+/g, ' ')
 			// eslint-disable-next-line promise/catch-or-return
 			result.then(
-				o => {
-					if (returnFn) o = fnResult
-					const d = getDuration(now)
-					const out =
-						method !== 'exec' && method !== 'prepare'
-							? `-> ${objToString(o)}`
-							: ''
-					return dbgQ(`${what} ${q} ${v} ${d}ms ${out}`)
+				output => {
+					if (returnFn) output = fnResult
+					const duration = getDuration(now)
+					if (dbgQ.enabled)
+						dbgQ(
+							`${name}.${method} ${query} ${argsToString(
+								args,
+								isStmt
+							)} ${duration}ms ${outputToString(output, method)}`
+						)
+					if (this.listenerCount('call'))
+						this.emit('call', {
+							name,
+							method,
+							isStmt,
+							query,
+							args,
+							duration,
+							output,
+						})
 				},
-				err => {
-					const d = getDuration(now)
-					dbgQ(`${what} SQLite error: ${err.message} ${q} ${v}${d}ms `)
+				error => {
+					const duration = getDuration(now)
+					if (dbgQ.enabled)
+						dbgQ(
+							`${name}.${method} SQLite error: ${
+								error.message
+							} ${query} ${argsToString(args, isStmt)}${duration}ms `
+						)
+					if (this.listenerCount('call'))
+						this.emit('call', {
+							name,
+							method,
+							isStmt,
+							query,
+							args,
+							duration,
+							error,
+						})
 				}
 			)
 		}

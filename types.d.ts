@@ -65,6 +65,7 @@ type SQLiteOptions = {
  * * 'rollback': transaction finished with failure
  * * 'end': transaction finished successfully
  * * 'finally': transaction finished
+ * * 'call': call to SQLite completed, includes data and duration
  */
 interface SQLite extends EventEmitter {
 	new (options?: SQLiteOptions)
