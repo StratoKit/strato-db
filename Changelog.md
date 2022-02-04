@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.3.2
+
+### Changes
+
+- SQLite: add `emit` event for query result monitoring
+- Small typing improvements
+
+### Fixes
+
+- ESDB: fix userVersion poll loop on error
+
 ## 3.3.1
 
 ### Changes
