@@ -158,7 +158,6 @@ class JsonModelImpl {
 					if (k.real) {
 						const prevVal = get(out, k.path)
 						// Prevent added columns from overwriting existing data
-						// eslint-disable-next-line max-depth
 						if (typeof prevVal !== 'undefined') continue
 					}
 					set(out, k.path, val)
@@ -282,7 +281,6 @@ class JsonModelImpl {
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
 	 */
-	// eslint-disable-next-line complexity
 	makeSelect(/** @type{JMSearchOptions} */ options) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
@@ -324,7 +322,7 @@ class JsonModelImpl {
 
 		if (makeCursor || cursor) {
 			// We need a tiebreaker sort for cursors
-			sort = sort && sort[this.idCol] ? sort : {...sort, [this.idCol]: 100000}
+			sort = sort && sort[this.idCol] ? sort : {...sort, [this.idCol]: 100_000}
 		}
 		const sortNames =
 			sort &&
@@ -405,7 +403,6 @@ class JsonModelImpl {
 					if (Array.isArray(val)) {
 						vals.push(...val)
 					} else {
-						// eslint-disable-next-line max-depth
 						if (val)
 							throw new Error(`whereVal for ${a} should return array or falsy`)
 						valid = false
@@ -793,10 +790,8 @@ class JsonModelImpl {
 		let cursor
 		let i = 0
 		do {
-			// eslint-disable-next-line no-await-in-loop
 			const result = await this.search(attrsOrFn, {...optionsOrFn, cursor})
 			cursor = result.cursor
-			// eslint-disable-next-line no-await-in-loop
 			await settleAll(result.items, v => fn(v, i++))
 		} while (cursor)
 	}

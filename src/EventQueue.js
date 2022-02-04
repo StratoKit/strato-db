@@ -204,7 +204,7 @@ class EventQueueImpl extends JsonModel {
 			this._resolveNAP = resolve
 			this._NAPresolved = false
 			// Timeout after 10s so we can also get events from other processes
-			this._addTimer = setTimeout(this._nextAddedResolve, 10000)
+			this._addTimer = setTimeout(this._nextAddedResolve, 10_000)
 			// if possible, mark the timer as non-blocking for process exit
 			// some mocking libraries might forget to add unref()
 			if (!this.forever && this._addTimer && this._addTimer.unref)

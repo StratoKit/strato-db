@@ -3,7 +3,7 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'
 
-jest.setTimeout(60000)
+jest.setTimeout(60_000)
 
 const payload = JSON.stringify(require('../../package.json')).repeat(50)
 

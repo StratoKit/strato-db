@@ -47,12 +47,11 @@ import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/ESDB')
 
-// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
 const registerHistoryMigration = (rwDb, queue) => {
 	rwDb.registerMigrations('historyExport', {
-		2018040800: {
+		2_018_040_800: {
 			up: async db => {
 				const oldTable = await db.all('PRAGMA table_info(history)')
 				if (
@@ -118,7 +117,6 @@ const fixupOldReducer = (name, reducer) => {
 class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
-	// eslint-disable-next-line complexity
 	constructor({
 		queue,
 		models,
