@@ -515,9 +515,7 @@ class EventSourcingDB extends EventEmitter {
 	// It would be nice to not have to poll, but sqlite triggers only work on
 	// the connection that makes the change
 	// This should never throw, handling errors can be done in apply
-	// eslint-disable-next-line complexity
 	_waitForEvent = async () => {
-		/* eslint-disable no-await-in-loop */
 		const {db, rwDb, queue, _resultQueue} = this
 		let lastV = 0
 		let errorCount = 0
@@ -649,7 +647,6 @@ class EventSourcingDB extends EventEmitter {
 			const {v, type} = event
 			let newEvent
 			try {
-				// eslint-disable-next-line no-await-in-loop
 				newEvent = await model.preprocessor({
 					cache,
 					event,
@@ -792,7 +789,6 @@ class EventSourcingDB extends EventEmitter {
 		if (event.events) {
 			for (let i = 0; i < event.events.length; i++) {
 				const subEvent = event.events[i]
-				// eslint-disable-next-line no-await-in-loop
 				const doneEvent = await this._handleEvent(
 					{...subEvent, v: event.v},
 					depth + 1

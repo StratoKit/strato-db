@@ -7,6 +7,23 @@ const dbg = debug('strato-db/queue')
 
 let warnedLatest
 
+/** @typedef {defaultColumns} Columns */
+const defaultColumns = {
+	v: {
+		type: 'INTEGER',
+		autoIncrement: true,
+	},
+	type: {type: 'TEXT'},
+	ts: {
+		type: 'INTEGER',
+		value: o => Number(o.ts) || Date.now(),
+		index: 'ALL',
+	},
+	data: {type: 'JSON'},
+	result: {type: 'JSON'},
+	size: {type: 'INTEGER', default: 0, get: false},
+}
+
 /**
  * An event queue, including history.
  *
@@ -17,21 +34,7 @@ let warnedLatest
 class EventQueueImpl extends JsonModel {
 	/** @param {EQOptions<T, U>} */
 	constructor({name = 'history', forever, withViews, ...rest}) {
-		const columns = {
-			v: {
-				type: 'INTEGER',
-				autoIncrement: true,
-			},
-			type: {type: 'TEXT'},
-			ts: {
-				type: 'INTEGER',
-				value: o => Number(o.ts) || Date.now(),
-				index: 'ALL',
-			},
-			data: {type: 'JSON'},
-			result: {type: 'JSON'},
-			size: {type: 'INTEGER', default: 0, get: false},
-		}
+		const columns = {...defaultColumns}
 		if (rest.columns)
 			for (const [key, value] of Object.entries(rest.columns)) {
 				if (!value) continue
@@ -225,19 +228,16 @@ class EventQueueImpl extends JsonModel {
 		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
 		do {
 			this._makeNAP()
-			// eslint-disable-next-line no-await-in-loop
 			const currentV = await this.getMaxV()
 			event =
 				v < currentV
-					? // eslint-disable-next-line no-await-in-loop
-					  await this.searchOne(null, {
+					? await this.searchOne(null, {
 							where: {'v > ?': [Number(v)]},
 							sort: {v: 1},
 					  })
 					: null
 			if (event || noWait) break
 			// Wait for next one from this process
-			// eslint-disable-next-line no-await-in-loop
 			event = await this._nextAddedP
 			if (event === 'CANCEL') return
 			// Ignore previous events

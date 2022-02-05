@@ -18,7 +18,10 @@ type SQLiteColumnType =
 
 type DBEachCallback = (row: SQLiteRow) => Promise<void> | void
 
-type SqlTag = (tpl: string[], ...interpolations: string[]) => [string, string[]]
+type SqlTag = (
+	tpl: TemplateStringsArray,
+	...interpolations: SQLiteParam[]
+) => [string, string[]]
 
 interface Statement {
 	isStatement: true
@@ -82,7 +85,7 @@ interface SQLite extends EventEmitter {
 	 * JSON.stringify(obj)])`
 	 *
 	 */
-	sql(): {quoteId: (id: string) => string} & SqlTag
+	sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
 	/**
 	 * `true` if an sqlite connection was set up. Mostly useful for tests.
 	 */
@@ -117,7 +120,7 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	all(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow[]>
-	all(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteRow[]>
+	all(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteRow[]>
 	/**
 	 * Return the first row for the given query.
 	 *
@@ -125,7 +128,10 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	get(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow | null>
-	get(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteRow | null>
+	get(
+		sql: TemplateStringsArray,
+		...vars: SQLiteParam[]
+	): Promise<SQLiteRow | null>
 	/**
 	 * Run the given query and return the metadata.
 	 *
@@ -133,7 +139,7 @@ interface SQLite extends EventEmitter {
 	 * @param [vars]  - the variables to be bound to the statement.
 	 */
 	run(sql: string, vars?: SQLiteParam[]): Promise<SQLiteMeta>
-	run(sql: string[], ...vars: SQLiteParam[]): Promise<SQLiteMeta>
+	run(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteMeta>
 	/**
 	 * Run the given query and return nothing. Slightly more efficient than
 	 * {@link run}.
@@ -143,7 +149,7 @@ interface SQLite extends EventEmitter {
 	 * @returns - a promise for execution completion.
 	 */
 	exec(sql: string, vars?: SQLiteParam[]): Promise<void>
-	exec(sql: string[], ...vars: SQLiteParam[]): Promise<void>
+	exec(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<void>
 	/**
 	 * Register an SQL statement for repeated running. This will store the SQL and
 	 * will prepare the statement with SQLite whenever needed, as well as finalize
@@ -252,7 +258,7 @@ type IDValue = string | number
 
 /** Search for simple values. Keys are column names, values are what they should equal */
 type JMSearchAttrs<Columns> = {
-	[attr in keyof Columns]: any
+	[attr in keyof Columns]?: any
 }
 
 /** The key for the column definition */
@@ -260,7 +266,7 @@ type JMColName = string
 
 type Loader<T, U> = import('dataloader')<U, T | null>
 /** A lookup cache, managed by DataLoader */
-type JMCache<Item extends {[id in IDCol]: IDValue}, IDCol extends string> = {
+type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 	[name: string]: Loader<Item, Item[IDCol]>
 }
 
@@ -329,13 +335,13 @@ type JMMigration<T, IDCol extends string> = (
 type JMColums<IDCol extends string = 'id'> = {
 	[colName: string]: JMColumnDefOrFn
 } & {
-	[id in IDCol]: JMColumnDef
+	[id in IDCol]?: JMColumnDef
 }
 
 type JMOptions<
 	T,
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}}
+	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}}
 > = {
 	/** a DB instance, normally passed by DB  */
 	db: DB
@@ -350,7 +356,7 @@ type JMOptions<
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
 	ItemClass?: Object
 	/** the key of the IDCol column  */
-	idCol: IDCol
+	idCol?: IDCol
 	/** preserve row id after vacuum  */
 	keepRowId?: boolean
 }
@@ -392,15 +398,30 @@ type JMSearchOptions<Columns> = {
 
 /**
  * Stores Item objects in a SQLite table.
+ * Pass the type of the item it stores and the config so it can determine the columns
  */
 interface JsonModel<
-	Item extends {[id in IDCol]?: IDValue},
-	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]: {type: 'TEXT'}},
+	RealItem extends {[x: string]: any} = {id: string},
+	// Allow the id column name as well for backwards compatibility
+	ConfigOrID = 'id',
+	IDCol extends string = ConfigOrID extends {idCol: string}
+		? ConfigOrID['idCol']
+		: ConfigOrID extends string
+		? ConfigOrID
+		: 'id',
+	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
+		? RealItem
+		: RealItem & {[id in IDCol]: IDValue},
+	Config = ConfigOrID extends string ? {} : ConfigOrID,
+	Columns extends JMColums<IDCol> = Config extends {columns: {}}
+		? Config['columns']
+		: // If we didn't get a config, assume all keys are columns
+		  {[colName in keyof Item]: {}},
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>
 > {
-	new (options: JMOptions<Item, IDCol, Columns>): JsonModel<Item, IDCol>
+	// TODO have it infer the columns from the call to super
+	new (options: JMOptions<Item, IDCol, Columns>): this
 	/** The DB instance storing this model */
 	db: DB
 	/** The table name */
@@ -416,7 +437,7 @@ interface JsonModel<
 	/** The column definitions */
 	columnArr: JMColumnDef[]
 	/** The column definitions keyed by name */
-	columns: {[name in keyof Columns]: JMColumnDef}
+	columns: Columns
 	/** Parses a row as returned by sqlite */
 	parseRow: (row: SQLiteRow, options?: SearchOptions) => Item
 	/**
@@ -596,6 +617,22 @@ interface JsonModel<
 		cb: ItemCallback<Item>
 	): Promise<void>
 	/**
+	 * Insert or replace the given object into the database.
+	 *
+	 * @param obj           - the object to store. If there is no `id` value (or
+	 *                      whatever the `id` column is named), one is assigned
+	 *                      automatically.
+	 * @param [insertOnly]  - don't allow replacing existing objects.
+	 * @param [noReturn]    - do not return the stored object; an optimization.
+	 * @returns - if `noReturn` is false, the stored object is fetched from the
+	 *          DB.
+	 */
+	set(
+		obj: Partial<Item>,
+		insertOnly?: boolean,
+		noReturn?: boolean
+	): Promise<Item>
+	/**
 	 * Update or upsert an object. This uses a transaction if one is not active.
 	 *
 	 * @param obj         - The changes to store, including the id field.
@@ -603,16 +640,26 @@ interface JsonModel<
 	 * @param [noReturn]  - Do not return the stored object, preventing a query.
 	 * @returns A copy of the stored object.
 	 */
-	update(obj: Item, upsert?: boolean, noReturn?: boolean): Promise<Item>
+	update(
+		obj: Partial<Item>,
+		upsert?: boolean,
+		noReturn?: boolean
+	): Promise<Item>
 	/**
-	 * Update or upsert an object. This does not use a transaction.
+	 * Update or upsert an object. This does not use a transaction so is open to
+	 * race conditions if you don't run it in a transaction.
 	 *
 	 * @param obj         - The changes to store, including the id field.
 	 * @param [upsert]    - Insert the object if it doesn't exist.
 	 * @param [noReturn]  - Do not return the stored object, preventing a query.
 	 * @returns A copy of the stored object.
 	 */
-	updateNoTrans(obj: Item, upsert?: boolean, noReturn?: boolean): Promise<Item>
+	updateNoTrans(
+		obj: Partial<Item>,
+		upsert?: false,
+		noReturn?: boolean
+	): Promise<Item>
+	updateNoTrans(obj: Item, upsert: true, noReturn?: boolean): Promise<Item>
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
@@ -642,7 +689,7 @@ type ESEvent = {
 	/** event processing result */
 	result?: Record<string, ReduceResult>
 }
-type EQOptions<T, U extends string> = JMOptions<T, U> & {
+type EQOptions<T> = JMOptions<T, 'v'> & {
 	/** the table name, defaults to `"history"` */
 	name?: string
 	/** should getNext poll forever? */
@@ -653,8 +700,14 @@ type EQOptions<T, U extends string> = JMOptions<T, U> & {
 /**
  * Creates a new EventQueue model, called by DB.
  */
-interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
-	new (options: EQOptions<T, 'v'>): EventQueue<T>
+interface EventQueue<
+	T extends ESEvent = ESEvent,
+	Config extends Partial<EQOptions<T>> = {}
+> extends JsonModel<
+		T,
+		{idCol: 'v'; columns: import('./dist/EventQueue').Columns} & Config
+	> {
+	new (options: EQOptions<T>): this
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -669,7 +722,7 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	 * @param [ts=Date.now()]  - event timestamp, ms since epoch.
 	 * @returns - Promise for the added event.
 	 */
-	add(type: string, data?: any, ts?: number): Promise<ESEvent>
+	add(type: string, data?: any, ts?: number): Promise<T>
 	/**
 	 * Get the next event after v (gaps are ok).
 	 * The wait can be cancelled by `.cancelNext()`.
@@ -678,7 +731,7 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 	 * @param [noWait=false]  - do not wait for the next event.
 	 * @returns The event if found.
 	 */
-	getNext(v?: number, noWait?: boolean): Promise<ESEvent>
+	getNext(v?: number, noWait?: boolean): Promise<T>
 	/**
 	 * Cancel any pending `.getNext()` calls
 	 */
@@ -694,14 +747,24 @@ interface EventQueue<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
 
 type ReduceResult = Record<string, any>
 type ReduxArgs<M extends ESDBModel> = {
+	cache: {}
 	model: InstanceType<M>
 	event: ESEvent
-	store: {[name: string]: ESDBModel}
+	store: EventSourcingDB['store']
 	addEvent: AddEventFn
+	isMainEvent: boolean
 }
+type PreprocessorFn<M extends ESDBModel = ESModel<{}>> = (
+	args: ReduxArgs<M>
+) => Promise<ESEvent | null> | ESEvent | null
 type ReducerFn<M extends ESDBModel = ESModel<{}>> = (
 	args: ReduxArgs<M>
-) => Promise<ReduceResult> | ReduceResult | undefined | null | false
+) => Promise<ReduceResult | null | false> | ReduceResult | null | false
+type ApplyResultFn = (result: ReduceResult) => Promise<void>
+type DeriverFn<M extends ESDBModel = ESModel<{}>> = (
+	args: ReduxArgs<M> & {result: ReduceResult}
+) => Promise<void>
+
 type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
 type AddEventFn = (type: string, data?: any) => void
 
@@ -714,9 +777,14 @@ type ESDBModelArgs = {
 	emitter: EventEmitter
 }
 interface ESDBModel {
-	new (): ESDBModel
+	new (args: ESDBModelArgs): this
+	name: string
+	preprocessor?: PreprocessorFn<this>
 	reducer?: ReducerFn<this>
+	applyResult?: ApplyResultFn
+	deriver?: DeriverFn<this>
 }
+
 type ESDBOptions = DBOptions & {
 	models: {[name: string]: ESDBModel}
 	queue?: InstanceType<EventQueue>
@@ -726,8 +794,8 @@ type ESDBOptions = DBOptions & {
 	onBeforeMigrations?: DBCallback
 	onDidOpen?: DBCallback
 }
-interface EventSourcingDB<O extends ESDBOptions> extends EventEmitter {
-	new (options: O): EventSourcingDB
+interface EventSourcingDB extends EventEmitter {
+	new (options: ESDBOptions): this
 
 	/** The read-only models. Use these freely, they don't "see" transactions */
 	store: Record<string, InstanceType<ESDBModel>>
@@ -761,7 +829,7 @@ interface EventSourcingDB<O extends ESDBOptions> extends EventEmitter {
 	handledVersion(v: number): Promise<void>
 }
 
-type EMOptions<T, U extends string> = JMOptions<T, U> & {
+type EMOptions<T, IDCol extends string> = JMOptions<T, IDCol> & {
 	/** the ESDB dispatch function */
 	dispatch: DispatchFn
 	/** emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers.*/
@@ -770,7 +838,7 @@ type EMOptions<T, U extends string> = JMOptions<T, U> & {
 /**
  * ESModel is a drop-in wrapper around JsonModel to turn changes into events.
  *
- * Use it to convert your database to be event sourcing
+ * Use it to convert your database to be event sourcing.
  *
  * Event data is encoded as an array: `[subtype, id, data, meta]`
  * Subtype is one of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`.
@@ -780,28 +848,55 @@ type EMOptions<T, U extends string> = JMOptions<T, U> & {
  *
  * For example: `model.set({foo: true})` would result in the event `[1, 1, {foo:
  * true}]`
- * Item is the type of object stored. It is indexed by IDCol.
+ * Pass the type of the item it stores and the config so it can determine the columns
  */
+// TODO fix Item vs Item type incompatibility
 interface ESModel<
-	Item extends {[id in IDCol]?: IDValue} = {},
-	IDCol extends string = 'id'
-> {
-	new (options: EMOptions<Item, IDCol>): ESModelI<Item, IDCol>
+	RealItem extends {[x: string]: any} = {id: string},
+	// Allow the id column name as well for backwards compatibility
+	ConfigOrID = 'id',
+	IDCol extends string = ConfigOrID extends {idCol: string}
+		? ConfigOrID['idCol']
+		: ConfigOrID extends string
+		? ConfigOrID
+		: 'id',
+	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]: unknown}
+		? RealItem
+		: RealItem & {[id in IDCol]: IDValue}
+> extends JsonModel<Item, ConfigOrID, IDCol>,
+		ESDBModel {
+	new (options: EMOptions<Item, IDCol>): this
+	REMOVE: 0
+	SET: 1
+	INSERT: 2
+	UPDATE: 3
+	SAVE: 4
+	TYPE: string
+	INIT: string
+
 	/**
 	 * Assigns the object id to the event at the start of the cycle.
 	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
 	 */
-	preprocessor(args: ReduxArgs<ESModelI<Item, IDCol>>): Promise<ESEvent | void>
+	preprocessor?: PreprocessorFn<this>
 	/**
 	 * Calculates the desired change.
 	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
 	 */
-	reducer: ReducerFn<ESModelI<Item, IDCol>>
-}
-interface ESModelI<
-	Item extends {[id in IDCol]?: IDValue} = {},
-	IDCol extends string = 'id'
-> extends JsonModel<Item, IDCol> {
+	reducer?: ReducerFn<this>
+	/**
+	 * Applies the result from the reducer.
+	 *
+	 * @param result  - free-form change descriptor.
+	 * @returns - Promise for completion.
+	 */
+	applyResult?: ApplyResultFn
+	/**
+	 * Calculates the desired change.
+	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+	 */
+	deriver?: DeriverFn<this>
+
 	dispatch: DispatchFn
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
@@ -825,7 +920,7 @@ interface ESModelI<
 	 *          DB.
 	 */
 	set(
-		obj: any,
+		obj: Partial<Item>,
 		insertOnly?: boolean,
 		noReturn?: boolean,
 		meta?: any
@@ -843,7 +938,7 @@ interface ESModelI<
 	 *          DB.
 	 */
 	update(
-		o: any,
+		o: Partial<Item>,
 		upsert?: boolean,
 		noReturn?: boolean,
 		meta?: any
@@ -869,11 +964,4 @@ interface ESModelI<
 	 * @returns - the next usable ID.
 	 */
 	getNextId(): Promise<number>
-	/**
-	 * Applies the result from the reducer.
-	 *
-	 * @param result  - free-form change descriptor.
-	 * @returns - Promise for completion.
-	 */
-	applyResult(result: any): Promise<void>
 }
