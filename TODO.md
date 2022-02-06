@@ -41,15 +41,15 @@
 
 ### Someday
 
-- [ ] with sqlite 3.22, use the btree info extension to provide index sizes at startup if debug enabled
-- When async iterators are here, make one for db.each. Although it seems that node-sqlite3 actually slurps the entire table into an array.
+- [ ] use the btree info extension to provide index sizes at startup if debug enabled
+- [ ] async iterators for `db.each()`. Although node-sqlite3 actually slurps the entire table into an array so it would only be useful for better-sqlite
 
 ## DB
 
 ### Nice to have
 
 - [ ] if migration is `{undo:fn}` run the `undo` only if the migration ran before. We never needed `down` migrations so far.
-  - to run something only on existing databases, first deploy a `()=>{}` migration and then change it to an `undo`
+  - if you want to run something only on existing databases, first deploy a no-op `()=>{}` migration and then change it to an `undo`
 
 ## JsonModel
 
@@ -73,7 +73,7 @@
 
 ### Nice to have
 
-- [ ] removeFalsy option: remove falsy elements (except '' and 0) from JSON before storing
+- [ ] removeFalsy column decorator: remove falsy elements (except '' and 0) from JSON before storing
 - [ ] validate(value): must return truthy given the current value (from path or value()) or storing throws
 - [ ] column.version: defaults to 1. When version increases, all rows are rewritten
   - do not change extra columns, that is what migrations are for
@@ -128,8 +128,6 @@
 
 ### Important
 
-- [ ] on broken event or disk error there's no handleevent goes into a rapid userVersion polling loop
-- [ ] When dispatching an event after an event error, processing sometimes continues with the dispatched event instead of remaining halted
 - [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
   - Ideally, the results go in a different db that can be split at will.
   - for multi-process, lock the result db exclusively to worker

@@ -1,42 +1,23 @@
 # Strato-DB
 
-> NoSQL-hybrid with Event Sourcing based on SQLite
+> MaybeSQL with Event Sourcing based on SQLite
 
 The overall concept is to be a minimal wrapper that keeps SQL close by, but allows schemaless storage for where you want it.
 
-`DB`: Wraps a Sqlite3 database with a lazy-init promise interface; has easy migrations
-
-`JsonModel`: Stores given objects in a `DB` instance as JSON fields with an `id` column, other columns can be calculated or be virtual. You can only perform searches via the wrapper on defined columns.
-
-`EventQueue`: Stores events in an auto-incrementing `DB` table. Minimal message queue.
-
-`EventSourcingDB`: Implements the Event Sourcing concept using EventQueue. See [Server Side Redux](./Server Side Redux.md).
-
-`ESModel`: A drop-in replacement for JsonModel to use ESDB
-
 ## Install
 
-```js
-$ npm install @yaska-eu/strato-db
-...
+```shell
+npm install strato-db
 ```
 
 ## Usage
 
+Simple CRUD DB:
+
 ```js
-import config from 'stratokit/config'
-import {DB, EventQueue, EventSourcingDB, JsonModel} from 'strato-db'
+import {DB, JsonModel} from 'strato-db'
 
-const {
-	main: {file},
-	queue: {file: qFile},
-	debug: verbose,
-} = config.db
-
-const db = new DB({file, verbose})
-const qDb = qFile && qFile !== file ? new DB({file: qFile, verbose}) : db
-
-export const queue = new EventQueue({db: qDb})
+const db = new DB({file: 'data/mydb.sqlite3', verbose: true})
 
 class Things extends JsonModel {
 	constructor(options) {
@@ -44,8 +25,8 @@ class Things extends JsonModel {
 			...options,
 			name: 'things',
 			columns: {
-				...options.columns,
-				info: {index: 'SPARSE'},
+				id: {type: 'INTEGER'},
+				count: {type: 'INTEGER', index: 'SPARSE'},
 			},
 		})
 	}
@@ -53,22 +34,62 @@ class Things extends JsonModel {
 
 db.addModel(Things)
 
+// db only opens the file once this runs
+await db.store.things.set({id:5, name: 'hi', count: 3})
+// Get all items that have count 3
+console.log(await db.store.things.search({count: 3}))
+```
+
+DB with Event Sourcing:
+
+```js
+import {DB, EventQueue, EventSourcingDB, ESModel} from 'strato-db'
+
+const qDb = qFile && qFile !== file ? new DB({file: qFile, verbose}) : db
+qDb.addModel(EventQueue, {name: 'queue'})
+const queue = qDB.store.queue
+
+class ESThings extends ESModel {
+	constructor(options) {
+		super({
+			...options,
+			name: 'things',
+			columns: {
+				id: {type: 'INTEGER'},
+				count: {type: 'INTEGER', index: 'SPARSE'},
+			},
+		})
+	}
+}
+
 const eSDB = new EventSourcingDB({
 	db,
 	queue,
-	models: {dateRanges, derivedStuff},
+	models: {things: {Model: ESThings}},
 })
 
-// only opens the db once this runs
-await db.store.things.set({id: 'foo', info: 'is a foo'})
-await db.store.things.search({info: 'is a foo'})
+await eSDB.store.things.set({id:5, name: 'hi', count: 3})
+console.log(await eSDB.store.things.search({count: 3}))
+// See the created events
+console.log(await eSDB.queue.all())
 ```
 
 ## API
 
-The API is class-based. There are types in JSDoc, which is the only documentation for now.
+The API is class-based. There are types in JSDoc and in types.d.ts, which are the only documentation for now.
 
 The design of EventSourcingDB is discussed in [Server Side Redux](./Server Side Redux.md)
+
+Classes:
+
+- `SQLite`: Wraps a Sqlite3 database with a lazy-init promise interface
+- `DB`: Adds models and migrations to SQLite3
+- `JsonModel`: Stores given objects in a `DB` instance as JSON fields with an `id` column, other columns can be calculated or be virtual. You can perform searches via the wrapper on defined columns.
+- `EventQueue`: Stores events. Minimal message queue.
+- `EventSourcingDB`: Implements the Event Sourcing concept using EventQueue. See [Server Side Redux](./Server Side Redux.md).
+- `ESModel`: A drop-in replacement for JsonModel to use EventSourcingDB. Modifications are dispatched as events and awaited
+
+With the TypeScript definitions you can provide a Type for the stored objects and the config each model uses. This allows typechecking CRUD inputs and results, even in plain JS (with JSDoc comments).
 
 ## Status
 
