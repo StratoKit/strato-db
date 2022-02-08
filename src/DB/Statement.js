@@ -13,7 +13,8 @@ class StatementImpl {
 		db.statements[sql] = this
 		this._sql = sql
 		this.db = db
-		this.name = `${db.name}{${id++}${name ? ` ${name}` : ''}}}`
+		this._name = `{${id++}${name ? ` ${name}` : ''}}`
+		this.name = `${db.name}${this._name}`
 	}
 
 	get isStatement() {

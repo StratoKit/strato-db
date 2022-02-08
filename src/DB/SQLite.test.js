@@ -3,7 +3,6 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
 
-// eslint-disable-next-line no-promise-executor-return
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('valToSql', () => {
@@ -180,7 +179,6 @@ describe('SQLite', () => {
 			await db.open()
 			expect(() =>
 				db.runOnceOnOpen(() => {
-					// eslint-disable-next-line no-throw-literal
 					throw 'hi'
 				})
 			).toThrow('hi')
@@ -281,7 +279,6 @@ describe('SQLite', () => {
 					expect(rollback).not.toHaveBeenCalled()
 					expect(end).toHaveBeenCalledTimes(1)
 					expect(fnl).toHaveBeenCalledTimes(1)
-					// eslint-disable-next-line no-throw-literal
 					throw 'foo'
 				})
 				.catch(e => {
@@ -329,10 +326,88 @@ describe('SQLite', () => {
 		await db.exec(
 			`CREATE TABLE foo(hi NUMBER); INSERT INTO foo VALUES (42),(43);`
 		)
+		for (let i = 0; i < 100; i++) await db.run('INSERT INTO FOO VALUES(?)', i)
 		const arr = []
-		await db.each(`SELECT * FROM foo`, ({hi}) => arr.push(hi))
-		expect(arr).toEqual([42, 43])
+		let flag = false
+		await db.each(`SELECT * FROM foo`, ({hi}) => {
+			// it should wait until db.each is done
+			expect(flag).toBeFalsy()
+			arr.push(hi)
+		})
+		flag = true
+		expect(arr.length).toBe(102)
+		expect(arr.slice(0, 5)).toEqual([42, 43, 0, 1, 2])
 		await db.close()
+	})
+	describe(`.on('call')`, () => {
+		test(`query`, async () => {
+			const db = new SQLite()
+			let got
+			db.on('call', args => (got = args))
+			await db.get('select   ?   as \n   hi', [2])
+			expect(got).toMatchInlineSnapshot(
+				{
+					name: expect.stringContaining('memory'),
+					duration: expect.any(Number),
+				},
+				`
+			Object {
+			  "args": Array [
+			    2,
+			  ],
+			  "duration": Any<Number>,
+			  "error": undefined,
+			  "isStmt": undefined,
+			  "method": "get",
+			  "name": StringContaining "memory",
+			  "output": Object {
+			    "hi": 2,
+			  },
+			  "query": "select ? as hi",
+			}
+		`
+			)
+		})
+
+		test(`statement`, async () => {
+			const db = new SQLite()
+			let got
+			db.on('call', args => (got = args))
+			const s = db.prepare('select ? as hi', 'meep')
+			expect(got).toBeFalsy()
+			await s.get([2])
+			expect(got).toMatchInlineSnapshot(
+				{
+					name: expect.stringContaining('memory'),
+					duration: expect.any(Number),
+					query: expect.stringMatching(/^{\d+ meep}$/),
+				},
+				`
+			Object {
+			  "args": Array [
+			    2,
+			  ],
+			  "duration": Any<Number>,
+			  "error": undefined,
+			  "isStmt": true,
+			  "method": "get",
+			  "name": StringContaining "memory",
+			  "output": Object {
+			    "hi": 2,
+			  },
+			  "query": StringMatching /\\^\\{\\\\d\\+ meep\\}\\$/,
+			}
+		`
+			)
+		})
+
+		test('error', async () => {
+			const db = new SQLite()
+			let got
+			db.on('call', args => (got = args))
+			await expect(db.run('SELECT notExist()')).rejects.toThrow()
+			expect(got).toHaveProperty('error', expect.any(Error))
+		})
 	})
 
 	describe('error handling', () => {

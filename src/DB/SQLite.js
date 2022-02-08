@@ -14,11 +14,6 @@ const RETRY_COUNT = 10
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
-const getDuration = ts =>
-	(performance.now() - ts).toLocaleString(undefined, {
-		maximumFractionDigits: 2,
-	})
-
 const objToString = o => {
 	const s = inspect(o, {compact: true, breakLength: Number.POSITIVE_INFINITY})
 	return s.length > 250 ? `${s.slice(0, 250)}… (${s.length}b)` : s
@@ -392,48 +387,38 @@ class SQLiteImpl extends EventEmitter {
 			fnResult = _sqlite[method](...(args || []), cb)
 		})
 		if (shouldDebug) {
-			const query = isStmt ? `` : String(args[0]).replace(/\s+/g, ' ')
+			const query = isStmt ? obj._name : String(args[0]).replace(/\s+/g, ' ')
+			const notify = (error, output) => {
+				const duration = performance.now() - now
+				if (dbgQ.enabled)
+					dbgQ(
+						`${name}.${method} ${
+							error ? `SQLite error: ${error.message} ` : ''
+						}${query} ${argsToString(args, isStmt)} ${duration.toLocaleString(
+							undefined,
+							{maximumFractionDigits: 2}
+						)}ms${output ? ` ${outputToString(output, method)}` : ''}`
+					)
+				if (this.listenerCount('call'))
+					this.emit('call', {
+						name,
+						method,
+						isStmt,
+						query,
+						args: isStmt ? args : args[1],
+						duration,
+						output,
+						error,
+					})
+			}
 			// eslint-disable-next-line promise/catch-or-return
 			result.then(
 				output => {
 					if (returnFn) output = fnResult
-					const duration = getDuration(now)
-					if (dbgQ.enabled)
-						dbgQ(
-							`${name}.${method} ${query} ${argsToString(
-								args,
-								isStmt
-							)} ${duration}ms ${outputToString(output, method)}`
-						)
-					if (this.listenerCount('call'))
-						this.emit('call', {
-							name,
-							method,
-							isStmt,
-							query,
-							args,
-							duration,
-							output,
-						})
+					notify(undefined, output)
 				},
 				error => {
-					const duration = getDuration(now)
-					if (dbgQ.enabled)
-						dbgQ(
-							`${name}.${method} SQLite error: ${
-								error.message
-							} ${query} ${argsToString(args, isStmt)}${duration}ms `
-						)
-					if (this.listenerCount('call'))
-						this.emit('call', {
-							name,
-							method,
-							isStmt,
-							query,
-							args,
-							duration,
-							error,
-						})
+					notify(error)
 				}
 			)
 		}
