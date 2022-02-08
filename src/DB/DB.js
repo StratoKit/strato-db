@@ -133,9 +133,9 @@ class DBImpl extends SQLite {
 			for (const {runKey, up} of migrations) {
 				if (!didRun[runKey]) {
 					dbg(this.name, 'start migration', runKey)
-					await up(db) // eslint-disable-line no-await-in-loop
+					await up(db)
 					dbg(this.name, 'done migration', runKey)
-					await _markMigration(db, runKey, 1) // eslint-disable-line no-await-in-loop
+					await _markMigration(db, runKey, 1)
 				}
 			}
 			for (const model of Object.values(store))

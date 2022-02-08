@@ -25,6 +25,7 @@ const nicest = {
 	'unicorn/consistent-function-scoping': 1,
 	'unicorn/expiring-todo-comments': [2, {allowWarningComments: true}],
 	'unicorn/no-fn-reference-in-iterator': 1,
+	'valid-typeof': [2, {requireStringLiterals: true}],
 }
 
 // Would be nice to make these error
@@ -83,9 +84,15 @@ module.exports = {
 			files: ['**/*.ts'],
 			parser: '@typescript-eslint/parser',
 			plugins: ['@typescript-eslint'],
+		},
+		{
+			files: ['**/*.d.ts'],
+			parser: '@typescript-eslint/parser',
+			plugins: ['@typescript-eslint'],
 			rules: {
 				// don't treat type definitions as unused vars
 				'@typescript-eslint/no-unused-vars': rules['no-unused-vars'],
+				'no-undef': 0,
 				'no-unused-vars': 0,
 			},
 		},
@@ -94,7 +101,6 @@ module.exports = {
 	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
 	rules,
 	settings: {
-		// autodetect doesn't work
-		jest: {version: '26'},
+		jest: {version: '27'},
 	},
 }

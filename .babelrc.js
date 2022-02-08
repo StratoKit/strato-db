@@ -36,7 +36,7 @@ module.exports = function (context, opts) {
 				// uncomment this to verify that we don't need polyfills
 				// we can ignore the sort and promise polyfills
 				// useBuiltIns: 'usage',
-				corejs: 3,
+				// corejs: 3,
 				debug: process.env.NODE_ENV !== 'test',
 			},
 		],
