@@ -112,7 +112,10 @@ class ESModel extends JsonModel {
 		const clearMax = () => {
 			this._maxId = 0
 		}
+		// Prevent max listeners warning
+		options.db.setMaxListeners(options.db.getMaxListeners() + 1)
 		options.db.on('begin', clearMax)
+		emitter.setMaxListeners(emitter.getMaxListeners() + 1)
 		emitter.on('result', clearMax)
 		emitter.on('error', clearMax)
 	}

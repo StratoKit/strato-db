@@ -128,9 +128,6 @@ class EventSourcingDB extends EventEmitter {
 		...dbOptions
 	}) {
 		super()
-		// Prevent node warning about more than 11 listeners
-		// Each model has 2 instances that might listen
-		this.setMaxListeners(Object.keys(models).length * 2 + 20)
 		if (dbOptions.db)
 			throw new TypeError(
 				'db is no longer an option, pass the db options instead, e.g. file, verbose, readOnly'
