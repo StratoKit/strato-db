@@ -1,5 +1,5 @@
 import debug from 'debug'
-import jsurl from '@yaska-eu/jsurl2'
+import jsurl from 'jsurl2'
 import {sql} from '../DB'
 import DataLoader from 'dataloader'
 import {get, set} from 'lodash'
