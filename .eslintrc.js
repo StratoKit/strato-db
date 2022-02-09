@@ -78,7 +78,7 @@ module.exports = {
 		// Keep this last, it overrides all style rules
 		'plugin:prettier/recommended',
 	],
-	ignorePatterns: ['/dist/**/*', '/coverage/**/*'],
+	ignorePatterns: ['/coverage/**/*', '/dist/**/*', '/build/**/*'],
 	overrides: [
 		{
 			files: ['**/*.ts'],
@@ -99,6 +99,7 @@ module.exports = {
 	],
 	parser: '@babel/eslint-parser',
 	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
+	reportUnusedDisableDirectives: true,
 	rules,
 	settings: {
 		jest: {version: '27'},

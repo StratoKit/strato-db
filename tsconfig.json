@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"target": "ES2021",
+		"module": "commonJS",
+		"allowSyntheticDefaultImports": true,
+		"experimentalDecorators": true,
+		"resolveJsonModule": true,
+		"downlevelIteration": true,
+		"strictNullChecks": true,
+		"strictBindCallApply": true,
+		"jsx": "preserve",
+		// Check JS files too
+		"allowJs": true,
+		"checkJs": true,
+		// Used for temp builds
+		"outDir": "build",
+		"moduleResolution": "node",
+
+		"baseUrl": "."
+	},
+	"exclude": ["node_modules", "dist", "coverage", "build"]
+}

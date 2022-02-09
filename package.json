@@ -84,6 +84,7 @@
     },
     "testEnvironment": "node",
     "testPathIgnorePatterns": [
+      "<rootDir>/build/",
       "<rootDir>/dist/",
       "<rootDir>/node_modules/",
       "_test-helpers.js"
