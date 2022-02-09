@@ -3,7 +3,8 @@ import ESDB from '../EventSourcingDB'
 import EQ from '../EventQueue'
 import JsonModel from '../JsonModel'
 
-export {DB, JsonModel}
+export {default as DB} from '../DB'
+export {default as JsonModel} from '../JsonModel'
 
 export const getModel = options => {
 	const db = new DB()

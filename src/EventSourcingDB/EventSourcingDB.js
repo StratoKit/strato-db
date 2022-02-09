@@ -442,7 +442,7 @@ class EventSourcingDB extends EventEmitter {
 			// The event could be missing if pruned
 			if (event?.error) {
 				// This can only happen if we skipped a failed event
-				return Promise.reject(event)
+				throw event
 			}
 			return event
 		}

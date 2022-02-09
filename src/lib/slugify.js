@@ -2,7 +2,7 @@ import {deburr} from 'lodash'
 
 const abc = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const randomString = (/** @type {number} */ n) =>
-	// eslint-disable-next-line unicorn/no-new-array,prefer-spread
+	// eslint-disable-next-line unicorn/no-new-array
 	Array.apply(null, new Array(n))
 		.map(() => {
 			return abc.charAt(Math.floor(Math.random() * abc.length))
@@ -39,7 +39,7 @@ export const uniqueSlugId = async (model, name, colName, currentId) => {
 	const where = currentId && {
 		[`${model.idColQ} IS NOT ?`]: [currentId],
 	}
-	// eslint-disable-next-line no-await-in-loop
+
 	while (await model.exists({[colName]: id}, {where})) {
 		id = `${slug}-${++i}`
 	}

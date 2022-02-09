@@ -15,7 +15,7 @@ const parseJsonObject = v => (v == null ? {} : JSON.parse(v))
 const arrayToJson = v => (v && v.length ? [JSON.stringify(v)] : false)
 
 // Note: avoid where functions; that way, queries can be reused for different args
-// eslint-disable-next-line complexity
+
 export const prepareSqlCol = (col, name) => {
 	if (col.type === 'JSON') {
 		if (col.stringify === undefined)

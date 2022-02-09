@@ -84,9 +84,8 @@ test('RO db sees transaction as soon as completed', async () =>
 				models: testModels,
 			})
 			for (let i = 1; i <= 100; i++) {
-				// eslint-disable-next-line no-await-in-loop
 				await eSDB.dispatch('foo')
-				// eslint-disable-next-line no-await-in-loop
+
 				expect(await eSDB.store.count.get('count')).toHaveProperty('total', i)
 			}
 		},

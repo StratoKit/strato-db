@@ -50,7 +50,7 @@ test('search cursor', async () => {
 	})
 	const str = 'aabbccddeeff'
 	await Promise.all(
-		'ddaabbcceeff'.split('').map((c, i) => m.set({id: i, c, d: str.charAt(i)}))
+		[...'ddaabbcceeff'].map((c, i) => m.set({id: i, c, d: str.charAt(i)}))
 	)
 	const q = {
 		where: {"json_extract(json, '$.c')>?": ['b']},

@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'

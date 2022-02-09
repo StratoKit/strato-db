@@ -35,7 +35,7 @@ class Things extends JsonModel {
 db.addModel(Things)
 
 // db only opens the file once this runs
-await db.store.things.set({id:5, name: 'hi', count: 3})
+await db.store.things.set({id: 5, name: 'hi', count: 3})
 // Get all items that have count 3
 console.log(await db.store.things.search({count: 3}))
 ```
@@ -68,7 +68,7 @@ const eSDB = new EventSourcingDB({
 	models: {things: {Model: ESThings}},
 })
 
-await eSDB.store.things.set({id:5, name: 'hi', count: 3})
+await eSDB.store.things.set({id: 5, name: 'hi', count: 3})
 console.log(await eSDB.store.things.search({count: 3}))
 // See the created events
 console.log(await eSDB.queue.all())

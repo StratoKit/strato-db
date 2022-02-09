@@ -8,7 +8,7 @@ import {get} from 'lodash'
  * @template <Row>
  * @template <IDCol>
  */
-// eslint-disable-next-line complexity
+
 export const normalizeColumn = (col, name) => {
 	col.name = name
 	col.quoted = sql.quoteId(name)
