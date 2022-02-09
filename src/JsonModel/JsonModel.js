@@ -32,8 +32,9 @@ const dbg = debug('strato-db/JSON')
  *
  * simple equality lookup values for searching.
  *
- * @template {Item}
- * @template {IDCol}
+ * @class JsonModelImpl
+ * @template Item
+ * @template IDCol
  * @implements {JsonModel<Item, IDCol>}
  */
 class JsonModelImpl {

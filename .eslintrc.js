@@ -50,6 +50,7 @@ const suck = {
 	'unicorn/explicit-length-check': 0,
 	'unicorn/filename-case': 0,
 	'unicorn/import-style': 0,
+	'unicorn/no-await-expression-member': 0,
 	'unicorn/no-nested-ternary': 0,
 	'unicorn/no-null': 0,
 	'unicorn/no-process-exit': 0,
@@ -78,7 +79,7 @@ module.exports = {
 		// Keep this last, it overrides all style rules
 		'plugin:prettier/recommended',
 	],
-	ignorePatterns: ['/coverage/**/*', '/dist/**/*', '/build/**/*'],
+	ignorePatterns: ['/build/**/*', '/coverage/**/*', '/dist/**/*'],
 	overrides: [
 		{
 			files: ['**/*.ts'],
@@ -98,6 +99,9 @@ module.exports = {
 		},
 	],
 	parser: '@babel/eslint-parser',
+	parserOptions: {
+		requireConfigFile: false,
+	},
 	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
 	reportUnusedDisableDirectives: true,
 	rules,
