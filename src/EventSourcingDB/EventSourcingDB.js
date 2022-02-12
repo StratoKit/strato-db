@@ -317,7 +317,7 @@ class EventSourcingDB extends EventEmitter {
 
 				if (!hasOne)
 					throw new TypeError(
-						`${this.name}: At least one reducer, deriver or preprocessor required`
+						`At least one reducer, deriver or preprocessor required`
 					)
 			} catch (error) {
 				if (error.message)
@@ -419,6 +419,7 @@ class EventSourcingDB extends EventEmitter {
 		dbg(`${event.type}.${type} queued`)
 	}
 
+	/** @type {Promise<number> | null} */
 	_getVersionP = null
 
 	getVersion() {
