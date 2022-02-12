@@ -1,3 +1,9 @@
+/// <reference path="../types.d.ts" />
+/**
+ * @typedef {import('strato-db').EventQueue<T, C>} EventQueue<T,C>
+ * @template T,C
+ */
+/** @typedef {import('strato-db').ESEvent} ESEvent */
 // Note that this queue doesn't use any transactions by itself, to prevent deadlocks
 // Pass `forever: true` to keep Node running while waiting for events
 import debug from 'debug'
@@ -7,7 +13,6 @@ const dbg = debug('strato-db/queue')
 
 let warnedLatest
 
-/** @typedef {defaultColumns} Columns */
 const defaultColumns = {
 	v: {
 		type: 'INTEGER',
@@ -24,28 +29,31 @@ const defaultColumns = {
 	size: {type: 'INTEGER', default: 0, get: false},
 }
 
+const getColumns = columns => {
+	if (!columns) return defaultColumns
+	const out = {...defaultColumns}
+	for (const [key, value] of Object.entries(columns)) {
+		if (!value) continue
+		if (out[key]) throw new TypeError(`Cannot override column ${key}`)
+		out[key] = value
+	}
+	return out
+}
 /**
  * An event queue, including history.
  *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
+ * @template T
+ * @template C
+ * @augments {JsonModel<T, C>}
+ * @implements {EventQueue<T, C>}
  */
 class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
 	constructor({name = 'history', forever, withViews, ...rest}) {
-		const columns = {...defaultColumns}
-		if (rest.columns)
-			for (const [key, value] of Object.entries(rest.columns)) {
-				if (!value) continue
-				if (columns[key]) throw new TypeError(`Cannot override column ${key}`)
-				columns[key] = value
-			}
 		super({
 			...rest,
 			name,
 			idCol: 'v',
-			columns,
+			columns: getColumns(rest.columns),
 			migrations: {
 				...rest.migrations,
 				addTypeSizeIndex: ({db}) =>
@@ -101,8 +109,8 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event  - the new event.
-	 * @returns {Promise<void>} - Promise for set completion.
+	 * @param {import('strato-db').ESEvent} event
+	 * - the new event.
 	 */
 	set(event) {
 		if (!event.v) {
