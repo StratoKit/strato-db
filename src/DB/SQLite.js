@@ -526,14 +526,13 @@ class SQLiteImpl extends EventEmitter {
 	 * database.
 	 *
 	 * @param {number} [newV]  - if given, sets the user version.
-	 * @returns {Promise<number | void>} - the user version or nothing when
-	 *                                   setting.
+	 * @returns {Promise<number>} - the user version.
 	 */
 	async userVersion(newV) {
 		if (!this._sqlite) await this._hold('userVersion')
 		// Can't prepare or use pragma with parameter
 		if (newV)
-			return this._call(
+			await this._call(
 				'exec',
 				[`PRAGMA user_version=${Number(newV)}`],
 				this._sqlite,

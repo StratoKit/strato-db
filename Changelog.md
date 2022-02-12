@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- `sqlite.userVersion(v?: number)` now always returns the user version, also when setting it. This makes more sense from an API perspective and has as good as no performance impact.
+
 ## 3.3.2
 
 ### Changes

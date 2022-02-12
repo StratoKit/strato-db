@@ -317,7 +317,7 @@ describe('SQLite', () => {
 	test('.userVersion()', async () => {
 		const db = new SQLite()
 		await expect(db.userVersion()).resolves.toBe(0)
-		await expect(db.userVersion(5)).resolves.toBe()
+		await expect(db.userVersion(5)).resolves.toBe(5)
 		await expect(db.userVersion()).resolves.toBe(5)
 	})
 
