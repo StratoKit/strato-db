@@ -1,3 +1,4 @@
+/* eslint-disable no-dupe-class-members */
 declare module 'strato-db' {
 	type EventEmitter = import('events').EventEmitter
 
@@ -254,14 +255,17 @@ declare module 'strato-db' {
 	}
 
 	type StrRecord = Record<string, any>
-	type JMObject<IDCol extends string = 'id', IDType = string> = StrRecord & {
+	export type JMObject<
+		IDCol extends string = 'id',
+		IDType = string
+	> = StrRecord & {
 		[id in IDCol]: IDType
 	}
 	type WithId<
 		T extends JMObject<IDCol, IDType>,
 		IDCol extends string = 'id',
 		IDType = T[IDCol]
-	> = T
+	> = T & {[id in IDCol]-?: IDType}
 	type MaybeId<
 		T extends JMObject<IDCol>,
 		IDCol extends string = 'id',
@@ -424,7 +428,7 @@ declare module 'strato-db' {
 	 * Stores Item objects in a SQLite table.
 	 * Pass the type of the item it stores and the config so it can determine the columns
 	 */
-	export interface JsonModel<
+	export class JsonModel<
 		RealItem extends JMObject<IDCol, IDType>,
 		Config extends StrRecord & {idCol?: string} = {},
 		IDCol extends string = Config extends {idCol: string}
@@ -442,7 +446,7 @@ declare module 'strato-db' {
 		SearchOptions = JMSearchOptions<ColNames>
 	> {
 		// TODO have it infer the columns from the call to super
-		new <
+		new<
 			M extends JsonModel<T, C, I>,
 			T extends JMObject<I, IT>,
 			C,
@@ -795,7 +799,7 @@ declare module 'strato-db' {
 	type ReduceResult = Record<string, any>
 	type ReduxArgs<M extends ESDBModel> = {
 		cache: {}
-		model: InstanceType<M>
+		model: M
 		event: ESEvent
 		store: EventSourcingDB['store']
 		addEvent: AddEventFn
@@ -822,7 +826,7 @@ declare module 'strato-db' {
 		migrationOptions: Record<string, any> & {queue: EventQueue}
 		emitter: EventEmitter
 	}
-	interface ESDBModel {
+	export interface ESDBModel {
 		new (args: ESDBModelArgs): this
 		name: string
 		preprocessor?: PreprocessorFn<this>
@@ -844,9 +848,9 @@ declare module 'strato-db' {
 		new (options: ESDBOptions): this
 
 		/** The read-only models. Use these freely, they don't "see" transactions */
-		store: Record<string, InstanceType<ESDBModel>>
+		store: Record<string, ESDBModel>
 		/** The writable models. Do not use. */
-		rwStore: Record<string, InstanceType<ESDBModel>>
+		rwStore: Record<string, ESDBModel>
 		/** DB instance for the read-only models */
 		db: DB
 		/** DB instance for the writable models */
@@ -876,7 +880,7 @@ declare module 'strato-db' {
 	}
 
 	type EMOptions<
-		M extends ESModel<T, C, I>,
+		M extends JsonModel<T, C, I>,
 		T extends JMObject<I, IT>,
 		C,
 		I extends string,
@@ -902,22 +906,21 @@ declare module 'strato-db' {
 	 * true}]`
 	 * Pass the type of the item it stores and the config so it can determine the columns
 	 */
-	export interface ESModel<
-		RealItem extends JMObject<IDCol, IDType>,
-		Config extends StrRecord & {idCol?: string} = {},
-		IDCol extends string = Config extends {idCol: string}
-			? Config['idCol']
-			: 'id',
-		EMItem = WithId<RealItem, IDCol>,
-		InputItem = MaybeId<RealItem, IDCol>,
-		IDType = RealItem[IDCol]
-		// extends WithId<RealItem, IDCol> = RealItem extends {[id in IDCol]: unknown}
-		// 	? RealItem
-		// 	: RealItem & {[id in IDCol]: IDValue}
-	> extends JsonModel<RealItem, Config, IDCol, EMItem, InputItem>,
-			ESDBModel {
-		new <
-			M extends ESModel<T, C, I>,
+	export class ESModel<
+			RealItem extends JMObject<IDCol, IDType>,
+			Config extends StrRecord & {idCol?: string} = {},
+			IDCol extends string = Config extends {idCol: string}
+				? Config['idCol']
+				: 'id',
+			IDType = RealItem[IDCol],
+			EMItem = WithId<RealItem, IDCol>,
+			InputItem = Partial<Omit<RealItem, IDCol>> & {[id in IDCol]-?: IDType}
+		>
+		extends JsonModel<RealItem, Config, IDCol, EMItem, InputItem>
+		implements ESDBModel
+	{
+		new<
+			M extends JsonModel<T, C, I>,
 			T extends JMObject<I, IT>,
 			C,
 			I extends string,
@@ -925,13 +928,13 @@ declare module 'strato-db' {
 		>(
 			options: EMOptions<M, T, C, I, IT>
 		): ESModel<WithId<RealItem, IDCol>, typeof options, IDCol>
-		REMOVE: 0
-		SET: 1
-		INSERT: 2
-		UPDATE: 3
-		SAVE: 4
-		TYPE: string
-		INIT: string
+		static REMOVE: 0
+		static SET: 1
+		static INSERT: 2
+		static UPDATE: 3
+		static SAVE: 4
+		static TYPE: string
+		static INIT: string
 
 		/**
 		 * Assigns the object id to the event at the start of the cycle.
@@ -979,7 +982,7 @@ declare module 'strato-db' {
 		 *          DB.
 		 */
 		set(
-			obj: InputItem,
+			obj: Partial<EMItem>,
 			insertOnly?: boolean,
 			noReturn?: boolean,
 			meta?: any
