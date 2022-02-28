@@ -350,12 +350,12 @@ class SQLiteImpl extends EventEmitter {
 
 		// Template strings
 		if (!isStmt && Array.isArray(args[0])) {
-			args = sql(.../** @type{[string[], */ (args))
+			args = sql(...args)
 			if (!args[1].length) args.pop()
 		}
 
 		const shouldDebug = dbgQ.enabled || this.listenerCount('call')
-		const now = shouldDebug ? performance.now() : undefined
+		const now = shouldDebug ? performance.now() : 0
 		let fnResult
 		const result = new Promise((resolve, reject) => {
 			let cb
@@ -425,13 +425,6 @@ class SQLiteImpl extends EventEmitter {
 		return result
 	}
 
-	/**
-	 * Return all rows for the given query.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object[]>} - the results.
-	 */
 	all(...args) {
 		return this._call('all', args, this._sqlite, this.name)
 	}

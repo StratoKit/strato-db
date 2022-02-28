@@ -21,9 +21,9 @@ declare module 'strato-db' {
 	type SqlTag = (
 		tpl: TemplateStringsArray,
 		...interpolations: SQLiteParam[]
-	) => [string, string[]]
+	) => [string, SQLiteParam[]]
 
-	interface Statement {
+	export interface Statement {
 		isStatement: true
 		sql: string
 		/** Closes the statement, removing it from the SQLite instance */
@@ -70,8 +70,13 @@ declare module 'strato-db' {
 	 * * 'finally': transaction finished
 	 * * 'call': call to SQLite completed, includes data and duration
 	 */
-	export interface SQLite extends EventEmitter {
-		new (options?: SQLiteOptions)
+	export class SQLite extends NodeJS.EventEmitter<{
+		begin: void
+		rollback: void
+		end: void
+		finally: void
+	}> {
+		constructor(options?: SQLiteOptions)
 
 		/**
 		 * Template Tag for SQL statements.
@@ -86,6 +91,7 @@ declare module 'strato-db' {
 		 *
 		 */
 		sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
+		static sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
 		/**
 		 * `true` if an sqlite connection was set up. Mostly useful for tests.
 		 */
@@ -215,8 +221,8 @@ declare module 'strato-db' {
 	 * DB adds model management and migrations to Wrapper.
 	 * The migration state is kept in the table ""{sdb} migrations"".
 	 */
-	export interface DB extends SQLite {
-		new (options: DBOptions): DB
+	export class DB extends SQLite {
+		constructor(options: DBOptions)
 
 		/** The models. */
 		store: Record<string, InstanceType<DBModel>>
@@ -352,9 +358,10 @@ declare module 'strato-db' {
 	/** A function that performs a migration before the DB is opened */
 	type JMMigration<
 		Model extends JsonModel<T, Config, IDCol>,
-		T extends JMObject<IDCol>,
+		T extends JMObject<IDCol, IDType>,
 		Config,
-		IDCol extends string
+		IDCol extends string = IDColFromConfig<Config>,
+		IDType = T[IDCol]
 	> = (args: Record<string, any> & {db: DB; model: Model}) => Promise<void>
 
 	type JMColumns<IDCol extends string = 'id'> = Record<
@@ -364,19 +371,29 @@ declare module 'strato-db' {
 		[id in IDCol]?: JMColumnDef
 	}
 
+	type IDColFromConfig<Config> = Config extends {idCol: string}
+		? Config['idCol']
+		: 'id'
+
 	type JMOptions<
-		Model extends JsonModel<T, Config, IDCol>,
 		T extends JMObject<IDCol, IDType>,
 		Config,
-		IDCol extends string,
-		IDType
+		IDCol extends string = IDColFromConfig<Config>,
+		IDType = T[IDCol],
+		Model extends JsonModel<T, Config, IDCol, T, IDType> = JsonModel<
+			T,
+			Config,
+			IDCol,
+			T,
+			IDType
+		>
 	> = {
 		/** a DB instance, normally passed by DB  */
 		db: DB
 		/** the table name  */
 		name: string
 		/** an object with migration functions. They are run in alphabetical order  */
-		migrations?: {[tag: string]: JMMigration<Model, T, Config, IDCol>}
+		migrations?: {[tag: string]: JMMigration<Model, T, Config, IDCol, IDType>}
 		/** free-form data passed to the migration functions  */
 		migrationOptions?: Record<string, any>
 		/** the column definitions */
@@ -446,15 +463,7 @@ declare module 'strato-db' {
 		SearchOptions = JMSearchOptions<ColNames>
 	> {
 		// TODO have it infer the columns from the call to super
-		new<
-			M extends JsonModel<T, C, I>,
-			T extends JMObject<I, IT>,
-			C,
-			I extends string,
-			IT
-		>(
-			options: JMOptions<M, T, C, I, IT>
-		): JsonModel<WithId<RealItem, IDCol>, typeof options, IDCol>
+		constructor(options: JMOptions<RealItem, Config, IDCol, IDType>)
 		/** The DB instance storing this model */
 		db: DB
 		/** The table name */
@@ -497,21 +506,16 @@ declare module 'strato-db' {
 		 * @returns - `{items[], cursor}`. If no cursor, you got all the results.
 		 *          If `options.itemsOnly`, returns only the items array.
 		 */
-		search(
+		search<
+			T extends boolean | null | undefined,
+			R = T extends true ? JMItem[] : {items: JMItem[]; cursor: string}
+		>(
 			/** Simple value attributes. */
 			attrs?: SearchAttrs,
 			options?: SearchOptions & {
-				itemsOnly?: false
+				itemsOnly?: T
 			}
-		): Promise<{items: JMItem[]; cursor: string}>
-		search(
-			/** Simple value attributes. */
-			attrs: SearchAttrs | null,
-			options: SearchOptions & {
-				/** Return only the items array. */
-				itemsOnly: true
-			}
-		): Promise<JMItem[]>
+		): Promise<R>
 		/**
 		 * A shortcut for setting `itemsOnly: true` on {@link search}.
 		 *
@@ -796,8 +800,8 @@ declare module 'strato-db' {
 		setKnownV(v: number): Promise<void>
 	}
 
-	type ReduceResult = Record<string, any>
-	type ReduxArgs<M extends ESDBModel> = {
+	export type ReduceResult = Record<string, any>
+	export type ReduxArgs<M extends ESDBModel> = {
 		cache: {}
 		model: M
 		event: ESEvent
@@ -805,15 +809,23 @@ declare module 'strato-db' {
 		addEvent: AddEventFn
 		isMainEvent: boolean
 	}
+	export type DeriverArgs<M extends ESDBModel> = ReduxArgs<M> & {
+		result: {[modelName: string]: ReduceResult}
+	}
 	export type PreprocessorFn<M extends ESDBModel = ESModel<JMObject>> = (
 		args: ReduxArgs<M>
-	) => Promise<ESEvent | null> | ESEvent | null
+	) => Promise<ESEvent | null | undefined> | ESEvent | null | undefined
 	export type ReducerFn<M extends ESDBModel = ESModel<JMObject>> = (
 		args: ReduxArgs<M>
-	) => Promise<ReduceResult | null | false> | ReduceResult | null | false
+	) =>
+		| Promise<ReduceResult | null | undefined | false>
+		| ReduceResult
+		| null
+		| undefined
+		| false
 	export type ApplyResultFn = (result: ReduceResult) => Promise<void>
 	export type DeriverFn<M extends ESDBModel = ESModel<JMObject>> = (
-		args: ReduxArgs<M> & {result: ReduceResult}
+		args: DeriverArgs<M>
 	) => Promise<void>
 
 	type DispatchFn = (type: string, data?: any, ts?: number) => Promise<ESEvent>
@@ -826,11 +838,25 @@ declare module 'strato-db' {
 		migrationOptions: Record<string, any> & {queue: EventQueue}
 		emitter: EventEmitter
 	}
-	export interface ESDBModel {
-		new (args: ESDBModelArgs): this
+	export abstract class ESDBModel {
+		constructor(args: ESDBModelArgs)
 		name: string
+		/**
+		 * Assigns the object id to the event at the start of the cycle.
+		 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+		 */
 		preprocessor?: PreprocessorFn<this>
+		/**
+		 * Calculates the desired change.
+		 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+		 */
 		reducer?: ReducerFn<this>
+		/**
+		 * Applies the result from the reducer.
+		 *
+		 * @param result  - free-form change descriptor.
+		 * @returns - Promise for completion.
+		 */
 		applyResult?: ApplyResultFn
 		deriver?: DeriverFn<this>
 	}
@@ -844,13 +870,16 @@ declare module 'strato-db' {
 		onBeforeMigrations?: DBCallback
 		onDidOpen?: DBCallback
 	}
-	export interface EventSourcingDB extends EventEmitter {
-		new (options: ESDBOptions): this
+	type ESDBStore = Record<string, ESDBModel>
+	export class EventSourcingDB<
+		Store extends ESDBStore = ESDBStore
+	> extends EventEmitter {
+		constructor(options: ESDBOptions)
 
 		/** The read-only models. Use these freely, they don't "see" transactions */
-		store: Record<string, ESDBModel>
+		store: Store
 		/** The writable models. Do not use. */
-		rwStore: Record<string, ESDBModel>
+		rwStore: Store
 		/** DB instance for the read-only models */
 		db: DB
 		/** DB instance for the writable models */
@@ -919,15 +948,15 @@ declare module 'strato-db' {
 		extends JsonModel<RealItem, Config, IDCol, EMItem, InputItem>
 		implements ESDBModel
 	{
-		new<
-			M extends JsonModel<T, C, I>,
-			T extends JMObject<I, IT>,
-			C,
-			I extends string,
-			IT
-		>(
-			options: EMOptions<M, T, C, I, IT>
-		): ESModel<WithId<RealItem, IDCol>, typeof options, IDCol>
+		constructor(
+			options: EMOptions<
+				JsonModel<RealItem, Config, IDCol>,
+				RealItem,
+				Config,
+				IDCol,
+				IDType
+			>
+		)
 		static REMOVE: 0
 		static SET: 1
 		static INSERT: 2
@@ -936,28 +965,11 @@ declare module 'strato-db' {
 		static TYPE: string
 		static INIT: string
 
-		/**
-		 * Assigns the object id to the event at the start of the cycle.
-		 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
-		 */
-		preprocessor?: PreprocessorFn<this>
-		/**
-		 * Calculates the desired change.
-		 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
-		 */
-		reducer?: ReducerFn<this>
-		/**
-		 * Applies the result from the reducer.
-		 *
-		 * @param result  - free-form change descriptor.
-		 * @returns - Promise for completion.
-		 */
-		applyResult?: ApplyResultFn
-		/**
-		 * Calculates the desired change.
-		 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
-		 */
-		deriver?: DeriverFn<this>
+		preprocessor(
+			args: ReduxArgs<this>
+		): Promise<ESEvent | null | undefined> | ESEvent | null | undefined
+		reducer: ReducerFn<this>
+		applyResult: ApplyResultFn
 
 		dispatch: DispatchFn
 		/**
