@@ -1,6 +1,6 @@
-/* eslint-disable no-dupe-class-members */
 declare module 'strato-db' {
-	type EventEmitter = import('events').EventEmitter
+	type EET = NodeJS.EventEmitter
+	class EventEmitter implements EET {}
 
 	type DBCallback = (db: DB) => Promise<void> | void
 	/** The types that SQLite can handle as parameter values */
@@ -21,9 +21,9 @@ declare module 'strato-db' {
 	type SqlTag = (
 		tpl: TemplateStringsArray,
 		...interpolations: SQLiteParam[]
-	) => [string, SQLiteParam[]]
+	) => [string, string[]]
 
-	export interface Statement {
+	interface Statement {
 		isStatement: true
 		sql: string
 		/** Closes the statement, removing it from the SQLite instance */
@@ -70,13 +70,8 @@ declare module 'strato-db' {
 	 * * 'finally': transaction finished
 	 * * 'call': call to SQLite completed, includes data and duration
 	 */
-	export class SQLite extends NodeJS.EventEmitter<{
-		begin: void
-		rollback: void
-		end: void
-		finally: void
-	}> {
-		constructor(options?: SQLiteOptions)
+	export interface SQLite extends EventEmitter {
+		new (options?: SQLiteOptions)
 
 		/**
 		 * Template Tag for SQL statements.
@@ -91,7 +86,6 @@ declare module 'strato-db' {
 		 *
 		 */
 		sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
-		static sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
 		/**
 		 * `true` if an sqlite connection was set up. Mostly useful for tests.
 		 */
@@ -221,8 +215,8 @@ declare module 'strato-db' {
 	 * DB adds model management and migrations to Wrapper.
 	 * The migration state is kept in the table ""{sdb} migrations"".
 	 */
-	export class DB extends SQLite {
-		constructor(options: DBOptions)
+	export interface DB extends SQLite {
+		new (options: DBOptions): DB
 
 		/** The models. */
 		store: Record<string, InstanceType<DBModel>>
@@ -271,7 +265,7 @@ declare module 'strato-db' {
 		T extends JMObject<IDCol, IDType>,
 		IDCol extends string = 'id',
 		IDType = T[IDCol]
-	> = T & {[id in IDCol]-?: IDType}
+	> = T
 	type MaybeId<
 		T extends JMObject<IDCol>,
 		IDCol extends string = 'id',
@@ -358,10 +352,9 @@ declare module 'strato-db' {
 	/** A function that performs a migration before the DB is opened */
 	type JMMigration<
 		Model extends JsonModel<T, Config, IDCol>,
-		T extends JMObject<IDCol, IDType>,
+		T extends JMObject<IDCol>,
 		Config,
-		IDCol extends string = IDColFromConfig<Config>,
-		IDType = T[IDCol]
+		IDCol extends string
 	> = (args: Record<string, any> & {db: DB; model: Model}) => Promise<void>
 
 	type JMColumns<IDCol extends string = 'id'> = Record<
@@ -371,15 +364,11 @@ declare module 'strato-db' {
 		[id in IDCol]?: JMColumnDef
 	}
 
-	type IDColFromConfig<Config> = Config extends {idCol: string}
-		? Config['idCol']
-		: 'id'
-
 	type JMOptions<
 		T extends JMObject<IDCol, IDType>,
 		Config,
-		IDCol extends string = IDColFromConfig<Config>,
-		IDType = T[IDCol],
+		IDCol extends string,
+		IDType,
 		Model extends JsonModel<T, Config, IDCol, T, IDType> = JsonModel<
 			T,
 			Config,
@@ -393,7 +382,7 @@ declare module 'strato-db' {
 		/** the table name  */
 		name: string
 		/** an object with migration functions. They are run in alphabetical order  */
-		migrations?: {[tag: string]: JMMigration<Model, T, Config, IDCol, IDType>}
+		migrations?: {[tag: string]: JMMigration<Model, T, Config, IDCol>}
 		/** free-form data passed to the migration functions  */
 		migrationOptions?: Record<string, any>
 		/** the column definitions */
@@ -426,7 +415,7 @@ declare module 'strato-db' {
 		/** values needed by the join clause. */
 		joinVals?: any[]
 		/** object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first. */
-		sort?: {[colName in ColNames]: number}
+		sort?: {[colName in ColNames]?: number}
 		/** max number of rows to return. */
 		limit?: number
 		/** number of rows to skip. */
