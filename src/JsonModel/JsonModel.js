@@ -784,15 +784,27 @@ class JsonModelImpl {
 			if (!fn) throw new Error('each requires function')
 		}
 		if (!optionsOrFn) optionsOrFn = {}
-		if (!optionsOrFn.limit) optionsOrFn.limit = 10
+		// In the next major release, limit will apply to the total amount, not the batch size
+		const {
+			concurrent = 5,
+			batchSize = 50,
+			limit = batchSize,
+			...rest
+		} = optionsOrFn
 		optionsOrFn.noCursor = false
 		optionsOrFn.noTotal = true
 		let cursor
 		let i = 0
 		do {
-			const result = await this.search(attrsOrFn, {...optionsOrFn, cursor})
+			const result = await this.search(attrsOrFn, {...rest, limit, cursor})
 			cursor = result.cursor
-			await settleAll(result.items, v => fn(v, i++))
+			await settleAll(
+				result.items,
+				async v => {
+					fn(v, i++)
+				},
+				concurrent
+			)
 		} while (cursor)
 	}
 

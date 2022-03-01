@@ -10,6 +10,7 @@
   This requires the use of `AsyncLocalStorage`, and thus the minimum NodeJS version is now v12.17
 - ESDB: `dispatch({type, data, ts})` (passing everything in a single argument) is now also possible, as well as for `addEvent`.
 - ESModel: provide event creators for set, update and remove.
+- JsonModel: `.each(attrs, options, fn)` now takes `concurrent` to limit the concurrently running functions
 
 ### Fixes
 

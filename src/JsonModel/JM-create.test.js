@@ -211,37 +211,104 @@ test('idCol', async () => {
 	])
 })
 
-test('each', async () => {
+describe('each', () => {
 	const m = getModel({columns: {id: {type: 'INTEGER'}}})
-	await expect(m.each()).rejects.toThrow('requires function')
-	await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
-	let count, total, maxI
-	const fn = (row, i) => {
-		count++
-		total += row.id
-		if (maxI < i) maxI = i
+	beforeAll(async () => {
+		await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
+	})
+	// eslint-disable-next-line unicorn/consistent-function-scoping
+	const makeFn = () => {
+		const stats = {count: 0, total: 0, maxI: 0, maxConcurrent: 0}
+		let concurrent = 0
+		return [
+			stats,
+			async (row, i) => {
+				concurrent++
+				if (stats.maxConcurrent < concurrent) stats.maxConcurrent++
+				stats.count++
+				stats.total += row.id
+				if (stats.maxI < i) stats.maxI = i
+				await Promise.resolve()
+				concurrent--
+			},
+		]
 	}
-	count = 0
-	total = 0
-	maxI = 0
-	await m.each(fn)
-	expect(count).toBe(5)
-	expect(total).toBe(10)
-	expect(maxI).toBe(4)
-	count = 0
-	total = 0
-	maxI = 0
-	await m.each({id: 3}, fn)
-	expect(count).toBe(1)
-	expect(total).toBe(3)
-	expect(maxI).toBe(0)
-	count = 0
-	total = 0
-	maxI = 0
-	await m.each({}, {where: {'id<3': []}, fn})
-	expect(count).toBe(3)
-	expect(total).toBe(3)
-	expect(maxI).toBe(2)
+	test('call', async () => {
+		await expect(m.each()).rejects.toThrow('requires function')
+	})
+	test('no query', async () => {
+		const [stats, fn] = makeFn()
+		await m.each(fn)
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 5,
+			  "maxConcurrent": 5,
+			  "maxI": 4,
+			  "total": 10,
+			}
+		`)
+	})
+	test('attr', async () => {
+		const [stats, fn] = makeFn()
+		await m.each({id: 3}, fn)
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 1,
+			  "maxConcurrent": 1,
+			  "maxI": 0,
+			  "total": 3,
+			}
+		`)
+	})
+	test('where', async () => {
+		const [stats, fn] = makeFn()
+		await m.each({}, {where: {'id<3': []}}, fn)
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 3,
+			  "maxConcurrent": 3,
+			  "maxI": 2,
+			  "total": 3,
+			}
+		`)
+	})
+	test('concurrent', async () => {
+		const [stats, fn] = makeFn()
+		await m.each({}, {concurrent: 2}, fn)
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 5,
+			  "maxConcurrent": 2,
+			  "maxI": 4,
+			  "total": 10,
+			}
+		`)
+	})
+	test('batchSize', async () => {
+		const [stats, fn] = makeFn()
+		await m.each({}, {batchSize: 3}, fn)
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 5,
+			  "maxConcurrent": 3,
+			  "maxI": 4,
+			  "total": 10,
+			}
+		`)
+	})
+	test('limit', async () => {
+		const [stats, fn] = makeFn()
+		await m.each({}, {limit: 2}, fn)
+		// ! in the next major release, count will be 2
+		expect(stats).toMatchInlineSnapshot(`
+			Object {
+			  "count": 5,
+			  "maxConcurrent": 2,
+			  "maxI": 4,
+			  "total": 10,
+			}
+		`)
+	})
 })
 
 describe('id column types', () => {

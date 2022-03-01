@@ -55,10 +55,10 @@
 
 ### Important
 
-- [ ] .each should get concurrent=5 parameter
-  - limit should apply to total fetched, breaking change
-  - concurrent workers should process in-memory queue
-  - batchCount=50 indicates how many results to load in memory for processing
+- [x] .each should get concurrent=5 parameter
+  - concurrent workers process in-memory queue
+  - batchSize=50 indicates how many results to load in memory for processing
+- [ ] .each() limit should apply to total fetched, breaking change
 - [ ] FTS5 support for text searching
   - Real columns marked `textSearch: true|string|object` generate a FTS5 index
   - one index per textSearch value ("tag")

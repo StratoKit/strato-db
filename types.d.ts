@@ -606,6 +606,8 @@ interface JsonModel<
 	 * Iterate through search results. Calls `fn` on every result.
 	 * The iteration uses a cursored search, so changes to the model during the
 	 * iteration can influence the iteration.
+	 * If you pass `concurrent` it will limit the concurrently called functions
+	 * `batchSize` sets the paging size.
 	 *
 	 * @returns Table iteration completed.
 	 */
@@ -613,7 +615,7 @@ interface JsonModel<
 	each(attrs: SearchAttrs, cb: ItemCallback<Item>): Promise<void>
 	each(
 		attrs: SearchAttrs,
-		opts: SearchOptions,
+		opts: SearchOptions & {concurrent?: number; batchSize?: number},
 		cb: ItemCallback<Item>
 	): Promise<void>
 	/**

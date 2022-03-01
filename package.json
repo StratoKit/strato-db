@@ -35,6 +35,7 @@
     "db"
   ],
   "dependencies": {
+    "async-sema": "^3.1.1",
     "dataloader": "^2.0.0",
     "debug": "4.3.3",
     "jsurl2": "2.1.0",
