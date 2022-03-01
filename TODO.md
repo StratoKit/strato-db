@@ -2,6 +2,8 @@
 
 ## General
 
+- use JSDoc to move types back to implementations as much as possible, so subclassing etc works
+  - probably everything we need is covered by JSDoc now
 - allow using https://github.com/rqlite/rqlite-js as a backend for a distributed DB
 - Change the multi-access tests to use `"file:memdb1?mode=memory&cache=shared"` for shared access to the same in-memory db (probably when using better-sqlite, it requires file uri support)
 - Give DB and ESDB the same API for registering models (.addModel)
@@ -55,19 +57,20 @@
 
 ### Important
 
-- [x] .each should get concurrent=5 parameter
-  - concurrent workers process in-memory queue
-  - batchSize=50 indicates how many results to load in memory for processing
 - [ ] .each() limit should apply to total fetched, breaking change
-- [ ] FTS5 support for text searching
-  - Real columns marked `textSearch: true|string|object` generate a FTS5 index
-  - one index per textSearch value ("tag")
+- FTS5 support for text searching on columns
   - It uses the table as a backing table
-  - FTS options can be passed as an object with `tag` for the textSearch value
-  - Searching passes the search argument to the tagged FTS5 index limited to the column
-  - Changes are applied by JM, not triggers. Generating
-    The tags are there to allow multilingual searching. Another column should be added to allow searching all columns in the tagged index.
-    Need to come up with nicer configuration keys. Also something for custom tokenizing
+  - Real columns marked `fts: true|object` generate a FTS5 index
+    - `true` is shorthand for `{group: 'all', allColumns: false}`
+    - `group` is a name for the index so you can group columns in separate indexes, for example by language
+    - `allColumns`, if true, means to search all columns for this group. This can be used on non-real columns
+    - Content columns have to be real columns, otherwise FTS5 can't refer to them. So, throw an error if the column not real except if `allColumns: true`.
+    - `textSearch: true` should be deprecated and means `fts: {group: 'all'}` if `real: true`
+    - other options could be added to configure tokenizing
+  - one index per `fts.group` value (, defaults to `'all'`)
+  - Searching passes the search argument to the FTS5 index of the group
+    - The search is limited to the column unless `allColumns: true`
+  - ¿Updates to the FTS index are applied by JsonModel, not triggers? why/why not
 - [ ] columns using the same path should get the same JSON path. There are some edge cases.
 - [ ] falsyBool paging doesn't work because it tries to >= and that fails for null. It should add a "sortable: false" flag
 
@@ -80,7 +83,7 @@
 - [ ] recreate index if expression changes
 - [ ] indexes: `[{expression, where}]` extra indexes
   - [ ] auto-delete other indexes, API change
-- [x] if column value is function, call with `({columnName})` => helpers
+- column helpers:
   - [ ] objectColumn() helper -> type=JSON, NULL === {}, stringify checks if object (char 0 is `{`)
   - [ ] boolColumn() -> `type="INTEGER"; parse = Boolean; stringify=Boolean`
   - [ ] falsyColumn() -> implement falsyBool
@@ -118,7 +121,6 @@
 
 ### Nice to have
 
-- [x] provide event creators for each type of change
 - [ ] .get for the RO ESModel uses .getCached, with a caching-map limiting the amount, cleared when the version changes
 - [ ] .changeId (`mv:[[oldId, newId],…]` apply action?)
 
@@ -130,12 +132,10 @@
   - Ideally, the results go in a different db that can be split at will.
   - for multi-process, lock the result db exclusively to worker
   - re-processing events clears all subevent rows
-- [x] Add `transact` phase after the other phases, in which `dispatch` works as well as ESModel dispatches. This enables easier event handling with ESModel changes.
 - [ ] Add `beforeApply` phase which runs after all reducers ran so it has access to the state of the DB before the changes are applied.
 
 ### Nice to have
 
-- [x] allow passing events to dispatch as objects with type
 - [ ] add eventSpy, e.g. `eSDB.debug(boolean|{filter()})`
 - [ ] in non-prod, randomly run preprocessor twice (keep event in memory and restart handling) to verify repeatability
 - [ ] don't store empty result sub-events
