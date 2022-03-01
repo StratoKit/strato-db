@@ -1,20 +1,25 @@
 # Changelog
 
-## Unreleased
+## 3.4.0
 
 ### Changes
 
-- `sqlite.userVersion(v?: number)` now always returns the user version, also when setting it. This makes more sense from an API perspective and has as good as no performance impact.
-- EventQueue: `.setKnownV()` is now synchronous and no longer returns a Promise. This is only a breaking change if you were using `.then()` instead of `await`.
+Fun new features:
+
+- JsonModel: `.each(attrs, options, fn)` now takes `concurrent` to limit the concurrently running functions. This adds a dependency on the tiny `async-sema` package.
 - ESDB: Added `transact({event, model, store, dispatch})` phase to the event processing flow. In this callback, you can call `dispatch` to generate and await sub-events, and calling ESModel will work too (any model can use the `dispatch` given via the constructor).
-  This requires the use of `AsyncLocalStorage`, and thus the minimum NodeJS version is now v12.17
 - ESDB: `dispatch({type, data, ts})` (passing everything in a single argument) is now also possible, as well as for `addEvent`.
 - ESModel: provide event creators for set, update and remove.
-- JsonModel: `.each(attrs, options, fn)` now takes `concurrent` to limit the concurrently running functions
+
+We also have some tiny API changes that don't warrant a major version:
+
+- `sqlite.userVersion(v?: number)` now always returns the user version, also when setting it. This makes more sense from an API perspective and has as good as no performance impact.
+- EventQueue: `.setKnownV()` is now synchronous and no longer returns a Promise. This is only a breaking change if you were using `.then()` instead of `await`.
+  This requires the use of `AsyncLocalStorage`, and thus the minimum NodeJS version is now v12.17 (which is already ancient).
 
 ### Fixes
 
-- ESDB: fix deadlock on queue add in migration (due to version setting)
+- ESDB: fix deadlock on queue add in migration (due to sync version setting)
 - JM: while paging, if the total == the limit, the cursor is now also null, because there is no next page.
 
 ## 3.3.2
