@@ -11,6 +11,7 @@ specifiers:
   '@types/jest': 27.4.0
   '@typescript-eslint/eslint-plugin': 5.11.0
   '@typescript-eslint/parser': 5.11.0
+  async-sema: ^3.1.1
   babel-jest: 27.5.1
   babel-plugin-lodash: ^3.3.4
   dataloader: ^2.0.0
@@ -43,6 +44,7 @@ specifiers:
   uuid: ^8.3.2
 
 dependencies:
+  async-sema: 3.1.1
   dataloader: 2.0.0
   debug: 4.3.3
   jsurl2: 2.1.0
@@ -2275,6 +2277,10 @@ packages:
     engines: {node: '>=0.8'}
     dev: false
     optional: true
+
+  /async-sema/3.1.1:
+    resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
+    dev: false
 
   /asynckit/0.4.0:
     resolution: {integrity: sha1-x57Zf380y48robyXkLzDZkdLS3k=}
