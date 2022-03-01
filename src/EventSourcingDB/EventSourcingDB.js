@@ -650,7 +650,7 @@ class EventSourcingDB extends EventEmitter {
 					walkEvents(resultEvent)
 					// eslint-disable-next-line no-console
 					console.error(
-						`!!! ESDB: event ${path} processing failed (try #${errorCount})`,
+						`!!! ESDB: event ${resultEvent.v} ${path} processing failed (try #${errorCount})`,
 						error
 					)
 				}
