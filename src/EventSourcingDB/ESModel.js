@@ -146,7 +146,8 @@ class ESModel extends JsonModel {
 		 * @param {boolean} [insertOnly]  - don't allow replacing existing objects.
 		 * @param {*}       [meta]        - extra metadata to store in the event but
 		 *                                not in the object.
-		 * @returns {[string, Object?]} - args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
+		 *                                           addEvent/dispatch.
 		 */
 		set: (obj, insertOnly, meta) => {
 			const data = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
@@ -161,7 +162,8 @@ class ESModel extends JsonModel {
 		 *                            doesn't exist.
 		 * @param {*}       [meta]    - extra metadata to store in the event at
 		 *                            `data[3]` but not in the object.
-		 * @returns {[string, Object?]} - args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
+		 *                                           addEvent/dispatch.
 		 */
 		update: (obj, upsert, meta) => {
 			const id = obj[this.idCol]
@@ -183,7 +185,8 @@ class ESModel extends JsonModel {
 		 * - the id or the object itself.
 		 * @param {*} meta
 		 * - metadata, attached to the event only, at `data[3]`
-		 * @returns {[string, Object?]} - args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
+		 *                                           addEvent/dispatch.
 		 */
 		remove: (idOrObj, meta) => {
 			const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj

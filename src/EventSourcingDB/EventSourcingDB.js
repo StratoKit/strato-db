@@ -110,7 +110,7 @@ const fixupOldReducer = (name, reducer) => {
 }
 
 // In subevents ts is silently ignored
-const getDispatchArgs = (name, fn) => (typeOrEvent, data, ts) => {
+const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
 	let type
 	if (typeof typeOrEvent === 'string') {
 		type = typeOrEvent
@@ -349,7 +349,7 @@ class EventSourcingDB extends EventEmitter {
 
 				if (!hasOne)
 					throw new TypeError(
-						`${this.name}: At least one reducer, deriver or preprocessor required`
+						`${name}: At least one reducer, deriver or preprocessor required`
 					)
 			} catch (error) {
 				if (error.message)
@@ -444,16 +444,13 @@ class EventSourcingDB extends EventEmitter {
 	 * The timestamp of the event.
 	 * @returns {Promise<Event>} The processed event.
 	 */
-	dispatch = getDispatchArgs('dispatch', async (type, data, ts) => {
+	dispatch = makeDispatcher('dispatch', async (type, data, ts) => {
 		const event = await this.queue.add(type, data, ts)
 		return this.handledVersion(event.v)
 	})
 
-	// Dispatch handler for sub-events, used during transact phase
-	_dispatchSubEvent = null
-
 	_makeAddSubEvent = event =>
-		getDispatchArgs('addEvent', (type, data) => {
+		makeDispatcher('addEvent', (type, data) => {
 			event.events ||= []
 			event.events.push({type, data})
 			dbg(`${event.type}.${type} queued`)
@@ -888,7 +885,7 @@ class EventSourcingDB extends EventEmitter {
 		// correct dispatch in each subevent
 
 		let lastP = null
-		const dispatch = getDispatchArgs('dispatch', async (type, data) => {
+		const dispatch = makeDispatcher('dispatch', async (type, data) => {
 			const subEventP = this._alsDispatch.run(undefined, handleSubEvent, {
 				type,
 				data,
