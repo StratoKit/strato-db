@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.4.1
+
+### Fixes
+
+- JsonModel: `.each()` was returning too early
+
 ## 3.4.0
 
 ### Changes
