@@ -798,13 +798,7 @@ class JsonModelImpl {
 		do {
 			const result = await this.search(attrsOrFn, {...rest, limit, cursor})
 			cursor = result.cursor
-			await settleAll(
-				result.items,
-				async v => {
-					fn(v, i++)
-				},
-				concurrent
-			)
+			await settleAll(result.items, async v => fn(v, i++), concurrent)
 		} while (cursor)
 	}
 

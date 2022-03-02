@@ -216,29 +216,28 @@ describe('each', () => {
 	beforeAll(async () => {
 		await Promise.all([0, 1, 2, 3, 4].map(id => m.set({id})))
 	})
-	// eslint-disable-next-line unicorn/consistent-function-scoping
-	const makeFn = () => {
+	const callEach = async (...args) => {
 		const stats = {count: 0, total: 0, maxI: 0, maxConcurrent: 0}
-		let concurrent = 0
-		return [
-			stats,
-			async (row, i) => {
-				concurrent++
-				if (stats.maxConcurrent < concurrent) stats.maxConcurrent++
-				stats.count++
-				stats.total += row.id
-				if (stats.maxI < i) stats.maxI = i
-				await Promise.resolve()
-				concurrent--
-			},
-		]
+		let concurrent = 0,
+			running = true
+		await m.each(...args, async (row, i) => {
+			if (!running) throw new Error('got called after each returned')
+			concurrent++
+			if (stats.maxConcurrent < concurrent) stats.maxConcurrent = concurrent
+			stats.count++
+			stats.total += row.id
+			if (stats.maxI < i) stats.maxI = i
+			await new Promise(r => setTimeout(r, Math.random() * 10))
+			concurrent--
+		})
+		running = false
+		return stats
 	}
 	test('call', async () => {
 		await expect(m.each()).rejects.toThrow('requires function')
 	})
 	test('no query', async () => {
-		const [stats, fn] = makeFn()
-		await m.each(fn)
+		const stats = await callEach()
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 5,
@@ -249,8 +248,7 @@ describe('each', () => {
 		`)
 	})
 	test('attr', async () => {
-		const [stats, fn] = makeFn()
-		await m.each({id: 3}, fn)
+		const stats = await callEach({id: 3})
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 1,
@@ -261,8 +259,7 @@ describe('each', () => {
 		`)
 	})
 	test('where', async () => {
-		const [stats, fn] = makeFn()
-		await m.each({}, {where: {'id<3': []}}, fn)
+		const stats = await callEach({}, {where: {'id<3': []}})
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 3,
@@ -273,8 +270,7 @@ describe('each', () => {
 		`)
 	})
 	test('concurrent', async () => {
-		const [stats, fn] = makeFn()
-		await m.each({}, {concurrent: 2}, fn)
+		const stats = await callEach({}, {concurrent: 2})
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 5,
@@ -285,8 +281,7 @@ describe('each', () => {
 		`)
 	})
 	test('batchSize', async () => {
-		const [stats, fn] = makeFn()
-		await m.each({}, {batchSize: 3}, fn)
+		const stats = await callEach({}, {batchSize: 3})
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 5,
@@ -297,13 +292,12 @@ describe('each', () => {
 		`)
 	})
 	test('limit', async () => {
-		const [stats, fn] = makeFn()
-		await m.each({}, {limit: 2}, fn)
+		const stats = await callEach({}, {limit: 1})
 		// ! in the next major release, count will be 2
 		expect(stats).toMatchInlineSnapshot(`
 			Object {
 			  "count": 5,
-			  "maxConcurrent": 2,
+			  "maxConcurrent": 1,
 			  "maxI": 4,
 			  "total": 10,
 			}

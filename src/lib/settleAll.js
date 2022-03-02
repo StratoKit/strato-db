@@ -16,7 +16,7 @@ export const settleAll = async (items, fn, maxConcurrent) => {
 		cb = async item => {
 			await sema.acquire()
 			try {
-				return fn(item)
+				return await fn(item)
 			} finally {
 				sema.release()
 			}
