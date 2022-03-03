@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- JsonModel: from `.each()`, call `.search()` with `noTotal`
+
 ## 3.4.1
 
 ### Fixes

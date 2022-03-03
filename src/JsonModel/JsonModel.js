@@ -789,10 +789,10 @@ class JsonModelImpl {
 			concurrent = 5,
 			batchSize = 50,
 			limit = batchSize,
+			noCursor: _,
 			...rest
 		} = optionsOrFn
-		optionsOrFn.noCursor = false
-		optionsOrFn.noTotal = true
+		rest.noTotal = true
 		let cursor
 		let i = 0
 		do {

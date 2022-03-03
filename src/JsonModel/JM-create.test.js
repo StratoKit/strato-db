@@ -236,6 +236,16 @@ describe('each', () => {
 	test('call', async () => {
 		await expect(m.each()).rejects.toThrow('requires function')
 	})
+	test('uses noTotal', async () => {
+		const n = getModel()
+		n.search = jest.fn(() => ({items: []}))
+		await n.each(() => {})
+		expect(n.search).toHaveBeenCalledTimes(1)
+		expect(n.search).toHaveBeenCalledWith(
+			undefined,
+			expect.objectContaining({noTotal: true, limit: expect.any(Number)})
+		)
+	})
 	test('no query', async () => {
 		const stats = await callEach()
 		expect(stats).toMatchInlineSnapshot(`
