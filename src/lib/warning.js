@@ -11,4 +11,7 @@ if (DEV) {
 	}
 	deprecated = warner('DEPRECATED')
 	unknown = warner('UNKNOWN')
+} else {
+	deprecated = () => {}
+	unknown = () => {}
 }

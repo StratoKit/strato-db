@@ -5,6 +5,7 @@
 ### Fixes
 
 - JsonModel: from `.each()`, call `.search()` with `noTotal`
+- deprecation warnings fail in prod
 
 ## 3.4.1
 
