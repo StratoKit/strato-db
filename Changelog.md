@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- ESDB: fix throwing when dispatching outside but during processing
+
 ## 3.4.2
 
 ### Fixes

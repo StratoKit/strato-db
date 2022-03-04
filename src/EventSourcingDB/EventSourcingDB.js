@@ -262,10 +262,14 @@ class EventSourcingDB extends EventEmitter {
 
 		const dispatch = async (type, data, ts) => {
 			if (this._processing) {
-				const dispatchSubEvent = this._alsDispatch.getStore()
-				if (!dispatchSubEvent)
-					throw new Error(`Dispatching is only allowed in transact phase`)
-				return dispatchSubEvent(type, data)
+				const store = this._alsDispatch.getStore()
+				dbg({store})
+				if (store) {
+					if (!store.dispatch) {
+						throw new Error(`Dispatching is only allowed in transact phase`)
+					}
+					return store.dispatch(type, data)
+				}
 			}
 			return this.dispatch(type, data, ts)
 		}
@@ -601,7 +605,11 @@ class EventSourcingDB extends EventEmitter {
 					if (event.v <= nowV) return
 
 					await rwDb.run('SAVEPOINT handle')
-					const result = await this._handleEvent(event)
+					const result = await this._alsDispatch.run(
+						{},
+						this._handleEvent,
+						event
+					)
 					if (result.error) {
 						// Undo all changes, but retain the event info
 						await rwDb.run('ROLLBACK TO SAVEPOINT handle')
@@ -828,7 +836,7 @@ class EventSourcingDB extends EventEmitter {
 		return event
 	}
 
-	async _handleEvent(origEvent, depth = 0) {
+	_handleEvent = async (origEvent, depth = 0) => {
 		const isMainEvent = depth === 0
 		let event
 		if (depth > 100) {
@@ -893,7 +901,8 @@ class EventSourcingDB extends EventEmitter {
 
 		let lastP = null
 		const dispatch = makeDispatcher('dispatch', async (type, data) => {
-			const subEventP = this._alsDispatch.run(undefined, handleSubEvent, {
+			// We run the "thread" with an empty store to signify processing
+			const subEventP = this._alsDispatch.run({}, handleSubEvent, {
 				type,
 				data,
 			})
@@ -905,7 +914,8 @@ class EventSourcingDB extends EventEmitter {
 				throw new Error(`Event ${event.v} errored: ${event.error._handle}`)
 			return subEvent
 		})
-		event = await this._alsDispatch.run(dispatch, () =>
+		// During transact, the "thread" has dispatch
+		event = await this._alsDispatch.run({dispatch}, () =>
 			this._transact(event, isMainEvent, dispatch)
 		)
 		if (events.length) event.events = events

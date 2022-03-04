@@ -145,7 +145,6 @@ describe('transact', () => {
 		return withESDB(models, async eSDB => {
 			eSDB.__BE_QUIET = true
 			await expect(eSDB.dispatch('sync')).rejects.toHaveProperty('error', {
-				// eslint-disable-next-line camelcase
 				_transact_foo: 'oops sync',
 			})
 		})
@@ -163,7 +162,6 @@ describe('transact', () => {
 		return withESDB(models, async eSDB => {
 			eSDB.__BE_QUIET = true
 			await expect(eSDB.dispatch('reject')).rejects.toHaveProperty('error', {
-				// eslint-disable-next-line camelcase
 				_transact_foo: 'oops reject',
 			})
 		})
@@ -177,10 +175,36 @@ describe('transact', () => {
 		}
 		return withESDB(models, async eSDB => {
 			eSDB.__BE_QUIET = true
-			await expect(eSDB.dispatch('hi')).rejects.toHaveProperty('error', {
-				// eslint-disable-next-line camelcase
-				_reduce_foo: expect.stringContaining('only allowed in transact'),
-			})
+			await expect(eSDB.dispatch('hi')).rejects.toEqual(
+				expect.objectContaining({
+					error: expect.objectContaining({
+						_reduce_foo: expect.stringContaining('only allowed in transact'),
+					}),
+				})
+			)
+		})
+	})
+
+	test('does not throw when dispatching outside processing', async () => {
+		let resolve1, resolve2
+		let ranReducer = new Promise(r => (resolve1 = r))
+		const models = {
+			foo: {
+				reducer: async ({event: {type}}) => {
+					if (type === 'hi')
+						await new Promise(r => {
+							resolve2 = r
+							resolve1()
+						})
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			eSDB.__BE_QUIET = true
+			eSDB.dispatch('hi')
+			await ranReducer
+			setTimeout(resolve2)
+			await expect(eSDB.store.foo.set('ho')).resolves.toBeDefined()
 		})
 	})
 
