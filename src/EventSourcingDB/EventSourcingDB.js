@@ -248,13 +248,13 @@ class EventSourcingDB extends EventEmitter {
 		// Used for transact keeping track of call stacks
 		this._alsDispatch = new AsyncLocalStorage()
 
-		/** @type {InstanceType<ESDBModel>[]} */
+		/** @type {(InstanceType<ESDBModel> & {preprocessor: PreprocessorFn})[]} */
 		this._preprocModels = []
 		/** @type {string[]} */
 		this._reducerNames = []
-		/** @type {InstanceType<ESDBModel>[]} */
+		/** @type {(InstanceType<ESDBModel> & {deriver: DeriverFn})[]} */
 		this._deriverModels = []
-		/** @type {InstanceType<ESDBModel>[]} */
+		/** @type {(InstanceType<ESDBModel> & {transact: TransactFn})[]} */
 		this._transactModels = []
 		this._readWriters = []
 		const reducers = {}
@@ -386,6 +386,7 @@ class EventSourcingDB extends EventEmitter {
 		return this.handledVersion(v)
 	}
 
+	/** @type {Promise<void> | null} */
 	_waitingP = null
 
 	_minVersion = 0
@@ -395,7 +396,9 @@ class EventSourcingDB extends EventEmitter {
 			if (wantVersion > this._minVersion) this._minVersion = wantVersion
 		} else if (!this._isPolling) {
 			this._isPolling = true
+			// @ts-ignore
 			if (module.hot) {
+				// @ts-ignore
 				module.hot.dispose(() => {
 					this.stopPolling()
 				})
@@ -456,6 +459,7 @@ class EventSourcingDB extends EventEmitter {
 			dbg(`${event.type}.${type} queued`)
 		})
 
+	/** @type {Promise<number> | null} */
 	_getVersionP = null
 
 	getVersion() {
@@ -525,6 +529,7 @@ class EventSourcingDB extends EventEmitter {
 				}
 			}
 			if (o && process.env.NODE_ENV === 'test') {
+				// @ts-ignore
 				if (!this.__BE_QUIET)
 					// eslint-disable-next-line no-console
 					console.error(
@@ -610,6 +615,7 @@ class EventSourcingDB extends EventEmitter {
 					return _resultQueue.set(result)
 				})
 				.catch(error => {
+					// @ts-ignore
 					if (!this.__BE_QUIET)
 						// eslint-disable-next-line no-console
 						console.error(
@@ -628,6 +634,7 @@ class EventSourcingDB extends EventEmitter {
 
 			if (resultEvent.error) {
 				errorCount++
+				// @ts-ignore
 				if (!this.__BE_QUIET) {
 					let path, error
 					// find the deepest error
@@ -750,6 +757,7 @@ class EventSourcingDB extends EventEmitter {
 				}
 				let out
 				try {
+					// @ts-ignore
 					out = await model.reducer(helpers)
 				} catch (error) {
 					out = {
@@ -798,7 +806,6 @@ class EventSourcingDB extends EventEmitter {
 			const {name} = model
 			const {v, type} = event
 			try {
-				// eslint-disable-next-line no-await-in-loop
 				await model.transact({
 					event,
 					// subevents must see intermediary state
@@ -847,6 +854,7 @@ class EventSourcingDB extends EventEmitter {
 		if (event.error) return event
 
 		// Allow GC
+		// @ts-ignore
 		cache = null
 
 		event = await this._applyEvent(event, isMainEvent)
@@ -876,7 +884,6 @@ class EventSourcingDB extends EventEmitter {
 		}
 
 		for (let i = 0; i < events.length; i++) {
-			// eslint-disable-next-line no-await-in-loop
 			events[i] = await handleSubEvent(events[i])
 			if (event.error) return event
 		}
@@ -936,6 +943,7 @@ class EventSourcingDB extends EventEmitter {
 					return addEvent(...args)
 				}
 				await settleAll(this._deriverModels, async model =>
+					// @ts-ignore
 					model.deriver({
 						event,
 						model,
