@@ -144,12 +144,13 @@ class JsonModelImpl {
 			if (dbg.enabled) {
 				try {
 					val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
-				} catch {
+				} catch (err) {
 					dbg(
 						`!!! ${this.name}.${k.name}:  parse failed for value ${String(
 							row[k.alias]
 						).slice(0, 20)}`
 					)
+					throw err
 				}
 			} else {
 				val = k.parse ? k.parse(row[k.alias]) : row[k.alias]
@@ -718,7 +719,6 @@ class JsonModelImpl {
 		if (!cache) throw new Error(`cache is required`)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
-			dbg(`creating DataLoader ${key}`)
 			// batchSize: max is SQLITE_MAX_VARIABLE_NUMBER, default 999. Lower => less latency
 			cache[key] = new DataLoader(ids => this.getAll(ids, colName), {
 				maxBatchSize: 100,

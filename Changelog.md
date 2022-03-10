@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- JsonModel: throw parsing errors also with debugging enabled; remove dataloader creation debug statements
+
 ## 3.4.3
 
 ### Fixes
