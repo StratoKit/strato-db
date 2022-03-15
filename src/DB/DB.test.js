@@ -128,6 +128,19 @@ test('marks migrations as ran', async () => {
 	await db.close()
 })
 
+test('fails open on failed migration', async () => {
+	const db = new DB()
+	db.registerMigrations('whee', {
+		a: () => {
+			throw new Error('nope')
+		},
+	})
+	await expect(db.open()).rejects.toThrow('nope')
+	let s
+	expect(() => (s = db.prepare('SELECT 1'))).not.toThrow()
+	await expect(s.run()).rejects.toThrow('nope')
+})
+
 test('close()', async () => {
 	const db = new DB()
 	await db.exec(`

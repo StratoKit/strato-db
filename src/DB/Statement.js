@@ -25,7 +25,7 @@ class StatementImpl {
 		return this._sql
 	}
 
-	P = Promise.resolve()
+	_P = Promise.resolve()
 
 	/**
 	 * @callback voidFn
@@ -38,9 +38,11 @@ class StatementImpl {
 	 * @returns {Promise<any>} The result of the function.
 	 */
 	_wrap(fn) {
-		if (!this._stmt) this.P = this.P.then(this._refresh)
-		this.P = this.P.then(fn)
-		return this.P
+		// Always verify _stmt and fail if init fails
+		const wrapped = () => this._refresh().then(fn)
+		// Run invocations in-order but ignore output
+		this._P = this._P.then(wrapped, wrapped)
+		return this._P
 	}
 
 	_refresh = async () => {

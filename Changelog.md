@@ -5,6 +5,7 @@
 ### Fixes
 
 - JsonModel: throw parsing errors also with debugging enabled; remove dataloader creation debug statements
+- Statement: Fix sticky errored state of prepared statements
 
 ## 3.4.3
 

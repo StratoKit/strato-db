@@ -58,4 +58,13 @@ test('handles db closure', () =>
 		expect(await s.get()).toEqual({id: 1})
 	}))
 
+test('ignores previous failure', async () => {
+	const db = new DB()
+	await db.exec('CREATE TABLE foo(id INTEGER PRIMARY KEY)')
+	const s = db.prepare('INSERT INTO foo VALUES (?)')
+	await s.run([1])
+	await expect(s.run([1])).rejects.toThrow()
+	await expect(s.run([2])).resolves.toBeDefined()
+})
+
 // TODO test get, all, run, each with parallel reads (only one should run at a time)
