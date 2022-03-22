@@ -134,7 +134,7 @@ class SQLiteImpl extends EventEmitter {
 
 	sql = sql
 
-	/** @type {{fn: function; stack: string}[]} */
+	/** @type {{fn: function; stack?: string}[]} */
 	_queuedOnOpen = []
 
 	async _openDB() {
@@ -323,6 +323,7 @@ class SQLiteImpl extends EventEmitter {
 		})
 
 		const stmts = Object.values(this.statements)
+		this.statements = {}
 		if (stmts.length)
 			await Promise.all(stmts.map(stmt => stmt.finalize().catch(() => {})))
 
@@ -497,7 +498,9 @@ class SQLiteImpl extends EventEmitter {
 	// eslint-disable-next-line no-shadow
 	prepare(sql, name) {
 		if (this.statements[sql]) return this.statements[sql]
-		return new Statement(this, sql, name)
+		const stmt = new Statement(this, sql, name)
+		this.statements[sql] = stmt
+		return stmt
 	}
 
 	/**

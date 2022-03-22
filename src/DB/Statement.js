@@ -7,10 +7,12 @@ import debug from 'debug'
 const dbg = debug('strato-db/DB:stmt')
 
 let id = 0
-/** @implements {Statement} */
-class StatementImpl {
+
+/**
+ * Represents a lazily prepared statement
+ */
+class Statement {
 	constructor(db, sql, name) {
-		db.statements[sql] = this
 		this._sql = sql
 		this.db = db
 		this._name = `{${id++}${name ? ` ${name}` : ''}}`
@@ -25,6 +27,7 @@ class StatementImpl {
 		return this._sql
 	}
 
+	/** @type {Promise<any>} */
 	_P = Promise.resolve()
 
 	/**
@@ -34,8 +37,9 @@ class StatementImpl {
 	/**
 	 * Wrap the function with a refresh call.
 	 *
-	 * @param {voidFn} fn  The function to wrap.
-	 * @returns {Promise<any>} The result of the function.
+	 * @param {() => Promise<T>} fn  The function to wrap.
+	 * @returns {Promise<T>} The result of the function.
+	 * @template T
 	 */
 	_wrap(fn) {
 		// Always verify _stmt and fail if init fails
@@ -55,12 +59,14 @@ class StatementImpl {
 			false,
 			true
 		)
-
-		this.db.statements[this._sql] = this
 	}
 
+	/**
+	 * Remove the prepared statement instance from the db.
+	 *
+	 * @returns {Promise<void>}
+	 */
 	finalize() {
-		delete this.db.statements[this._sql]
 		const {_stmt} = this
 		if (!_stmt) return Promise.resolve()
 		return this._wrap(
@@ -129,4 +135,4 @@ class StatementImpl {
 	}
 }
 
-export default StatementImpl
+export default Statement
