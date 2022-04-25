@@ -770,9 +770,8 @@ type TransactFn<M extends ESDBModel = ESModel<{}>> = (
 	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
 ) => Promise<void>
 
-type DispatchFn =
-	| ((type: string, data?: any, ts?: number) => Promise<ESEvent>)
-	| ((arg: {type: string; data?: any; ts?: number}) => Promise<ESEvent>)
+type  DispatchFn = (...args: [type: string, data?: any, ts?: number] | [arg: { type: string; data?: any; ts?: number} ]) => Promise<ESEvent>
+
 type AddEventFn =
 	| ((type: string, data?: any) => void)
 	| ((arg: {type: string; data?: any}) => void)
