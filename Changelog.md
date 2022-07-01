@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- ESDB: fix multiple dispatches in transact returning old event
+
 ## 3.4.4
 
 ### Fixes

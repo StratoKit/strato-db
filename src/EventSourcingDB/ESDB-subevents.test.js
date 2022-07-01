@@ -301,4 +301,21 @@ describe('transact', () => {
 			await eSDB.dispatch('hi')
 		})
 	})
+
+	test('gets subevent from dispatch', async () => {
+		const models = {
+			foo: {
+				transact: async ({event, dispatch}) => {
+					if (event.type !== 'hi') return
+					const sub = await dispatch('sub', 9)
+					expect(sub).toHaveProperty('type', 'sub')
+					expect(await dispatch('sub2', 10)).toHaveProperty('data', 10)
+					expect(await dispatch('sub3', 11)).toHaveProperty('type', 'sub3')
+				},
+			},
+		}
+		return withESDB(models, async eSDB => {
+			await eSDB.dispatch('hi')
+		})
+	})
 })

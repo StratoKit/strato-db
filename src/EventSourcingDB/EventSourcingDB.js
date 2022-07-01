@@ -907,7 +907,7 @@ class EventSourcingDB extends EventEmitter {
 				data,
 			})
 			// Make sure we handle the dispatches in order
-			lastP = lastP ? lastP.then(subEventP) : subEventP
+			lastP = lastP ? lastP.then(() => subEventP) : subEventP
 			const subEvent = await lastP
 			events.push(subEvent)
 			if (event.error)
