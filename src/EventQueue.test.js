@@ -53,6 +53,18 @@ test('add event', async () => {
 	expect(events.items).toHaveLength(200)
 })
 
+test('add event object', async () => {
+	const m = getModel()
+	const e = await m.add({type: 'test', data: {foo: 'hi'}, ts: 5000})
+	expect(e.v).toBeTruthy()
+	expect(e.ts).toBe(5000)
+	expect(e.data.foo).toBe('hi')
+	const e2 = await m.add({type: 'test2'})
+	expect(e2.v).toBeTruthy()
+	expect(e2.ts).toBeGreaterThan(5000)
+	expect(e2.data).toBeUndefined()
+})
+
 test('getNext(undef/0)', async () => {
 	const m = getModel()
 	await m.setKnownV(50)
@@ -112,5 +124,5 @@ test('cancelNext', async () => {
 	const m = getModel()
 	const P = m.getNext(100, false)
 	m.cancelNext()
-	await expect(P).resolves.toBe()
+	await expect(P).resolves.toBeUndefined()
 })

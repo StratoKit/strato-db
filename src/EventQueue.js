@@ -27,12 +27,12 @@ const defaultColumns = {
 /**
  * An event queue, including history.
  *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
+ * @template {ESEvent}               E
+ * @template {Partial<EQOptions<E>>} C
+ * @implements {EventQueue<E, C>}
  */
 class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
+	/** @param {EQOptions<E>} arg */
 	constructor({name = 'history', forever, withViews, ...rest}) {
 		const columns = {...defaultColumns}
 		if (rest.columns)
@@ -148,17 +148,19 @@ class EventQueueImpl extends JsonModel {
 		return this.currentV
 	}
 
-	_addP = null
+	/** @type {Promise<E> | undefined} */
+	_addP = undefined
 
 	/**
 	 * Atomically add an event to the queue.
-	 *
-	 * @param {string} type             - event type.
-	 * @param {*}      [data]           - event data.
-	 * @param {number} [ts=Date.now()]  - event timestamp, ms since epoch.
-	 * @returns {Promise<Event>} - Promise for the added event.
 	 */
-	add(type, data, ts) {
+	add(typeOrObj, data, ts) {
+		let type
+		if (typeOrObj && typeof typeOrObj === 'object') {
+			type = typeOrObj.type
+			data = typeOrObj.data
+			ts = typeOrObj.ts
+		} else type = typeOrObj
 		if (!type || typeof type !== 'string')
 			return Promise.reject(new Error('type should be a non-empty string'))
 		ts = Number(ts) || Date.now()
@@ -181,7 +183,7 @@ class EventQueueImpl extends JsonModel {
 
 			this.currentV = v
 
-			const event = {v, type, ts, data}
+			const event = /** @type {E} */ ({v, type, ts, data})
 			dbg(`queued`, v, type)
 			if (this._nextAddedResolve) {
 				this._nextAddedResolve(event)
@@ -191,7 +193,8 @@ class EventQueueImpl extends JsonModel {
 		return this._addP
 	}
 
-	_nextAddedP = null
+	/** @type {Promise<E | 'CANCEL'> | undefined} */
+	_nextAddedP = undefined
 
 	_nextAddedResolve = event => {
 		if (!this._resolveNAP) return

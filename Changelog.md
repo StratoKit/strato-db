@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- EventQueue: `.add()` accepts an event object now
+
 ## 3.6.1
 
 ### Changes

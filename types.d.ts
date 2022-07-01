@@ -690,6 +690,11 @@ type ESEvent = {
 	/** event processing result */
 	result?: Record<string, ReduceResult>
 }
+type ESEventInput<E extends ESEvent> = {
+	type: E['type']
+	data?: E['data']
+	ts?: E['ts']
+}
 type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** the table name, defaults to `"history"` */
 	name?: string
@@ -702,13 +707,13 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
  * Creates a new EventQueue model, called by DB.
  */
 interface EventQueue<
-	T extends ESEvent = ESEvent,
-	Config extends Partial<EQOptions<T>> = object,
+	E extends ESEvent = ESEvent,
+	Config extends Partial<EQOptions<E>> = object,
 > extends JsonModel<
-		T,
+		E,
 		{idCol: 'v'; columns: import('./dist/EventQueue').Columns} & Config
 	> {
-	new (options: EQOptions<T>): this
+	new (options: EQOptions<E>): this
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -723,7 +728,7 @@ interface EventQueue<
 	 * @param [ts=Date.now()]  - event timestamp, ms since epoch.
 	 * @returns - Promise for the added event.
 	 */
-	add(type: string, data?: any, ts?: number): Promise<T>
+	add(type: string, data?: any, ts?: number): Promise<E>
 	/**
 	 * Get the next event after v (gaps are ok).
 	 * The wait can be cancelled by `.cancelNext()`.
@@ -732,7 +737,7 @@ interface EventQueue<
 	 * @param [noWait=false]  - do not wait for the next event.
 	 * @returns The event if found.
 	 */
-	getNext(v?: number, noWait?: boolean): Promise<T>
+	getNext(v?: number, noWait?: boolean): Promise<E>
 	/**
 	 * Cancel any pending `.getNext()` calls
 	 */
@@ -743,7 +748,7 @@ interface EventQueue<
 	 *
 	 * @param v  - the last known version.
 	 */
-	setKnownV(v: number): Promise<void>
+	setKnownV(v: number): void
 }
 
 type ReduceResult = {[applyType: string]: any}
@@ -773,15 +778,22 @@ type TransactFn<M extends ESDBModel = ESModel> = (
 	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
 ) => Promise<void>
 
-type DispatchFn = (
-	...args:
-		| [type: string, data?: any, ts?: number]
-		| [arg: {type: string; data?: any; ts?: number}]
-) => Promise<ESEvent>
+/**
+ * @param type    Event type, or entire event object.
+ * @param [data]  Event data.
+ * @param [ts]    Event timestamp. If not provided, the current time is used.
+ */
+type DispatchFn<E extends ESEvent = ESEvent, I = ESEventInput<E>> = (
+	...args: [type: E['type'], data?: E['data'], ts?: E['ts']] | [event: I]
+) => Promise<E>
 
-type AddEventFn =
-	| ((type: string, data?: any) => void)
-	| ((arg: {type: string; data?: any}) => void)
+/**
+ * @param type    Event type.
+ * @param [data]  Event data.
+ */
+type AddEventFn<E extends ESEvent = ESEvent, I = ESEventInput<E>> = (
+	...args: [type: E['type'], data?: E['data']] | [event: Omit<I, 'ts'>]
+) => void
 
 // TODO get from models config
 type ESDBModelArgs = {
