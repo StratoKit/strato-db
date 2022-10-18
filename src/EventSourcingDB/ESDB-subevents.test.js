@@ -137,7 +137,6 @@ describe('transact', () => {
 		const models = {
 			foo: {
 				transact: ({event: {type}}) => {
-					// eslint-disable-next-line no-throw-literal
 					if (type === 'sync') throw 'oops sync'
 				},
 			},
@@ -154,7 +153,6 @@ describe('transact', () => {
 		const models = {
 			foo: {
 				transact: ({event: {type}}) => {
-					// eslint-disable-next-line prefer-promise-reject-errors
 					if (type === 'reject') return Promise.reject('oops reject')
 				},
 			},
@@ -254,16 +252,20 @@ describe('transact', () => {
 					if (event.type === 'hi')
 						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-hi')).resolves.toEqual(
+							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-hi',
+								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)
 					if (event.type === 'sub-hi')
 						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-sub-hi')).resolves.toEqual(
+							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-sub-hi',
+								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)

@@ -23,12 +23,14 @@ const testModels = {
 		reducer: async ({model, event: {type}, addEvent, store}) => {
 			expect(model).toBe(store.subber)
 			switch (type) {
-				case 'main':
+				case 'main': {
 					addEvent('sub')
 					return {ins: [{id: 'hey'}]}
-				case 'sub':
+				}
+				case 'sub': {
 					expect(await model.get('hey')).toBeTruthy()
 					break
+				}
 				default:
 			}
 		},

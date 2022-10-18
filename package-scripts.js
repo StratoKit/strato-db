@@ -1,12 +1,8 @@
-const {concurrent, rimraf, getBin, series} = require('nps-utils')
+const {concurrent, rimraf, series} = require('nps-utils')
 const {version} = require('./package.json')
 
-let jestBin
-try {
-	jestBin = getBin('jest-cli', 'jest')
-} catch {
-	jestBin = 'pleaseInstallJest'
-}
+const isPR = process.env.GH_EVENT === 'pull_request'
+const comparisonRef = isPR ? `origin/${process.env.BASE_REF}` : 'HEAD^'
 
 const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__snapshots__' -d dist/`
 const scripts = {
@@ -30,16 +26,23 @@ const scripts = {
 			`echo 'export const DB: DB; export const EventSourcingDB: EventSourcingDB; export const SQLite: SQLite; export const EventQueue: EventQueue; export const applyResult: applyResult; export const ESModel: ESModel; export const JsonModel: JsonModel;' >> dist/types.d.ts`
 		),
 	},
+	lint: {
+		default: 'eslint .',
+		// The setup-node action parses eslint errors, no formatter needed
+		ci: isPR
+			? `git diff --name-only --diff-filter=ACMRTUXB ${comparisonRef} | grep -E "\\.[jt]sx?$" | xargs -d \\\\n eslint`
+			: `eslint .`,
+		errors: 'eslint --format visualstudio --quiet .',
+		fix: `eslint --fix .; prettier --write .`,
+	},
 	test: {
-		default: concurrent.nps('test.lint', 'test.full'),
-		lint: {
-			// This looks nice normally and annotates on github CI
-			default: 'eslint --format github .',
-			fix: `eslint --fix .; prettier --write .`,
-		},
+		default: concurrent.nps('lint', 'test.full'),
+		// Note, this changes the repo during the run
+		ci: isPR
+			? `git reset ${comparisonRef} && NODE_ENV=test jest --ci --coverage --color --onlyChanged; out=$?; git reset HEAD@{1}; exit $out`
+			: `NODE_ENV=test jest --ci --coverage --color`,
 		full: 'NODE_ENV=test jest --coverage --color',
 		watch: 'NODE_ENV=test jest --color --watch',
-		inspect: `NODE_ENV=test pnpx ndb ${jestBin} --runInBand --watch`,
 	},
 	publish: `npm publish --access public`,
 }
