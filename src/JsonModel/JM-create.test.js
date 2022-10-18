@@ -249,7 +249,7 @@ describe('each', () => {
 	test('no query', async () => {
 		const stats = await callEach()
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 5,
 			  "maxConcurrent": 5,
 			  "maxI": 4,
@@ -260,7 +260,7 @@ describe('each', () => {
 	test('attr', async () => {
 		const stats = await callEach({id: 3})
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 1,
 			  "maxConcurrent": 1,
 			  "maxI": 0,
@@ -271,7 +271,7 @@ describe('each', () => {
 	test('where', async () => {
 		const stats = await callEach({}, {where: {'id<3': []}})
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 3,
 			  "maxConcurrent": 3,
 			  "maxI": 2,
@@ -282,7 +282,7 @@ describe('each', () => {
 	test('concurrent', async () => {
 		const stats = await callEach({}, {concurrent: 2})
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 5,
 			  "maxConcurrent": 2,
 			  "maxI": 4,
@@ -293,7 +293,7 @@ describe('each', () => {
 	test('batchSize', async () => {
 		const stats = await callEach({}, {batchSize: 3})
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 5,
 			  "maxConcurrent": 3,
 			  "maxI": 4,
@@ -305,7 +305,7 @@ describe('each', () => {
 		const stats = await callEach({}, {limit: 1})
 		// ! in the next major release, count will be 2
 		expect(stats).toMatchInlineSnapshot(`
-			Object {
+			{
 			  "count": 5,
 			  "maxConcurrent": 1,
 			  "maxI": 4,

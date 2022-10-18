@@ -351,8 +351,8 @@ describe('SQLite', () => {
 					duration: expect.any(Number),
 				},
 				`
-			Object {
-			  "args": Array [
+			{
+			  "args": [
 			    2,
 			  ],
 			  "duration": Any<Number>,
@@ -360,7 +360,7 @@ describe('SQLite', () => {
 			  "isStmt": undefined,
 			  "method": "get",
 			  "name": StringContaining "memory",
-			  "output": Object {
+			  "output": {
 			    "hi": 2,
 			  },
 			  "query": "select ? as hi",
@@ -383,8 +383,8 @@ describe('SQLite', () => {
 					query: expect.stringMatching(/^{\d+ meep}$/),
 				},
 				`
-			Object {
-			  "args": Array [
+			{
+			  "args": [
 			    2,
 			  ],
 			  "duration": Any<Number>,
@@ -392,7 +392,7 @@ describe('SQLite', () => {
 			  "isStmt": true,
 			  "method": "get",
 			  "name": StringContaining "memory",
-			  "output": Object {
+			  "output": {
 			    "hi": 2,
 			  },
 			  "query": StringMatching /\\^\\{\\\\d\\+ meep\\}\\$/,

@@ -283,7 +283,7 @@ class JsonModelImpl {
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
 	 */
-	makeSelect(/** @type{JMSearchOptions} */ options) {
+	makeSelect(/** @type {JMSearchOptions} */ options) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
 				k =>
@@ -715,7 +715,7 @@ class JsonModelImpl {
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
-	_ensureLoader(/** @type{JMCache<Item,IDCol> */ cache, colName) {
+	_ensureLoader(/** @type {JMCache<Item, IDCol>} */ cache, colName) {
 		if (!cache) throw new Error(`cache is required`)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {

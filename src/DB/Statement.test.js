@@ -51,7 +51,7 @@ test('handles db closure', () =>
 		const s = db.prepare('SELECT id FROM foo LIMIT 1')
 		await db.exec('INSERT INTO foo VALUES (1)')
 		expect(await s.get()).toEqual({id: 1})
-		await expect(db.exec('INSERT INTO foo VALUES (1)')).rejects.toThrowError(
+		await expect(db.exec('INSERT INTO foo VALUES (1)')).rejects.toThrow(
 			'SQLITE_CONSTRAINT'
 		)
 		await db.close()

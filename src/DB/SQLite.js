@@ -350,7 +350,8 @@ class SQLiteImpl extends EventEmitter {
 
 		// Template strings
 		if (!isStmt && Array.isArray(args[0])) {
-			args = sql(.../** @type{[string[], */ (args))
+			// @ts-ignore
+			args = sql(...args)
 			if (!args[1].length) args.pop()
 		}
 

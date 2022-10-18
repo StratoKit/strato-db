@@ -75,11 +75,11 @@ describe('ESDB events', () => {
 
 	test('dispatch invalid object', async () =>
 		withESDB(async eSDB => {
-			expect(() => eSDB.dispatch({data: 'indeed', ts: 42})).toThrowError('type')
-			expect(() =>
-				eSDB.dispatch({type: 5, data: 'indeed', ts: 42})
-			).toThrowError('type')
-			expect(() => eSDB.dispatch({type: 'hi', extra: 'indeed'})).toThrowError(
+			expect(() => eSDB.dispatch({data: 'indeed', ts: 42})).toThrow('type')
+			expect(() => eSDB.dispatch({type: 5, data: 'indeed', ts: 42})).toThrow(
+				'type'
+			)
+			expect(() => eSDB.dispatch({type: 'hi', extra: 'indeed'})).toThrow(
 				'extra'
 			)
 		}))
@@ -109,15 +109,13 @@ describe('ESDB events', () => {
 				foo: {
 					transact: async ({event, dispatch}) => {
 						if (event.type !== 'hi') return
-						expect(() => dispatch({data: 'indeed', ts: 42})).toThrowError(
+						expect(() => dispatch({data: 'indeed', ts: 42})).toThrow('type')
+						expect(() => dispatch({type: 6, data: 'indeed', ts: 42})).toThrow(
 							'type'
 						)
-						expect(() =>
-							dispatch({type: 6, data: 'indeed', ts: 42})
-						).toThrowError('type')
-						expect(() =>
-							dispatch({type: 'indeed', extraMeep: 'foo'})
-						).toThrowError('extraMeep')
+						expect(() => dispatch({type: 'indeed', extraMeep: 'foo'})).toThrow(
+							'extraMeep'
+						)
 					},
 				},
 			},

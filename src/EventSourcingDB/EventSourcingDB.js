@@ -241,9 +241,9 @@ class EventSourcingDB extends EventEmitter {
 			},
 		})
 
-		/** @type{Record<string, InstanceType<ESDBModel>>} */
+		/** @type {Record<string, InstanceType<ESDBModel>>} */
 		this.store = {}
-		/** @type{Record<string, InstanceType<ESDBModel>>} */
+		/** @type {Record<string, InstanceType<ESDBModel>>} */
 		this.rwStore = {}
 		// Used for transact keeping track of call stacks
 		this._alsDispatch = new AsyncLocalStorage()
@@ -883,9 +883,7 @@ class EventSourcingDB extends EventEmitter {
 				// pass the error upwards but leave on bottom-most
 				if (depth && error._handle) delete doneEvent.error
 				event.error = {
-					_handle: `.${subEvent.type}${
-						error._handle ? error._handle : ` failed`
-					}`,
+					_handle: `.${subEvent.type}${error._handle || ` failed`}`,
 				}
 			}
 			return doneEvent

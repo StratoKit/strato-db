@@ -1,19 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`ESModel events are updated 1`] = `
-Array [
-  Object {
-    "data": Array [
+[
+  {
+    "data": [
       1,
       1,
-      Object {
+      {
         "meep": "moop",
       },
     ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
+    "result": {
+      "m": {
+        "ins": [
+          {
             "meep": "moop",
             "v": 1,
           },
@@ -24,26 +24,26 @@ Array [
     "type": "es/m",
     "v": 1,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       1,
       1,
-      Object {
+      {
         "meep": "moop",
         "v": 1,
       },
     ],
-    "result": Object {},
+    "result": {},
     "ts": 0,
     "type": "es/m",
     "v": 2,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       1,
       1,
-      Object {
-        "a": Array [
+      {
+        "a": [
           null,
           3,
         ],
@@ -51,11 +51,11 @@ Array [
         "v": 1,
       },
     ],
-    "result": Object {
-      "m": Object {
-        "upd": Array [
-          Object {
-            "a": Array [
+    "result": {
+      "m": {
+        "upd": [
+          {
+            "a": [
               null,
               3,
             ],
@@ -70,26 +70,26 @@ Array [
     "type": "es/m",
     "v": 3,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       3,
       1,
-      Object {
+      {
         "beep": "boop",
         "v": 1,
       },
     ],
-    "result": Object {},
+    "result": {},
     "ts": 0,
     "type": "es/m",
     "v": 4,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       3,
       1,
-      Object {
-        "a": Array [
+      {
+        "a": [
           null,
           3,
         ],
@@ -97,10 +97,10 @@ Array [
         "v": 1,
       },
     ],
-    "result": Object {
-      "m": Object {
-        "upd": Array [
-          Object {
+    "result": {
+      "m": {
+        "upd": [
+          {
             "beep": "foop",
             "v": 1,
           },
@@ -115,19 +115,19 @@ Array [
 `;
 
 exports[`ESModel events work 1`] = `
-Array [
-  Object {
-    "data": Array [
+[
+  {
+    "data": [
       1,
       1,
-      Object {
+      {
         "meep": "moop",
       },
     ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
+    "result": {
+      "m": {
+        "ins": [
+          {
             "id": 1,
             "meep": "moop",
           },
@@ -138,19 +138,19 @@ Array [
     "type": "es/m",
     "v": 1,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       3,
       1,
-      Object {
+      {
         "beep": "boop",
         "id": 1,
       },
     ],
-    "result": Object {
-      "m": Object {
-        "upd": Array [
-          Object {
+    "result": {
+      "m": {
+        "upd": [
+          {
             "beep": "boop",
             "id": 1,
           },
@@ -161,18 +161,18 @@ Array [
     "type": "es/m",
     "v": 2,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       2,
       2,
-      Object {
+      {
         "meep": "moop",
       },
     ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
+    "result": {
+      "m": {
+        "ins": [
+          {
             "id": 2,
             "meep": "moop",
           },
@@ -183,19 +183,19 @@ Array [
     "type": "es/m",
     "v": 3,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       4,
       3,
-      Object {
+      {
         "beep": "boop",
         "id": 3,
       },
     ],
-    "result": Object {
-      "m": Object {
-        "ins": Array [
-          Object {
+    "result": {
+      "m": {
+        "ins": [
+          {
             "beep": "boop",
             "id": 3,
           },
@@ -206,14 +206,14 @@ Array [
     "type": "es/m",
     "v": 4,
   },
-  Object {
-    "data": Array [
+  {
+    "data": [
       0,
       3,
     ],
-    "result": Object {
-      "m": Object {
-        "rm": Array [
+    "result": {
+      "m": {
+        "rm": [
           3,
         ],
       },

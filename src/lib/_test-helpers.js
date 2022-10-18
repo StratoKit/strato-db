@@ -98,13 +98,12 @@ const withDBs = async fn => {
 }
 
 /**
- * @param {Record<string,any>|function} modelsOrFn
+ * @param {Record<string, any> | function} modelsOrFn
  * @param {function} [fn]
  */
 export const withESDB = (modelsOrFn, fn) => {
 	let models
 	if (typeof modelsOrFn === 'function') {
-		// eslint-disable-next-line no-throw-literal
 		if (fn) throw 'Use either .withESDB(fn) or .withESDB(models, fn)'
 		fn = modelsOrFn
 	} else {
