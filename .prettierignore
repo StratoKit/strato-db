@@ -2,5 +2,4 @@ dist/
 coverage/
 package-lock.json
 package.json
-pnpm-lock.yaml
 API.md

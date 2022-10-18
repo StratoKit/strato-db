@@ -1,43 +1,94 @@
 name: Node CI
 
 on:
-  - push
-  - pull_request
+  pull_request:
+  push:
+    branches:
+      - master
 
 jobs:
-  build:
+  # This job prevents duplicate jobs and doc-only changes
+  verify:
+    continue-on-error: true
     runs-on: ubuntu-latest
 
+    # Map a step output to a job output
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@master
+        with:
+          # https://github.com/marketplace/actions/skip-duplicate-actions#skip-concurrent-workflow-runs
+          concurrent_skipping: same_content_newer
+          paths_ignore: '["**/*.md"]'
+
+  lint:
+    if: ${{ needs.verify.outputs.should_skip != 'true' }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [12.x]
+        node-version: [16.x]
+
+    env:
+      BASE_REF: ${{ github.base_ref }}
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          clean: false
+          # Make git diff HEAD^ work
+          fetch-depth: 2
+      # For diffing
+      - run: git fetch --depth=1 origin ${{ github.base_ref }}
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: npm
 
-      - name: Cache pnpm modules
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-pnpm-modules
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.node-version }}-
-
-      - name: pnpm install
-        uses: pnpm/action-setup@v2.0.1
-        with:
-          version: 6.0.2
-          run_install: true
-
-      - name: tests
-        run: npx nps test.full
+      - run: npm ci
 
       - name: eslint
-        run: npx nps test.lint
+        run: npx nps lint.ci
+        shell: bash
+        env:
+          GH_EVENT: ${{ github.event_name }}
+
+  test:
+    if: ${{ needs.verify.outputs.should_skip != 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [16.x]
+
+    env:
+      BASE_REF: ${{ github.base_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          clean: false
+          # Make git diff HEAD^ work
+          fetch-depth: 2
+      # For diffing
+      - run: git fetch --depth=1 origin ${{ github.base_ref }}
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      # Note, these only check changed files
+      - name: tests
+        run: npx nps test.ci
+        # For pipefail
+        shell: bash
+        env:
+          GH_EVENT: ${{ github.event_name }}
