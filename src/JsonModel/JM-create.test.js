@@ -208,6 +208,7 @@ test('idCol', async () => {
 		['_i'],
 		'SELECT COUNT(*) as t from ( SELECT tbl."v" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
+		false,
 	])
 })
 

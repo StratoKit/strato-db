@@ -70,6 +70,7 @@ test('makeSelect textSearch', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?) )',
 		['%meep%'],
+		false,
 	])
 })
 
@@ -81,6 +82,7 @@ test('makeSelect textSearch falsy', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
+		false,
 	])
 	expect(m.makeSelect({attrs: {foo: null}})).toEqual([
 		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl',
@@ -88,6 +90,7 @@ test('makeSelect textSearch falsy', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl )',
 		[],
+		false,
 	])
 	expect(m.makeSelect({attrs: {foo: 0}})).toEqual([
 		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?)',
@@ -95,6 +98,7 @@ test('makeSelect textSearch falsy', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(json_extract(tbl."json",\'$.foo\') LIKE ?) )',
 		['%0%'],
+		false,
 	])
 })
 
@@ -203,6 +207,7 @@ test('col.where', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(foo = ?) )',
 		['moop'],
+		false,
 	])
 })
 
@@ -216,6 +221,7 @@ test('col.where fn', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(3) )',
 		[4, '123'],
+		false,
 	])
 })
 
@@ -229,6 +235,7 @@ test('col.whereVal fn', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?)AND(ohai) )',
 		[5, 'meep,moop'],
+		false,
 	])
 })
 
@@ -242,6 +249,7 @@ test('col.whereVal fn falsy', () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl WHERE(tbl."id"=?) )',
 		[5],
+		false,
 	])
 })
 

@@ -20,6 +20,26 @@ import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/JSON')
 
+const encodeCursor = (row, cursorKeys, invert) => {
+	const encoded = jsurl.stringify(
+		cursorKeys.map(k => row[k]),
+		{short: true}
+	)
+	return invert ? `!${encoded}` : encoded
+}
+const decodeCursor = cursor => {
+	let cursorVals,
+		invert = false
+	if (cursor) {
+		if (cursor.startsWith('!!')) {
+			invert = true
+			cursor = cursor.slice(1)
+		}
+		cursorVals = jsurl.parse(cursor)
+	}
+	return {cursorVals, invert}
+}
+
 /**
  * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
  * per object (document). Each object must have a unique ID, normally at `obj.id`.
@@ -318,19 +338,25 @@ class JsonModelImpl {
 			noCursor,
 			noTotal,
 		} = options
+
 		cols = cols || this.selectColNames
-		let cursorColNames, cursorQ, cursorArgs
+		let cursorColAliases, cursorQ, cursorArgs
 		const makeCursor = limit && !noCursor
 
-		if (makeCursor || cursor) {
+		const {cursorVals, invert} = decodeCursor(cursor)
+
+		if (cursor || makeCursor) {
 			// We need a tiebreaker sort for cursors
 			sort = sort && sort[this.idCol] ? sort : {...sort, [this.idCol]: 100_000}
 		}
+
+		// Columns to sort by, in priority order
 		const sortNames =
 			sort &&
 			Object.keys(sort)
 				.filter(k => sort[k])
 				.sort((a, b) => Math.abs(sort[a]) - Math.abs(sort[b]))
+
 		if (makeCursor || cursor) {
 			let copiedCols = false
 			// We need the sort columns in the output to get the cursor value
@@ -343,24 +369,32 @@ class JsonModelImpl {
 					cols.push(colName)
 				}
 			}
-			cursorColNames = sortNames.map(c =>
+			cursorColAliases = sortNames.map(c =>
 				this.columns[c] ? this.columns[c].alias : c
 			)
 		}
 
 		if (cursor) {
-			// Create the sort condition for keyset pagination
-			// a >= v0 && (a != v0 || (b >= v1 && (b != v1 || (c > v3))))
-			const vals = jsurl.parse(cursor)
-			const getDir = i => (sort[sortNames[i]] < 0 ? '<' : '>')
-			const l = vals.length - 1
-			cursorQ = `${cursorColNames[l]}${getDir(l)}?`
-			cursorArgs = [vals[l]]
-			for (let i = l - 1; i >= 0; i--) {
+			// Create the sort condition for keyset pagination:
+			// Given cursor (v0, v1, v2) for columns (a, b, c), we get the
+			// next matches with:
+			// a >= v0 && (a != v0 || (b >= v1 && (b != v1 || (c > v2))))
+			// To match previous values, reverse comparisons:
+			// a <= v0 && (a != v0 || (b <= v1 && (b != v1 || (c < v2))))
+			// To page forward, we need smallest next matches; to page
+			// backwards, we need largest previous matches.
+			// Match direction and order follow sort direction and order.
+
+			// invert inverts sort direction
+			const getDir = i => ((sort[sortNames[i]] < 0) ^ invert ? '<' : '>')
+			const len = cursorVals.length - 1
+			cursorQ = `${cursorColAliases[len]}${getDir(len)}?`
+			cursorArgs = [cursorVals[len]] // ID added at first
+			for (let i = len - 1; i >= 0; i--) {
 				cursorQ =
-					`(${cursorColNames[i]}${getDir(i)}=?` +
-					` AND (${cursorColNames[i]}!=? OR ${cursorQ}))`
-				const val = vals[i]
+					`(${cursorColAliases[i]}${getDir(i)}=?` +
+					` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
+				const val = cursorVals[i]
 				cursorArgs.unshift(val, val)
 			}
 		}
@@ -421,8 +455,7 @@ class JsonModelImpl {
 		}
 
 		const orderQ =
-			sortNames &&
-			sortNames.length &&
+			sortNames?.length &&
 			`ORDER BY ${sortNames
 				.map(k => {
 					const col = this.columns[k]
@@ -432,7 +465,7 @@ class JsonModelImpl {
 							? col.alias
 							: col.sql
 						: k
-					return `${colSql}${sort[k] < 0 ? ` DESC` : ``}`
+					return `${colSql}${(sort[k] < 0) ^ invert ? ` DESC` : ``}`
 				})
 				.join(',')}`
 
@@ -447,7 +480,7 @@ class JsonModelImpl {
 
 		const calcTotal = !(noTotal || noCursor)
 		const allConds = cursorQ ? [...conds, cursorQ] : conds
-		const allVals = cursorArgs ? [...(vals || []), ...cursorArgs] : vals
+		const qVals = cursorArgs ? [...(vals || []), ...cursorArgs] : vals
 		const allWhereQ =
 			allConds.length && `WHERE${allConds.map(c => `(${c})`).join('AND')}`
 		const whereQ =
@@ -463,7 +496,8 @@ class JsonModelImpl {
 			[`SELECT COUNT(*) as t from (`, selectQ, join, whereQ, ')']
 				.filter(Boolean)
 				.join(' ')
-		return [q, allVals, cursorColNames, totalQ, vals]
+		// TODO next major make this an object
+		return [q, qVals, cursorColAliases, totalQ, vals, invert]
 	}
 
 	/**
@@ -483,9 +517,8 @@ class JsonModelImpl {
 		return this.db.get(q, vals).then(this.toObj)
 	}
 
-	// Note: To be able to query the previous page with a cursor, we need to invert the sort and then reverse the result rows
 	async search(attrs, {itemsOnly, ...options} = {}) {
-		const [q, vals, cursorKeys, totalQ, totalVals] = this.makeSelect({
+		const [q, vals, cursorKeys, totalQ, totalVals, invert] = this.makeSelect({
 			attrs,
 			noCursor: itemsOnly,
 			...options,
@@ -494,23 +527,20 @@ class JsonModelImpl {
 			this.db.all(q, vals),
 			totalQ && this.db.get(totalQ, totalVals),
 		])
+		// When using prevCursor, the results are reversed
+		if (invert) rows.reverse()
 		const items = this.toObj(rows, options)
 		if (itemsOnly) return items
-		let cursor
-		if (
-			options &&
-			!options.noCursor &&
-			options.limit &&
-			rows.length === options.limit &&
-			(!totalQ || totalO?.t > options.limit)
-		) {
-			const last = rows[rows.length - 1]
-			cursor = jsurl.stringify(
-				cursorKeys.map(k => last[k]),
-				{short: true}
-			)
+		let cursor, prevCursor
+		if (rows.length && options?.limit && !options.noCursor) {
+			cursor =
+				(rows.length === options.limit &&
+					(!totalQ || totalO?.t > options.limit) &&
+					encodeCursor(rows[rows.length - 1], cursorKeys)) ||
+				undefined
+			prevCursor = encodeCursor(rows[0], cursorKeys, true)
 		}
-		return {items, cursor, total: totalO?.t}
+		return {items, cursor, prevCursor, total: totalO?.t}
 	}
 
 	searchAll(attrs, options) {
@@ -557,7 +587,9 @@ class JsonModelImpl {
 		const [q, vals] = this.makeSelect({
 			attrs,
 			...options,
-			sort: undefined,
+			// When counting from cursor, sort is needed
+			// otherwise, sort doesn't help
+			sort: options?.cursor ? options.sort : undefined,
 			limit: undefined,
 			offset: undefined,
 			noCursor: true,

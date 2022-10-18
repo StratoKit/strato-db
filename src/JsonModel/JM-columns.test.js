@@ -90,6 +90,7 @@ test('default w/ sql', async () => {
 		undefined,
 		'SELECT COUNT(*) as t from ( SELECT ifNull(hex(id),0) AS _0 FROM "testing" tbl WHERE(ifNull(hex(id),0)=?) )',
 		[5],
+		false,
 	])
 	expect(m.columns.v.ignoreNull).toBe(false)
 })
