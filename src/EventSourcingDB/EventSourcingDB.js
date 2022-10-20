@@ -51,6 +51,17 @@ const dbg = debug('strato-db/ESDB')
 
 const wait = ms => new Promise(r => setTimeout(r, ms))
 
+const hasUndefValue = obj => {
+	if (typeof obj === 'undefined') return true
+	if (!obj) return false
+	// eslint-disable-next-line unicorn/no-array-callback-reference
+	if (Array.isArray(obj)) return obj.some(hasUndefValue)
+	if (typeof obj === 'object')
+		// eslint-disable-next-line unicorn/no-array-callback-reference
+		return Object.values(obj).some(hasUndefValue)
+	return false
+}
+
 const registerHistoryMigration = (rwDb, queue) => {
 	rwDb.registerMigrations('historyExport', {
 		2_018_040_800: {
@@ -787,6 +798,11 @@ class EventSourcingDB extends EventEmitter {
 					// allow falsy events
 					delete out.events
 				}
+				deprecated(
+					`${name}-reducer-undef`,
+					`The reducer for ${name} return \`undefined\` in its result. This will no longer be allowed in v4.`,
+					() => Object.values(out).some(type => type && hasUndefValue(type))
+				)
 				result[name] = out
 			})
 		)

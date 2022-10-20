@@ -3,8 +3,9 @@ export let deprecated, unknown
 
 if (DEV) {
 	const warned = {}
-	const warner = type => (tag, msg) => {
+	const warner = type => (tag, msg, conditionFn) => {
 		if (warned[tag]) return
+		if (conditionFn && !conditionFn()) return
 		warned[tag] = true
 		// eslint-disable-next-line no-console
 		console.warn(new Error(`!!! ${type} ${msg}`))
