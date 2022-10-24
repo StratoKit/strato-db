@@ -19,13 +19,12 @@ test('search[One] attrs=null', async () => {
 	expect(all.items[0].t).toBe(5)
 })
 
-test('cursor id-only', () => {
+test('makeSelect with cursor', () => {
 	const m = getModel({
 		columns: {
 			id: {type: 'INTEGER'},
 			c: {type: 'TEXT'},
 			d: {},
-			e: {where: '?'},
 		},
 	})
 	expect(m.makeSelect({limit: 5})).toEqual([
@@ -34,6 +33,7 @@ test('cursor id-only', () => {
 		['_i'],
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."c" AS _0,tbl."json" AS _j FROM "testing" tbl )',
 		[],
+		false,
 	])
 	expect(m.makeSelect({limit: 5, cursor: '!3'})).toEqual([
 		'SELECT tbl."id" AS _i,tbl."c" AS _0,tbl."json" AS _j FROM "testing" tbl WHERE(_i>?) ORDER BY _i LIMIT 5',
@@ -41,52 +41,214 @@ test('cursor id-only', () => {
 		['_i'],
 		'SELECT COUNT(*) as t from ( SELECT tbl."id" AS _i,tbl."c" AS _0,tbl."json" AS _j FROM "testing" tbl )',
 		[],
+		false,
 	])
 })
 
-test('search cursor', async () => {
-	const m = getModel({
-		columns: {id: {type: 'INTEGER'}, c: {}, d: {}},
+describe('search cursor', () => {
+	let m, q, sampleSortedTotal, sampleSortedItems
+	beforeAll(async () => {
+		m = getModel({
+			columns: {
+				id: {type: 'INTEGER'},
+				s1: {},
+				s2: {},
+				x1: {},
+				x2: {falsyBool: true},
+			},
+		})
+		const sampleStr = 'aaabbccddffeee'
+		await Promise.all(
+			[...'DCACAEDFCAEBEF'].map((s1, i) =>
+				m.set({
+					id: i + 1,
+					s1,
+					s2: sampleStr[i],
+					x1: i % 2 === 0 ? 0 : 1,
+					x2: i % 2 === 0 ? 0 : 1,
+				})
+			)
+		)
+
+		q = {
+			where: {"json_extract(json, '$.s1')>?": ['B']},
+			sort: {
+				s1: -1,
+				s2: 1,
+				// id: 100_000,
+			},
+			limit: undefined,
+		}
+
+		const resNoLimit = await m.search(null, q)
+		sampleSortedTotal = resNoLimit.total
+		sampleSortedItems = resNoLimit.items
 	})
-	const str = 'aabbccddeeff'
-	await Promise.all(
-		[...'ddaabbcceeff'].map((c, i) => m.set({id: i, c, d: str.charAt(i)}))
-	)
-	const q = {
-		where: {"json_extract(json, '$.c')>?": ['b']},
-		sort: {c: -1, d: 1},
-		limit: 3,
-	}
-	const o = await m.search(null, q)
-	expect(o).toEqual({
-		items: [
-			{id: 10, c: 'f', d: 'f'},
-			{id: 11, c: 'f', d: 'f'},
-			{id: 8, c: 'e', d: 'e'},
-		],
-		cursor: '!e~e~8',
-		total: 8,
+
+	test('search with where, sort, no limit + reverse', async () => {
+		const resNoLimit = await m.search(null, q)
+		expect(resNoLimit).toEqual({
+			cursor: undefined,
+			items: [
+				{id: 8, s1: 'F', s2: 'd', x1: 1, x2: true},
+				{id: 14, s1: 'F', s2: 'e', x1: 1, x2: true},
+				{id: 6, s1: 'E', s2: 'c', x1: 1, x2: true},
+				{id: 13, s1: 'E', s2: 'e', x1: 0},
+				{id: 11, s1: 'E', s2: 'f', x1: 0},
+				{id: 1, s1: 'D', s2: 'a', x1: 0},
+				{id: 7, s1: 'D', s2: 'c', x1: 0},
+				{id: 2, s1: 'C', s2: 'a', x1: 1, x2: true},
+				{id: 4, s1: 'C', s2: 'b', x1: 1, x2: true},
+				{id: 9, s1: 'C', s2: 'd', x1: 0},
+			],
+			prevCursor: undefined,
+			total: 10,
+		})
+
+		const resReverseSortNoLimit = await m.search(null, {
+			...q,
+			sort: {
+				s1: 1,
+				s2: -1,
+				// id: -100_000,
+			},
+		})
+		expect(resReverseSortNoLimit).toEqual({
+			cursor: undefined,
+			items: resNoLimit.items.reverse(),
+			prevCursor: undefined,
+			total: 10,
+		})
 	})
-	const n = await m.search(null, {...q, cursor: o.cursor, noTotal: true})
-	expect(n).toEqual({
-		items: [
-			{id: 9, c: 'e', d: 'e'},
-			{id: 0, c: 'd', d: 'a'},
-			{id: 1, c: 'd', d: 'a'},
-		],
-		cursor: '!d~a~1',
+
+	test('search with where, sort, cursor, limit = full path', async () => {
+		// no cursor (1/4)
+		const res1 = await m.search(null, {...q, limit: 3})
+		expect(res1).toEqual({
+			cursor: '!E~c~6',
+			items: sampleSortedItems.slice(0, 3),
+			prevCursor: '!!F~d~8',
+			total: 10,
+		})
+
+		// => move to next cursor  (2/4)
+		const res2 = await m.search(null, {...q, limit: 3, cursor: res1.cursor})
+		expect(res2).toEqual({
+			cursor: '!D~a~1',
+			items: sampleSortedItems.slice(3, 6),
+			prevCursor: '!!E~e~13',
+			total: 10,
+		})
+
+		// => move to next cursor (3/4)
+		const res3 = await m.search(null, {...q, limit: 3, cursor: res2.cursor})
+		expect(res3).toEqual({
+			cursor: '!C~b~4',
+			items: sampleSortedItems.slice(6, 9),
+			prevCursor: '!!D~c~7',
+			total: 10,
+		})
+
+		// => move to next cursor (4/4)
+		const res4 = await m.search(null, {
+			...q,
+			limit: 3,
+			cursor: res3.cursor,
+		})
+		expect(res4).toEqual({
+			items: sampleSortedItems.slice(9),
+			cursor: undefined,
+			prevCursor: '!!C~d~9',
+			total: 10,
+		})
+
+		// => move to prev cursor (1/3)
+		const res3prev = await m.search(null, {
+			...q,
+			limit: 3,
+			cursor: res4.prevCursor,
+		})
+
+		expect(res3prev).toEqual(res3)
+
+		// => move to prev cursor  (2/3)
+		const res2prev = await m.search(null, {
+			...q,
+			limit: 3,
+			cursor: res3.prevCursor,
+		})
+		expect(res2prev).toEqual(res2)
+
+		// => move to prev cursor  (3/3)
+		const res1prev = await m.search(null, {
+			...q,
+			limit: 3,
+			cursor: res2.prevCursor,
+		})
+		expect(res1prev).toEqual(res1)
+
+		expect(await m.count(null, {...q, cursor: res3.cursor})).toBe(1)
+		expect(await m.count(null, {...q, cursor: res3.prevCursor})).toBe(6)
 	})
-	const l = await m.search(null, {...q, cursor: n.cursor})
-	expect(l).toEqual({
-		items: [
-			{id: 6, c: 'c', d: 'd'},
-			{id: 7, c: 'c', d: 'd'},
-		],
-		cursor: undefined,
-		total: 8,
+
+	test('search with where, sort, cursor, limit - limit equals to total', async () => {
+		// expect: cursor should be null, when equals total
+		const res1 = await m.search(null, {
+			...q,
+			limit: sampleSortedTotal,
+		})
+		expect(res1.cursor).toBeFalsy()
+
+		// expect: cursor should be null, when equals total (2 steps)
+		const res21 = await m.search(null, {...q, limit: sampleSortedTotal / 2})
+		const res22 = await m.search(null, {...q, cursor: res21.cursor})
+		expect(res21.cursor).toBeTruthy()
+		expect(res22.cursor).toBeFalsy()
 	})
-	const limitEqualToTotal = await m.search(null, {...q, limit: 8})
-	expect(limitEqualToTotal.cursor).toBeFalsy()
+
+	test('search with where, limit, bool sort', async () => {
+		const sortWithBool = {s1: -1, s2: 1, x2: -1}
+
+		const res0 = await m.search(null, {...q, sort: sortWithBool})
+		expect(res0).toEqual({
+			cursor: undefined,
+			items: [
+				{id: 8, s1: 'F', s2: 'd', x1: 1, x2: true},
+				{id: 14, s1: 'F', s2: 'e', x1: 1, x2: true},
+				{id: 6, s1: 'E', s2: 'c', x1: 1, x2: true},
+				{id: 13, s1: 'E', s2: 'e', x1: 0},
+				{id: 11, s1: 'E', s2: 'f', x1: 0},
+				{id: 1, s1: 'D', s2: 'a', x1: 0},
+				{id: 7, s1: 'D', s2: 'c', x1: 0},
+				{id: 2, s1: 'C', s2: 'a', x1: 1, x2: true},
+				{id: 4, s1: 'C', s2: 'b', x1: 1, x2: true},
+				{id: 9, s1: 'C', s2: 'd', x1: 0},
+			],
+			prevCursor: undefined,
+			total: 10,
+		})
+
+		const res1 = await m.search(null, {...q, limit: 4, sort: sortWithBool})
+		expect(res1).toEqual({
+			cursor: '!E~e~_N~13',
+			items: res0.items.slice(0, 4),
+			prevCursor: '!!F~d~1~8',
+			total: 10,
+		})
+
+		const res2 = await m.search(null, {
+			...q,
+			limit: 4,
+			sort: sortWithBool,
+			cursor: res1.cursor,
+		})
+		expect(res2).toEqual({
+			cursor: '!C~a~1~2',
+			items: res0.items.slice(4, 8),
+			prevCursor: '!!E~f~_N~11',
+			total: 10,
+		})
+	})
 })
 
 test('search itemsOnly', async () => {
