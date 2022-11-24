@@ -4,8 +4,6 @@ import {chmod} from 'fs-extra'
 import ESDB from '.'
 import {testModels} from '../lib/_test-helpers'
 
-jest.setTimeout(20_000)
-
 test('open eSDB read-only separate queue', () =>
 	tmp.withDir(
 		async ({path: dir}) => {

@@ -2,8 +2,7 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'
 
-jest.setTimeout(60_000)
-
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const payload = JSON.stringify(require('../../package.json')).repeat(50)
 
 let resolveMe, waitP
