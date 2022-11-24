@@ -37,13 +37,13 @@
 // * => warn immediately with error when it happens
 // * => make changing event easy, e.g. call queue.set from graphql or delete it by changing it to type 'HANDLE_FAILED' and rename .error
 
+import {AsyncLocalStorage} from 'node:async_hooks'
+import EventEmitter from 'node:events'
 import debug from 'debug'
-import {AsyncLocalStorage} from 'async_hooks'
 import {isEmpty} from 'lodash'
 import DB from '../DB'
 import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
-import EventEmitter from 'events'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
 
