@@ -1,9 +1,8 @@
 {
 	"compilerOptions": {
 		"target": "ES2021",
-		"module": "commonJS",
-		"allowSyntheticDefaultImports": true,
-		"experimentalDecorators": true,
+		"module": "ES2020",
+		"lib": ["ES2020"],
 		"resolveJsonModule": true,
 		"downlevelIteration": true,
 		"strictNullChecks": true,
@@ -12,11 +11,14 @@
 		// Check JS files too
 		"allowJs": true,
 		"checkJs": true,
-		// Used for temp builds
-		"outDir": "build",
+		"declaration": true,
+		"declarationDir": "lib-types",
 		"moduleResolution": "node",
-
-		"baseUrl": "."
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"incremental": true,
+		"isolatedModules": true,
+		"types": ["vite/client", "vitest/globals"]
 	},
-	"exclude": ["node_modules", "dist", "coverage", "build"]
+	"include": ["src"]
 }

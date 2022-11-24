@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+import {performance} from 'node:perf_hooks'
+import {inspect} from 'node:util'
+import {EventEmitter} from 'node:events'
 import debug from 'debug'
-import {performance} from 'perf_hooks'
-import {inspect} from 'util'
 import sqlite3 from 'sqlite3'
 import Statement from './Statement'
-import {EventEmitter} from 'events'
 
 const dbg = debug('strato-db/sqlite')
 const dbgQ = dbg.extend('query')

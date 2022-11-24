@@ -2,20 +2,20 @@
 
 // The nicest rules
 const nicest = {
-	'default-param-last': 1,
-	eqeqeq: [2, 'allow-null'], // == and != are nice for null+undefined
-	'import/first': 1,
-	'no-console': 2, // we want a clean console - eslint-disable every wanted one
-	'no-implicit-coercion': [2, {allow: ['!!']}], // !! is fun
-	'no-shadow': 2, // sometimes causes logic bugs.
-	'no-unused-vars': [
+	'@typescript-eslint/no-unused-vars': [
 		'error',
+		// allow unused vars starting with _
 		{
 			argsIgnorePattern: '^_',
 			ignoreRestSiblings: true,
 			varsIgnorePattern: '^_',
 		},
-	], // allow unused vars starting with _
+	],
+	'default-param-last': 1,
+	eqeqeq: [2, 'allow-null'], // == and != are nice for null+undefined
+	'no-console': 2, // we want a clean console - eslint-disable every wanted one
+	'no-implicit-coercion': [2, {allow: ['!!']}], // !! is fun
+	'no-shadow': 2, // sometimes causes logic bugs.
 	'object-shorthand': 2,
 	'prefer-destructuring': [
 		2,
@@ -36,6 +36,7 @@ const maybe = {
 
 // these rules suck
 const suck = {
+	'@typescript-eslint/no-explicit-any': 0,
 	'capitalized-comments': 0,
 	'no-eq-null': 0,
 	'no-mixed-operators': 0,
@@ -69,44 +70,20 @@ module.exports = {
 		commonjs: true,
 		es6: true,
 		node: true,
+		'vitest-globals/env': true,
 	},
 	extends: [
 		'eslint:recommended',
-		'plugin:jest/recommended',
-		'plugin:import/errors',
-		'plugin:import/warnings',
+		'plugin:@typescript-eslint/recommended',
+		'plugin:vitest-globals/recommended',
 		'plugin:promise/recommended',
 		'plugin:unicorn/recommended',
 		// Keep this last, it overrides all style rules
 		'plugin:prettier/recommended',
 	],
 	ignorePatterns: ['/build/**/*', '/coverage/**/*', '/dist/**/*'],
-	overrides: [
-		{
-			files: ['**/*.ts'],
-			parser: '@typescript-eslint/parser',
-			plugins: ['@typescript-eslint'],
-		},
-		{
-			files: ['**/*.d.ts'],
-			parser: '@typescript-eslint/parser',
-			plugins: ['@typescript-eslint'],
-			rules: {
-				// don't treat type definitions as unused vars
-				'@typescript-eslint/no-unused-vars': rules['no-unused-vars'],
-				'no-undef': 0,
-				'no-unused-vars': 0,
-			},
-		},
-	],
-	parser: '@babel/eslint-parser',
-	parserOptions: {
-		requireConfigFile: false,
-	},
-	plugins: ['jest', 'import', 'promise', 'unicorn', 'jsdoc'],
+	parser: '@typescript-eslint/parser',
+	plugins: ['promise', 'unicorn', 'jsdoc', '@typescript-eslint'],
 	reportUnusedDisableDirectives: true,
 	rules,
-	settings: {
-		jest: {version: '27'},
-	},
 }
