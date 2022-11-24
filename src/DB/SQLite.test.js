@@ -142,7 +142,7 @@ describe('SQLite', () => {
 	describe('.runOnceOnOpen()', () => {
 		test('works before open', async () => {
 			const db = new SQLite()
-			const spy = jest.fn()
+			const spy = vi.fn()
 			expect(db.runOnceOnOpen(spy)).toBeFalsy()
 			expect(spy).not.toHaveBeenCalled()
 			await db.open()
@@ -157,7 +157,7 @@ describe('SQLite', () => {
 		test('works after open', async () => {
 			const db = new SQLite()
 			await db.open()
-			const spy = jest.fn(() => 'hi')
+			const spy = vi.fn(() => 'hi')
 			expect(db.runOnceOnOpen(spy)).toEqual('hi')
 			expect(spy).toHaveBeenCalledWith(expect.any(SQLite))
 			await db.close()
@@ -165,8 +165,8 @@ describe('SQLite', () => {
 
 		test('works for multiple', async () => {
 			const db = new SQLite()
-			const spy1 = jest.fn()
-			const spy2 = jest.fn(() => expect(spy1).toHaveBeenCalledTimes(1))
+			const spy1 = vi.fn()
+			const spy2 = vi.fn(() => expect(spy1).toHaveBeenCalledTimes(1))
 			expect(db.runOnceOnOpen(spy1)).toBeFalsy()
 			expect(db.runOnceOnOpen(spy2)).toBeFalsy()
 			await db.open()
@@ -208,7 +208,7 @@ describe('SQLite', () => {
 		})
 
 		test('onWillOpen', async () => {
-			const fn = jest.fn()
+			const fn = vi.fn()
 			const db = new SQLite({
 				onWillOpen: fn,
 			})
@@ -255,10 +255,10 @@ describe('SQLite', () => {
 
 		test('emits', async () => {
 			const db = new SQLite()
-			const begin = jest.fn()
-			const end = jest.fn()
-			const rollback = jest.fn()
-			const fnl = jest.fn()
+			const begin = vi.fn()
+			const end = vi.fn()
+			const rollback = vi.fn()
+			const fnl = vi.fn()
 			db.on('begin', begin)
 			db.on('end', end)
 			db.on('rollback', rollback)

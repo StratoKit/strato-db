@@ -239,7 +239,7 @@ describe('each', () => {
 	})
 	test('uses noTotal', async () => {
 		const n = getModel()
-		n.search = jest.fn(() => ({items: []}))
+		n.search = vi.fn(() => ({items: []}))
 		await n.each(() => {})
 		expect(n.search).toHaveBeenCalledTimes(1)
 		expect(n.search).toHaveBeenCalledWith(
