@@ -65,8 +65,8 @@ export const testModels = {
 		},
 	},
 	ignorer: {
-		// eslint-disable-next-line no-unused-vars
-		reducer: args => {},
+		// eslint-disable-next-line @typescript-eslint/no-empty-function
+		reducer: _args => {},
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {
