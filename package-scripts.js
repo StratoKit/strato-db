@@ -1,4 +1,4 @@
-const {concurrent, rimraf, series} = require('nps-utils')
+const {rimraf, series} = require('nps-utils')
 const {version} = require('./package.json')
 
 const isPR = process.env.GH_EVENT === 'pull_request'
@@ -36,7 +36,7 @@ const scripts = {
 		fix: `eslint --fix .; prettier --write .`,
 	},
 	test: {
-		default: concurrent.nps('lint', 'test.full'),
+		default: series.nps('lint', 'test.full'),
 		// Note, this changes the repo during the run
 		ci: isPR
 			? `git reset ${comparisonRef} && NODE_ENV=test jest --ci --coverage --color --onlyChanged; out=$?; git reset HEAD@{1}; exit $out`
