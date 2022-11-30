@@ -1,9 +1,30 @@
 import {sortBy} from 'lodash'
 import debug from 'debug'
-import SQLite, {sql} from './SQLite'
+import SQLite, {SQLiteModel, sql, SQLiteCallback, SQLiteConfig} from './SQLite'
 import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/DB')
+
+/**
+ * A migration, which is a function that will be called once on a database.
+ * Migrations are marked completed by their name in the `{sdb} migrations` table.
+ * `undo` support is not yet added.
+ */
+export type DBMigration = {up: SQLiteCallback} | SQLiteCallback
+/**
+ * A collection of migrations. They will be called one by one in
+ * the alphabetical order of their key.
+ */
+export type DBMigrations = Record<string, DBMigration>
+
+type DBConfig = {
+	/** called before migrations run. Not called when read-only, since migrations don't run then */
+	onBeforeMigrations?: SQLiteCallback
+} & SQLiteConfig
+
+interface DBModel<Name extends string, Config extends {db: DB} = {db: DB}> {
+	new (config: Config): SQLiteModel<Name>
+}
 
 export const _getRanMigrations = async db => {
 	if (
@@ -42,25 +63,25 @@ const _markMigration = async (db, runKey, up) => {
 /**
  * DB adds model management and migrations to Wrapper.
  * The migration state is kept in the table ""{sdb} migrations"".
- *
- * @implements {DB}
  */
-class DBImpl extends SQLite {
-	/** @param {DBOptions} options */
-	constructor({migrations = [], onBeforeMigrations, ...options} = {}) {
-		const onDidOpen = options.readOnly
-			? options.onDidOpen
-			: async db => {
+class DB extends SQLite {
+	migrationsRan = false
+	_migrations: {up: SQLiteCallback; runKey: string}[] = []
+
+	constructor({onBeforeMigrations, ...config}: DBConfig = {}) {
+		const onDidOpen = config.readOnly
+			? config.onDidOpen
+			: async (db: SQLite) => {
 					if (onBeforeMigrations) await onBeforeMigrations(db)
 					await this.runMigrations(db)
-					if (options.onDidOpen) await options.onDidOpen(db)
+					if (config.onDidOpen) await config.onDidOpen(db)
 			  }
-		super({...options, onDidOpen})
-		this.options.migrations = migrations
+		super({...config, onDidOpen})
 	}
 
 	static sql = sql
 
+	/** @deprecated */
 	get models() {
 		if (DEV) deprecated(`use db.store instead of db.models`)
 		return this.store
@@ -71,17 +92,20 @@ class DBImpl extends SQLite {
 	 * database.
 	 * The model should use the given `db` instance at creation time.
 	 *
-	 * @param {Object} Model    - a class.
-	 * @param {Object} options  - options passed during Model creation.
-	 * @returns {Object} - the created Model instance.
+	 * @param Model     - a class.
+	 * @param [config]  - config passed during Model creation.
+	 * @returns The created Model instance.
 	 */
-	addModel(Model, options) {
+	addModel<N extends string, O extends {db: DB}>(
+		Model: DBModel<N, O>,
+		config: O
+	) {
 		const model = new Model({
-			...options,
+			...config,
 			db: this,
 		})
 		if (this.store[model.name])
-			throw new TypeError(`Model name ${model.name} was already added`)
+			throw new TypeError(`A model with name ${model.name} was already added`)
 		this.store[model.name] = model
 		return model
 	}
@@ -95,7 +119,7 @@ class DBImpl extends SQLite {
 	 * - the migrations object.
 	 * @returns {void}
 	 */
-	registerMigrations(name, migrations) {
+	registerMigrations(name: string, migrations: DBMigrations) {
 		if (this.migrationsRan) {
 			throw new Error('migrations already done')
 		}
@@ -110,7 +134,7 @@ class DBImpl extends SQLite {
 			}
 			// Separate with space, it sorts before other things
 			const runKey = `${key} ${name}`
-			this.options.migrations.push({
+			this._migrations.push({
 				...obj,
 				runKey,
 			})
@@ -120,12 +144,12 @@ class DBImpl extends SQLite {
 	/**
 	 * Runs the migrations in a transaction and waits for completion.
 	 *
-	 * @param {SQLite} db  - an opened SQLite instance.
-	 * @returns {Promise<void>} - promise for completed migrations.
+	 * @param db  - an opened SQLite instance.
+	 * @returns Promise for completed migrations.
 	 */
-	async runMigrations(db) {
-		const {store, options} = this
-		const migrations = sortBy(options.migrations, ({runKey}) => runKey)
+	async runMigrations(db: SQLite): Promise<void> {
+		const {store} = this
+		const migrations = sortBy(this._migrations, ({runKey}) => runKey)
 		await db.withTransaction(async () => {
 			const didRun = await _getRanMigrations(db)
 			for (const model of Object.values(store))
@@ -148,4 +172,4 @@ class DBImpl extends SQLite {
 	}
 }
 
-export default DBImpl
+export default DB

@@ -19,21 +19,35 @@ test('finalizes only once', async () => {
 	const db = new DB()
 	const s = db.prepare('SELECT 5')
 	await s.finalize()
-	await expect(s.finalize()).resolves.toBe()
+	await expect(s.finalize()).resolves.toBe(undefined)
 })
 
-test('uses parameters', async () => {
+test('uses array parameters', async () => {
 	const db = new DB()
-	const s = db.prepare('SELECT ?*IFNULL(?,2) AS v')
+	const s = db.prepare<{v: number}, [number, number?]>(
+		'SELECT ?*IFNULL(?,2) AS v'
+	)
 	expect(await s.get([5])).toEqual({v: 10})
 	expect(await s.all([2, 4])).toEqual([{v: 8}])
+	await db.close()
+})
+
+test('uses object parameters', async () => {
+	const db = new DB()
+	const s = db.prepare<{v: number}, {$a?: number; $b: number}>(
+		'SELECT $b*IFNULL($a,2) AS v'
+	)
+	expect(await s.get({$b: 5})).toEqual({v: 10})
+	expect(await s.all({$a: 3, $b: 3})).toEqual([{v: 9}])
+	const cb = vi.fn()
+	await s.each({$b: 2}, cb)
+	expect(cb).toHaveBeenCalledWith({v: 4})
 	await db.close()
 })
 
 test('each()', async () => {
 	const db = new DB()
 	const s = db.prepare('VALUES(1),(2),(3)')
-	await expect(s.each()).rejects.toThrow()
 	let t = ''
 	await expect(
 		s.each([], r => {

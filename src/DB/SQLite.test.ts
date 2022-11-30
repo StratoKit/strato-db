@@ -1,4 +1,3 @@
-/* eslint-disable jest/no-conditional-expect */
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
@@ -43,7 +42,6 @@ describe('sql helper function', () => {
 
 	test('sql`` on DB/db/fns', async () => {
 		const db = new SQLite()
-		// eslint-disable-next-line import/no-named-as-default-member
 		expect(typeof SQLite.sql).toBe('function')
 		expect(typeof db.sql).toBe('function')
 		let p
@@ -110,7 +108,7 @@ describe('SQLite', () => {
 					await extraDb.exec('UPDATE t SET v=v+1 WHERE id=1')
 					await extraDb.close()
 				}
-				const Ps = []
+				const Ps = [] as Promise<void>[]
 				for (let i = 0; i < 10; i++) {
 					Ps.push(openClose())
 				}
@@ -122,20 +120,22 @@ describe('SQLite', () => {
 	})
 	test('.close()', async () => {
 		const db = new SQLite()
-		await db.exec(`
-		CREATE TABLE foo(hi NUMBER);
-		INSERT INTO foo VALUES (42);
-	`)
-		const {hi} = await db.get(`SELECT * FROM foo`)
+		await db.exec`
+			CREATE TABLE foo(hi NUMBER);
+			INSERT INTO foo VALUES (42);
+		`
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const {hi} = (await db.get(`SELECT * FROM foo`))!
 		expect(hi).toBe(42)
 		// This clears db because it's in memory only
 		await db.close()
-		await db.exec(`
-		CREATE TABLE foo(hi NUMBER);
-		INSERT INTO foo VALUES (43);
-	`)
-		const {hi: hi2} = await db.get(`SELECT * FROM foo`)
-		expect(hi2).toBe(43)
+		await db.exec`
+			CREATE TABLE foo(hi NUMBER);
+			INSERT INTO foo VALUES (43);
+		`
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const {hi: hi2} = (await db.get(`SELECT COUNT(*) as hi FROM foo`))!
+		expect(hi2).toBe(1)
 		await db.close()
 	})
 
@@ -197,7 +197,7 @@ describe('SQLite', () => {
 		})
 	})
 
-	describe('options', () => {
+	describe('config', () => {
 		test('readOnly', async () => {
 			const db = new SQLite({readOnly: true})
 			await expectSqliteWorks(db)
@@ -326,10 +326,10 @@ describe('SQLite', () => {
 		await db.exec(
 			`CREATE TABLE foo(hi NUMBER); INSERT INTO foo VALUES (42),(43);`
 		)
-		for (let i = 0; i < 100; i++) await db.run('INSERT INTO FOO VALUES(?)', i)
-		const arr = []
+		for (let i = 0; i < 100; i++) await db.run('INSERT INTO FOO VALUES(?)', [i])
+		const arr: number[] = []
 		let flag = false
-		await db.each(`SELECT * FROM foo`, ({hi}) => {
+		await db.each<{hi: number}>(`SELECT * FROM foo`, ({hi}) => {
 			// it should wait until db.each is done
 			expect(flag).toBeFalsy()
 			arr.push(hi)
@@ -357,7 +357,7 @@ describe('SQLite', () => {
 			  ],
 			  "duration": Any<Number>,
 			  "error": undefined,
-			  "isStmt": undefined,
+			  "isStmt": false,
 			  "method": "get",
 			  "name": StringContaining "memory",
 			  "output": {
@@ -426,8 +426,13 @@ describe('SQLite', () => {
 			await expect(db.get('bad sql haha')).rejects.toThrow(':memory:')
 			await expect(db.all('bad sql haha')).rejects.toThrow(':memory:')
 			await expect(db.exec('bad sql haha')).rejects.toThrow(':memory:')
-			await expect(db.each('bad sql haha')).rejects.toThrow(':memory:')
-			await expect(db.prepare('bad sql haha').get()).rejects.toThrow(':memory:')
+			// eslint-disable-next-line @typescript-eslint/no-empty-function
+			await expect(db.each('bad sql haha', () => {})).rejects.toThrow(
+				':memory:'
+			)
+			await expect(db.prepare('bad sql haha').get([])).rejects.toThrow(
+				':memory:'
+			)
 			await db.close()
 		})
 	})
@@ -472,7 +477,10 @@ describe('SQLite', () => {
 				DELETE FROM test;
 			`)
 					const getLeft = async () => {
-						const {freelist_count: left} = await db.get('PRAGMA freelist_count')
+						// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+						const {freelist_count: left} = (await db.get<{
+							freelist_count: number
+						}>('PRAGMA freelist_count'))!
 						return left
 					}
 					const left1 = await getLeft()

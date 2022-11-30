@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
 import sysPath from 'path'
 import tmp from 'tmp-promise'
 import DB, {_getRanMigrations} from './DB'
@@ -78,7 +79,7 @@ test('runs migrations in writable mode', async () => {
 
 test('sorts migrations', async () => {
 	const db = new DB()
-	const arr = []
+	const arr: string[] = []
 	db.registerMigrations('whee', {
 		c: {
 			up: () => {
@@ -217,7 +218,7 @@ test('10 simultaneous opens', async () =>
 				await extraDb.exec('UPDATE t SET v=v+1 WHERE id=1')
 				await extraDb.close()
 			}
-			const Ps = []
+			const Ps: Promise<void>[] = []
 			for (let i = 0; i < 10; i++) {
 				Ps.push(openClose())
 			}

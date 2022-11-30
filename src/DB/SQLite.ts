@@ -14,6 +14,52 @@ const RETRY_COUNT = 10
 const wait = ms => new Promise(r => setTimeout(r, ms))
 const busyWait = () => wait(200 + Math.floor(Math.random() * 1000))
 
+/** The types that SQLite can return as values */
+export type SQLiteValue = string | number | null | undefined
+/** The types that SQLite can handle as parameter values */
+export type SQLiteParam = SQLiteValue | boolean
+/** Interpolation values, either an array or an object with named values */
+export type SQLiteInterpolation =
+	| SQLiteParam[]
+	| {[name: string]: SQLiteParam}
+	| undefined
+/** A result row */
+export type SQLiteRow = Record<string, null | undefined | string | number>
+export type SQLiteColumnType =
+	| 'TEXT'
+	| 'NUMERIC'
+	| 'INTEGER'
+	| 'REAL'
+	| 'BLOB'
+	| 'JSON'
+export type SQLiteEachCallback<O extends SQLiteRow> = (
+	row: O
+) => Promise<void> | void
+type SqlTemplateArgs<_O extends SQLiteRow, I extends SQLiteParam[]> = [
+	tpl: TemplateStringsArray,
+	...vars: I
+]
+type SQLiteArgs<
+	_O extends SQLiteRow,
+	I extends SQLiteInterpolation
+> = I extends SQLiteParam[] ? [string] | [string, I] : [string, I]
+type TemplateOrSql<
+	O extends SQLiteRow,
+	I extends SQLiteInterpolation
+> = I extends SQLiteParam[]
+	? SqlTemplateArgs<O, I> | SQLiteArgs<O, I>
+	: SQLiteArgs<O, I>
+
+export type SQLiteModel<Name extends string> = {name: Name; [x: string]: any}
+export type SQLiteModels = {[name in string]: SQLiteModel<name>}
+type Statements = {[key: string]: Statement}
+export type SQLiteCallback = (db: SQLite) => void | Promise<void>
+
+/** An instance of sqlite3 */
+type SqlInstance = InstanceType<typeof sqlite3.Database>
+/** The last rowID changed and the number of changes */
+export type SQLiteChangesMeta = {lastID: number; changes: number}
+
 const objToString = o => {
 	const s = inspect(o, {compact: true, breakLength: Number.POSITIVE_INFINITY})
 	return s.length > 250 ? `${s.slice(0, 250)}… (${s.length}b)` : s
@@ -28,23 +74,40 @@ export const valToSql = v => {
 	return `'${v.toString().replace(/'/g, "''")}'`
 }
 
-const isBusyError = err => err.code === 'SQLITE_BUSY'
+class SQLiteError extends Error {
+	code: string
+	constructor(name: string, code: string, message: string) {
+		super(`sqlite3: ${name}: ${message}`)
+		this.code = code
+	}
+}
+
+const isBusyError = (err: SQLiteError | Error) =>
+	'code' in err && err.code === 'SQLITE_BUSY'
 
 /**
- * sql provides templating for SQL.
+ * Template Tag for SQL statements. Generic type O is the output type,
+ * I is the type of any extra defined interpolations.
  *
- * Example:
+ * @example
+ *
  * `` db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
  * ${obj}JSON` ``
  *
  * is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
  * JSON.stringify(obj)])`
  *
- * @type {{quoteId: quoteSqlId} & SqlTag}
  */
-export const sql = (tpl, ...interpolations) => {
+export const sql = <
+	O extends SQLiteRow = SQLiteRow,
+	// If you don't specify I, we don't enforce it
+	I extends SQLiteParam[] = any
+>(
+	tpl: TemplateStringsArray,
+	...interpolations: I
+): SQLiteArgs<O, I> => {
 	let out = tpl[0]
-	const vars = []
+	const vars = [] as SQLiteParam[]
 	for (let i = 1; i < tpl.length; i++) {
 		const val = interpolations[i - 1]
 		let str = tpl[i]
@@ -59,11 +122,11 @@ export const sql = (tpl, ...interpolations) => {
 			out += val
 		} else {
 			out += '?'
-			vars.push(mod === 'JSON' ? JSON.stringify(val) : val)
+			vars.push(mod === 'JSON' ? JSON.stringify(val) : (val as SQLiteParam))
 		}
 		out += str
 	}
-	return [out, vars]
+	return (vars.length ? [out, vars] : [out]) as SQLiteArgs<O, I>
 }
 sql.quoteId = quoteSqlId
 
@@ -74,15 +137,68 @@ const outputToString = (output, method) =>
 
 let connId = 1
 
+export type SQLiteConfig = {
+	/** path to db file. */
+	file?: string
+	/** open read-only. */
+	readOnly?: boolean
+	/** verbose errors. */
+	verbose?: boolean
+	/** called before opening. */
+	onWillOpen?: () => void | Promise<void>
+	/** called after opened. */
+	onDidOpen?: SQLiteCallback
+	/** name for debugging. */
+	name?: string
+	/** run incremental vacuum. */
+	autoVacuum?: boolean
+	/** seconds between incremental vacuums. */
+	vacuumInterval?: number
+	/** number of pages to clean per vacuum. */
+	vacuumPageCount?: number
+	/** @deprecated Internal use only. */
+	_sqlite?: SqlInstance
+	/** @deprecated Internal use only. */
+	_store?: SQLiteModels
+	/** @deprecated Internal use only. */
+	_statements?: Statements
+}
+
 /**
  * SQLite is a wrapper around a single SQLite connection (via node-sqlite3).
  * It provides a Promise API, lazy opening, auto-cleaning prepared statements
  * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
- *
- * @implements {SQLite}
+ * emits these events, all without parameters:
+ * * 'begin': transaction begins
+ * * 'rollback': transaction finished with failure
+ * * 'end': transaction finished successfully
+ * * 'finally': transaction finished
+ * * 'call': call to SQLite completed, includes data and duration
  */
-class SQLiteImpl extends EventEmitter {
-	/** @param {SQLiteOptions} options */
+class SQLite extends EventEmitter {
+	/** DB file path */
+	file: string
+	/** DB name */
+	name: string
+	/** Are we in withTransaction? */
+	inTransaction = false
+	readOnly: boolean
+	store: SQLiteModels
+	statements: Statements
+	config: Pick<
+		SQLiteConfig,
+		'onWillOpen' | 'onDidOpen' | 'verbose' | 'autoVacuum'
+	> &
+		Required<Pick<SQLiteConfig, 'vacuumInterval' | 'vacuumPageCount'>>
+	dbP: Promise<this>
+
+	_sqlite?: SqlInstance
+	_isChild: boolean
+	_openingDbP?: Promise<this>
+	_resolveDbP?: (instance: this | Promise<this>) => void
+	_vacuumToken?: NodeJS.Timer
+	_optimizerToken?: NodeJS.Timer
+
 	constructor({
 		file,
 		readOnly,
@@ -93,28 +209,23 @@ class SQLiteImpl extends EventEmitter {
 		vacuumInterval = 30, // seconds while vacuuming
 		vacuumPageCount = 1024 / 4, // 1MB in 4k pages
 		name,
-		// @ts-ignore
 		_sqlite,
-		// @ts-ignore
 		_store = {},
-		// @ts-ignore
 		_statements = {},
 		...rest
-	} = {}) {
+	}: SQLiteConfig = {}) {
 		super()
 
 		if (Object.keys(rest).length)
-			throw new Error(`Unknown options ${Object.keys(rest).join(',')}`)
+			throw new Error(`Unknown config ${Object.keys(rest).join(',')}`)
 		this.file = file || ':memory:'
 		this.name = `${name || path.basename(this.file, '.db')}|${connId++}`
-		// Are we in withTransaction?
-		this.inTransaction = false
-		this.readOnly = readOnly
+		this.readOnly = !!readOnly
 		this._isChild = !!_sqlite
 		this._sqlite = _sqlite
 		this.store = _store
 		this.statements = _statements
-		this.options = {
+		this.config = {
 			onWillOpen,
 			onDidOpen,
 			verbose,
@@ -127,16 +238,32 @@ class SQLiteImpl extends EventEmitter {
 		})
 	}
 
+	/**
+	 * Template Tag for SQL statements.
+	 *
+	 * @example
+	 *
+	 * `` db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
+	 * ${obj}JSON` ``
+	 *
+	 * is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
+	 * JSON.stringify(obj)])`
+	 *
+	 */
 	static sql = sql
 
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-ignore - this is weird
 	sql = sql
 
-	/** @type {{fn: function; stack: string}[]} */
-	_queuedOnOpen = []
+	_queuedOnOpen: {
+		fn: SQLiteCallback
+		stack?: string
+	}[] = []
 
 	async _openDB() {
-		const {file, readOnly, _isChild, _queuedOnOpen, options, store} = this
-		const {verbose, onWillOpen, onDidOpen, autoVacuum, vacuumInterval} = options
+		const {file, readOnly, _isChild, config, store} = this
+		const {verbose, onWillOpen, onDidOpen, autoVacuum, vacuumInterval} = config
 
 		if (_isChild)
 			throw new Error(
@@ -147,7 +274,7 @@ class SQLiteImpl extends EventEmitter {
 
 		dbg(`${this.name} opening ${file}`)
 
-		const _sqlite = await new Promise((resolve, reject) => {
+		const _sqlite = await new Promise<SqlInstance>((resolve, reject) => {
 			if (verbose) sqlite3.verbose()
 			const mode = readOnly
 				? sqlite3.OPEN_READONLY
@@ -166,11 +293,10 @@ class SQLiteImpl extends EventEmitter {
 				: 1000 + Math.floor(Math.random() * 500)
 		)
 
-		const childDb = new SQLiteImpl({
+		const childDb = new SQLite({
 			file,
 			readOnly,
 			name: this.name,
-			// @ts-ignore
 			_sqlite,
 			_store: store,
 		})
@@ -182,13 +308,15 @@ class SQLiteImpl extends EventEmitter {
 		if (!readOnly) {
 			// Make sure we have WAL journaling - cannot be done in transaction
 			if (file !== ':memory:') {
-				const {journal_mode: mode} = await childDb.get('PRAGMA journal_mode')
+				const {journal_mode: mode} = (await childDb.get(
+					'PRAGMA journal_mode'
+				)) as {journal_mode: string}
 				if (mode !== 'wal') {
-					const {journal_mode: journalMode} = await childDb
+					const {journal_mode: journalMode} = (await childDb
 						.get('PRAGMA journal_mode = wal')
 						.catch(err => {
 							if (!isBusyError(err)) throw err
-						})
+						})) as {journal_mode: string}
 					if (journalMode !== 'wal') {
 						// eslint-disable-next-line no-console
 						console.error(
@@ -199,13 +327,15 @@ class SQLiteImpl extends EventEmitter {
 			}
 
 			if (autoVacuum) {
-				const {auto_vacuum: mode} = await childDb.get(`PRAGMA auto_vacuum`)
+				const {auto_vacuum: mode} = (await childDb.get(
+					`PRAGMA auto_vacuum`
+				)) as {auto_vacuum: number}
 				if (mode !== 2) {
 					await childDb
 						.exec(`PRAGMA auto_vacuum=INCREMENTAL; VACUUM`)
 						.catch(err => {
 							if (!isBusyError(err)) throw err
-							options.autoVacuum = false
+							config.autoVacuum = false
 						})
 				}
 				this._vacuumToken = setInterval(
@@ -260,16 +390,16 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Force opening the database instead of doing it lazily on first access.
 	 *
-	 * @returns {Promise<void>} - a promise for the DB being ready to use.
+	 * @returns A promise for the DB being ready to use.
 	 */
-	open() {
+	open(): Promise<this> {
 		const {_resolveDbP} = this
 		if (_resolveDbP) {
 			this._openingDbP = this._openDB().finally(() => {
-				this._openingDbP = null
+				this._openingDbP = undefined
 			})
 			_resolveDbP(this._openingDbP)
-			this._resolveDbP = null
+			this._resolveDbP = undefined
 			this.dbP.catch(() => this.close())
 		}
 		return this.dbP
@@ -283,10 +413,10 @@ class SQLiteImpl extends EventEmitter {
 	 * Otherwise, the function will be run once after onDidOpen, and errors will
 	 * cause the open to fail.
 	 *
-	 * @param {(db: SQLite)=>void} fn
-	 * @returns {*} Either the function return value or undefined.
+	 * @param fn
+	 * @returns Either the function return value or undefined.
 	 */
-	runOnceOnOpen(fn) {
+	runOnceOnOpen(fn: SQLiteCallback) {
 		if (this.isOpen) {
 			// note that async errors are not handled
 			return fn(this)
@@ -298,20 +428,22 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Close the database connection, including the prepared statements.
 	 *
-	 * @returns {Promise<void>} - a promise for the DB being closed.
+	 * @returns A promise for the DB being closed.
 	 */
-	async close() {
+	async close(): Promise<void> {
 		if (this._openingDbP) {
 			dbg(`${this.name} waiting for open to complete before closing`)
-			await this._openingDbP.catch(() => {})
+			await this._openingDbP.catch(() => {
+				// ignore opening errors
+			})
 		}
 		if (!this._sqlite) return
 		const {_sqlite, _isChild} = this
-		this._sqlite = null
+		this._sqlite = undefined
 		clearInterval(this._optimizerToken)
-		this._optimizerToken = null
+		this._optimizerToken = undefined
 		clearInterval(this._vacuumToken)
-		this._vacuumToken = null
+		this._vacuumToken = undefined
 
 		if (!_isChild) dbg(`${this.name} closing`)
 
@@ -321,6 +453,7 @@ class SQLiteImpl extends EventEmitter {
 
 		const stmts = Object.values(this.statements)
 		if (stmts.length)
+			// eslint-disable-next-line @typescript-eslint/no-empty-function
 			await Promise.all(stmts.map(stmt => stmt.finalize().catch(() => {})))
 
 		// We only want to close our own statements, not the db
@@ -336,32 +469,39 @@ class SQLiteImpl extends EventEmitter {
 	async _hold(method) {
 		if (dbgQ.enabled) dbgQ('_hold', this.name, method)
 		await this.open()
-		return this._sqlite
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		return this._sqlite!
 	}
 
-	async _call(method, args, obj, name, returnThis, returnFn) {
-		const isStmt = obj && obj.isStatement
-		let _sqlite
+	async _call<T>(
+		method,
+		args: any[],
+		obj: SqlInstance | Statement | undefined,
+		name: string,
+		returnThis?: boolean,
+		returnFn?: boolean
+	): Promise<T> {
+		const isStmt = Statement.isStatement(obj)
+		let _sqlite: SqlInstance | InstanceType<typeof Statement>['_stmt']
 		if (!obj) _sqlite = await this._hold(method)
 		else if (isStmt) _sqlite = obj._stmt
 		else _sqlite = obj
 		if (!_sqlite)
 			throw new Error(`${name}: sqlite or statement not initialized`)
+		const mySqlite = _sqlite
 
 		// Template strings
-		if (!isStmt && Array.isArray(args[0])) {
-			// @ts-ignore
-			args = sql(...args)
-			if (!args[1].length) args.pop()
+		if (!isStmt && Array.isArray(args[0]) && 'raw' in args[0]) {
+			args = sql(...(args as [TemplateStringsArray, ...SQLiteParam[]]))
 		}
-
 		const shouldDebug = dbgQ.enabled || this.listenerCount('call')
 		const now = shouldDebug ? performance.now() : undefined
 		let fnResult
 		const result = new Promise((resolve, reject) => {
+			// eslint-disable-next-line prefer-const
 			let cb
 			const runQuery = () => {
-				fnResult = _sqlite[method](...(args || []), cb)
+				fnResult = mySqlite[method](...args, cb)
 			}
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
@@ -370,9 +510,7 @@ class SQLiteImpl extends EventEmitter {
 					if (isBusyError(err) && busyRetry--) {
 						return busyWait().then(runQuery)
 					}
-					const error = new Error(`${name}: sqlite3: ${err.message}`)
-					// @ts-ignore
-					error.code = err.code
+					const error = new SQLiteError(name, err.code, err.message)
 					reject(error)
 				} else
 					resolve(
@@ -383,13 +521,13 @@ class SQLiteImpl extends EventEmitter {
 							: out
 					)
 			}
-			if (!_sqlite[method])
+			if (!mySqlite[method])
 				return cb({message: `method ${method} not supported`})
-			fnResult = _sqlite[method](...(args || []), cb)
+			fnResult = mySqlite[method](...(args || []), cb)
 		})
-		if (shouldDebug) {
+		if (now) {
 			const query = isStmt ? obj._name : String(args[0]).replace(/\s+/g, ' ')
-			const notify = (error, output) => {
+			const notify = (error?: Error, output?: unknown) => {
 				const duration = performance.now() - now
 				if (dbgQ.enabled)
 					dbgQ(
@@ -424,52 +562,52 @@ class SQLiteImpl extends EventEmitter {
 				}
 			)
 		}
-		return result
+		return result as T
 	}
 
 	/**
-	 * Return all rows for the given query.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object[]>} - the results.
+	 * Get all rows for the given query.
 	 */
-	all(...args) {
-		return this._call('all', args, this._sqlite, this.name)
+	all<O extends SQLiteRow = SQLiteRow, I extends SQLiteInterpolation = any>(
+		...args: TemplateOrSql<O, I>
+	) {
+		return this._call<O[]>('all', args, this._sqlite, this.name)
 	}
 
 	/**
-	 * Return the first row for the given query.
+	 * Get the first row for the given query.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object | null>} - the result or falsy if missing.
+	 * @returns The row or undefined if missing.
 	 */
-	get(...args) {
-		return this._call('get', args, this._sqlite, this.name)
+	get<O extends SQLiteRow = SQLiteRow, I extends SQLiteInterpolation = any>(
+		...args: TemplateOrSql<O, I>
+	) {
+		return this._call<O | undefined>('get', args, this._sqlite, this.name)
 	}
 
 	/**
 	 * Run the given query and return the metadata.
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object>} - an object with `lastID` and `changes`
 	 */
-	run(...args) {
-		return this._call('run', args, this._sqlite, this.name, true)
+	run<O extends SQLiteRow = SQLiteRow, I extends SQLiteInterpolation = any>(
+		...args: TemplateOrSql<O, I>
+	) {
+		return this._call<SQLiteChangesMeta>(
+			'run',
+			args,
+			this._sqlite,
+			this.name,
+			true
+		)
 	}
 
 	/**
-	 * Run the given query and return nothing. Slightly more efficient than
-	 * {@link run}
-	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<void>} - a promise for execution completion.
+	 * Run the given query and return nothing. Slightly more efficient than .run()
 	 */
-	async exec(...args) {
-		await this._call('exec', args, this._sqlite, this.name)
+	async exec<
+		O extends SQLiteRow = SQLiteRow,
+		I extends SQLiteInterpolation = any
+	>(...args: TemplateOrSql<O, I>) {
+		await this._call<void>('exec', args, this._sqlite, this.name)
 	}
 
 	/**
@@ -477,60 +615,61 @@ class SQLiteImpl extends EventEmitter {
 	 * will prepare the statement with SQLite whenever needed, as well as finalize
 	 * it when closing the connection.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {string} [name]  - a short name to use in debug logs.
-	 * @returns {Statement} - the statement.
+	 * @returns The statement.
 	 */
-	// eslint-disable-next-line no-shadow
-	prepare(sql, name) {
-		if (this.statements[sql]) return this.statements[sql]
-		return new Statement(this, sql, name)
+	prepare<O extends SQLiteRow = SQLiteRow, I extends SQLiteInterpolation = any>(
+		sqlText: string,
+		name?: string
+	) {
+		if (this.statements[sqlText])
+			return this.statements[sqlText] as unknown as Statement<O, I>
+		return new Statement<O, I>(this, sqlText, name)
 	}
 
 	/**
 	 * Run the given query and call the function on each item.
 	 * Note that node-sqlite3 seems to just fetch all data in one go.
 	 *
-	 * @param {string} sql
-	 * - the SQL statement to be executed.
-	 * @param {any[]} [vars]
-	 * - the variables to be bound to the statement.
-	 * @param {function(Object): Promise<void>} cb
-	 * - the function to call on each row.
-	 * @returns {Promise<void>} - a promise for execution completion.
+	 * @returns The number of rows processed.
 	 */
-	each(...args) {
+	each<O extends SQLiteRow = SQLiteRow, I extends SQLiteInterpolation = any>(
+		...args:
+			| [string, SQLiteEachCallback<O>]
+			| [string, I, SQLiteEachCallback<O>]
+	): Promise<number> {
 		const lastIdx = args.length - 1
-		if (typeof args[lastIdx] === 'function') {
+		const onRow = args[lastIdx]
+		if (typeof onRow === 'function') {
 			// err is always null, no reason to have it
-			const onRow = args[lastIdx]
-			args[lastIdx] = (_, row) => onRow(row)
+			args[lastIdx] = ((_, row) =>
+				onRow(row) as unknown) as SQLiteEachCallback<O>
 		}
-		return this._call('each', args, this._sqlite, this.name)
+		return this._call<number>('each', args, this._sqlite, this.name)
 	}
 
+	_dataVSql: Statement<{data_version: number}, undefined>
 	/**
-	 * Returns the data_version, which increases when other connections write to
+	 * Get the data_version, which increases when other connections write to
 	 * the database.
-	 *
-	 * @returns {Promise<number>} - the data version.
 	 */
 	async dataVersion() {
 		if (!this._sqlite) await this._hold('dataVersion')
 		if (!this._dataVSql)
 			this._dataVSql = this.prepare('PRAGMA data_version', 'dataV')
-		const {data_version: v} = await this._dataVSql.get()
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const {data_version: v} = (await this._dataVSql.get())!
 		return v
 	}
 
+	_userVSql: Statement<{user_version: number}, undefined>
+
 	/**
-	 * Returns or sets the user_version, an arbitrary integer connected to the
-	 * database.
+	 * Get or set the user_version, an arbitrary integer connected to the database.
 	 *
-	 * @param {number} [newV]  - if given, sets the user version.
-	 * @returns {Promise<number>} - the user version.
+	 * @param [newV]  - if given, sets the user version.
+	 * @returns The user version.
 	 */
-	async userVersion(newV) {
+	async userVersion(newV?: number) {
 		if (!this._sqlite) await this._hold('userVersion')
 		// Can't prepare or use pragma with parameter
 		if (newV)
@@ -542,7 +681,8 @@ class SQLiteImpl extends EventEmitter {
 			)
 		if (!this._userVSql)
 			this._userVSql = this.prepare('PRAGMA user_version', 'userV')
-		const {user_version: v} = await this._userVSql.get()
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const {user_version: v} = (await this._userVSql.get())!
 		return v
 	}
 
@@ -553,11 +693,11 @@ class SQLiteImpl extends EventEmitter {
 	 * invocations are serialized, and between connections it uses busy retry
 	 * waiting. During a transaction, the database can still be read.
 	 *
-	 * @param {function} fn  - the function to call. It doesn't get any parameters.
-	 * @returns {Promise<void>} - a promise for transaction completion.
-	 * @throws - when the transaction fails or after too many retries.
+	 * @param fn  - the function to call. It doesn't get any parameters.
+	 * @returns A promise For transaction completion.
+	 * @throws When the transaction fails or after too many retries.
 	 */
-	async withTransaction(fn) {
+	async withTransaction(fn: () => void | Promise<void>) {
 		if (this.readOnly) throw new Error(`${this.name}: DB is readonly`)
 		if (!this._sqlite) await this._hold('transaction')
 
@@ -606,12 +746,14 @@ class SQLiteImpl extends EventEmitter {
 		return result
 	}
 
+	_freeCountSql: Statement<{freelist_count: number}, undefined>
 	async _vacuumStep() {
 		if (!this._sqlite) return
-		const {vacuumInterval, vacuumPageCount} = this.options
+		const {vacuumInterval, vacuumPageCount} = this.config
 		if (!this._freeCountSql)
 			this._freeCountSql = this.prepare('PRAGMA freelist_count', 'freeCount')
-		const {freelist_count: left} = await this._freeCountSql.get()
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		const {freelist_count: left} = (await this._freeCountSql.get())!
 		// leave some free pages in there
 		if (left < vacuumPageCount * 20 || !this._sqlite) return
 		await this.exec(`PRAGMA incremental_vacuum(${vacuumPageCount})`)
@@ -620,4 +762,4 @@ class SQLiteImpl extends EventEmitter {
 	}
 }
 
-export default SQLiteImpl
+export default SQLite
