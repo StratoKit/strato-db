@@ -6,7 +6,10 @@ const makeDefaultIdValue = idCol => obj => {
 	return v1()
 }
 
-export const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
+export const makeIdValue = (
+	idCol,
+	{value, slugValue, type}: JMColumnDef = {}
+) => {
 	if (type === 'INTEGER') {
 		// eslint-disable-next-line unicorn/prefer-logical-operator-over-ternary
 		return value

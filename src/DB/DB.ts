@@ -22,8 +22,9 @@ type DBConfig = {
 	onBeforeMigrations?: SQLiteCallback
 } & SQLiteConfig
 
-interface DBModel<Name extends string, Config extends {db: DB} = {db: DB}> {
-	new (config: Config): SQLiteModel<Name>
+interface DBModel {
+	db: DB
+	attachDb(db: DB): DBMigrations | undefined
 }
 
 export const _getRanMigrations = async db => {
@@ -117,11 +118,10 @@ class DB extends SQLite {
 	 * - the name under which to register these migrations.
 	 * @param {Record<string, function | Record<string, function>>} migrations
 	 * - the migrations object.
-	 * @returns {void}
 	 */
-	registerMigrations(name: string, migrations: DBMigrations) {
+	registerMigrations(name: string, migrations: DBMigrations): void {
 		if (this.migrationsRan) {
-			throw new Error('migrations already done')
+			throw new Error('migrations already done, close DB first')
 		}
 		for (const key of Object.keys(migrations)) {
 			let obj = migrations[key]

@@ -1,5 +1,17 @@
 import {sql} from '../DB'
 import {DBMigrations} from '../DB/DB'
+import JsonModel, {
+	JMBaseConfig,
+	JMColumns,
+	JMConfig,
+	JMIDType,
+	JMMigrationExtraArgs,
+	JMMigrations,
+	JMModelName,
+	JMNormalizedColumnDef,
+	JMObject,
+	JMRecord,
+} from './JsonModel'
 
 export const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
@@ -8,13 +20,49 @@ export const cloneModelWithDb = (m, db) => {
 	return model
 }
 
-export const makeMigrations = ({
+export const makeMigrations = <
+	Model extends JsonModel<
+		RealItem,
+		Config,
+		Name,
+		IDCol,
+		IDType,
+		Item,
+		InputItem,
+		Columns,
+		ColNames,
+		SearchAttrs,
+		SearchOptions,
+		MigrationArgs,
+		RealConfig
+	>,
+	RealItem extends JMRecord,
+	Config extends JMBaseConfig<IDCol>,
+	Name extends JMModelName,
+	IDCol extends string,
+	IDType extends JMIDType,
+	Item extends JMObject<IDCol, IDType>,
+	InputItem extends JMObject<IDCol, IDType>,
+	Columns extends JMColumns<IDCol>,
+	ColNames extends string,
+	SearchAttrs,
+	SearchOptions,
+	MigrationArgs extends JMMigrationExtraArgs,
+	RealConfig extends JMConfig<IDCol, RealItem, MigrationArgs>
+>({
 	name: tableName,
 	idCol,
 	columns,
 	keepRowId,
 	migrations,
 	migrationOptions,
+}: {
+	name: Model['name']
+	idCol: Model['idCol']
+	columns: Model['columns']
+	keepRowId?: boolean
+	migrations?: JMMigrations
+	migrationOptions?: MigrationArgs
 }): DBMigrations => {
 	const tableQuoted = sql.quoteId(tableName)
 	const allMigrations = {

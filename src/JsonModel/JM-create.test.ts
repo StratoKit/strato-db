@@ -8,6 +8,10 @@ test('create', () => {
 
 test('create invalid', () => {
 	const db = new DB()
+	const t: JsonModel<{hi: string}, {idCol: 'c'; name: 'hello'}> = new JsonModel(
+		{idCol: 'c', name: 'hello'}
+	)
+	t.get
 	expect(() => new JsonModel()).toThrow()
 	expect(() => new JsonModel({db})).toThrow()
 	expect(() => new JsonModel({name: 'foo'})).toThrow()

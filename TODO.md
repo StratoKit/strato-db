@@ -26,7 +26,10 @@
 
 ### Nice to have
 
-- [ ] event emitter proxying the sqlite3 events
+- [ ] add tapable hooks
+- [ ] deprecate eventemitter
+- [ ] hooks for the sqlite3 events
+- [ ] hooks: async beforeOpen, sync close
 - [ ] `ensureTable(columns)`: accept column defs and create/add if needed, using pragma table_info
 
   ```text
@@ -142,3 +145,8 @@
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
   - same for preprocessor/deriver/transact
 - [ ] explore read-only clones that get the event queue changes only, dispatches go to primary db. Will need Raft implementation.
+
+## General API approach
+
+- DB|SQLite classes remain as they are
+- Model classes should be instantiated separately from adding to DB store. This way TS can infer types more easily

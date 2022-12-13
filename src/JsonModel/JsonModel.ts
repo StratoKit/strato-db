@@ -39,8 +39,6 @@ export type JMColName = string & {T?: 'colName'}
 
 /** A real or virtual column definition in the created sqlite table */
 export type JMColumnDef<Item extends JMRecord = JMJsonRecord> = {
-	/** the column key, used for the column name if it's a real column.  */
-	name?: JMColName
 	/** is this a real table column. */
 	real?: boolean
 	/** sql column type as accepted by DB. */
@@ -96,13 +94,16 @@ export type JMColumnFn = (args: {columnName: JMColName}) => JMColumnDef
 export type JMColumnDefOrFn = JMColumnDef | JMColumnFn
 export type JMNormalizedColumnDef<Item extends JMRecord> = ForSure<
 	JMColumnDef<Item>,
-	'alias'
+	'alias' | 'get' | 'path'
 > & {
+	/** the column key, used for the column name if it's a real column.  */
+	name: JMColName
 	/** Column name quoted for SQL */
 	quoted: string
 	/** Path within the JSON object */
 	parts: string[]
 }
+
 /**
  * The value types that JsonModel can store without serializing.
  * Basically, anything that fits in a JSON column.
@@ -137,28 +138,17 @@ type MaybeId<
 	IDType extends JMIDType
 > = Omit<T, IDCol> & {[x in IDCol]?: IDType}
 
-type JMMigrationExtraArgs = Record<string, any> | undefined
+export type JMMigrationExtraArgs = Record<string, any> | undefined
 
 /** A function that performs a migration before the DB is opened */
-export type JMMigration<
-	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
-	ExtraArgs extends JMMigrationExtraArgs,
-	T extends JMObject<IDCol, IDType>,
-	Config extends JMBaseConfig<IDCol>,
-	IDCol extends string,
-	IDType extends JMIDType,
-	Name extends JMModelName
-> = (args: ExtraArgs & {db: DB; model: Model}) => void | Promise<void>
-export type JMMigrations<
-	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
-	ExtraArgs extends JMMigrationExtraArgs,
-	T extends JMObject<IDCol, IDType>,
-	Config extends JMBaseConfig<IDCol>,
-	IDCol extends string,
-	IDType extends JMIDType,
-	Name extends JMModelName
-> = {
-	[tag: string]: JMMigrations<Model, ExtraArgs, T, Config, IDCol, IDType, Name>
+export type JMMigration = <
+	Model extends JsonModel = JsonModel,
+	ExtraArgs extends JMMigrationExtraArgs = undefined
+>(
+	args: ExtraArgs & {db: DB; model: Model}
+) => void | Promise<void>
+export type JMMigrations = {
+	[tag: string]: JMMigration
 }
 
 export type JMColumns<IDCol extends JMColName> = Record<
@@ -172,16 +162,13 @@ export type JMBaseConfig<IDCol extends JMColName> = {
 	idCol?: IDCol
 	name: JMModelName
 	columns?: JMColumns<IDCol>
+	migrationOptions?: JMMigrationExtraArgs
 }
 
 export type JMConfig<
-	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
-	Config extends JMBaseConfig<IDCol>,
-	T extends JMObject<IDCol, IDType>,
 	IDCol extends JMColName,
-	IDType extends JMIDType,
-	MigrationArgs extends Record<string, any> | undefined,
-	Name extends JMModelName
+	RealItem extends JMRecord,
+	MigrationArgs extends JMMigrationExtraArgs
 > = {
 	/** the table name  */
 	name: JMModelName
@@ -190,19 +177,11 @@ export type JMConfig<
 	/** the column definitions */
 	columns?: JMColumns<IDCol>
 	/** an object with migration functions. They are run in alphabetical order  */
-	migrations?: JMMigrations<
-		Model,
-		MigrationArgs,
-		T,
-		Config,
-		IDCol,
-		IDType,
-		Name
-	>
+	migrations?: JMMigrations
 	/** free-form data passed to the migration functions  */
 	migrationOptions?: MigrationArgs
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
-	ItemClass?: T
+	ItemClass?: RealItem
 	/** preserve next available row id after vacuum  */
 	keepRowId?: boolean
 	/** @deprecated The DB instance, for internal use. */
@@ -305,7 +284,15 @@ class JsonModel<
 		  {[colName in keyof Item]: JMColumnDef},
 	ColNames extends string = Extract<keyof Columns, string>,
 	SearchAttrs = JMSearchAttrs<ColNames>,
-	SearchOptions = JMSearchOptions<ColNames>
+	SearchOptions = JMSearchOptions<ColNames>,
+	MigrationArgs extends JMMigrationExtraArgs = Config['migrationOptions'] extends JMMigrationExtraArgs
+		? Config['migrationOptions']
+		: undefined,
+	RealConfig extends JMConfig<IDCol, RealItem, MigrationArgs> = JMConfig<
+		IDCol,
+		RealItem,
+		MigrationArgs
+	>
 > implements SQLiteModel<Name>
 {
 	/** The DB instance storing this model */
@@ -323,11 +310,13 @@ class JsonModel<
 	/** The column definitions */
 	columnArr: JMColumnDef[]
 	/** The column definitions keyed by name and alias */
-	columns: Columns
+	columns: Record<ColNames, JMNormalizedColumnDef<Item>>
 	/** The columns that need to be taken from the SQL table */
 	getCols: JMColumnDef[]
 
-	constructor(config: JMConfig<Item, IDCol, IDType>) {
+	_set: ReturnType<typeof this._makeSetFn>
+
+	constructor(config: RealConfig) {
 		verifyOptions(config)
 		const {
 			db,
@@ -383,7 +372,7 @@ class JsonModel<
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
-		this.columns = {} as Columns
+		this.columns = {} as Record<ColNames, JMNormalizedColumnDef<Item>>
 		let i = 0
 		for (const [colName, colDef] of Object.entries(allColumns) as [
 			ColNames,
