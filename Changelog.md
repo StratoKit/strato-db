@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.5.1
+
+### Fixes
+
+- ESModel preprocessor was not resetting \_maxId properly
+
+## 3.5.0
+
+### Changes
+
+- JsonModel: Backwards cursors
+- ESDB: deprecate `undefined` in reducer results
+
 ## 3.4.5
 
 ### Fixes
