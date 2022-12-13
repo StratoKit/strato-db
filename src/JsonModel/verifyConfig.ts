@@ -151,7 +151,7 @@ const jmPropTypes =
 	process.env.NODE_ENV === 'production'
 		? null
 		: {
-				options: PropTypes.exact({
+				config: PropTypes.exact({
 					db: PropTypes.object.isRequired,
 					name: PropTypes.string.isRequired,
 					migrations: PropTypes.objectOf(
@@ -174,7 +174,7 @@ const jmPropTypes =
 				}),
 		  }
 
-export const verifyOptions = options => {
+export const verifyOptions = config => {
 	if (process.env.NODE_ENV !== 'production') {
 		/* eslint-disable no-console */
 		const prevError = console.error
@@ -182,7 +182,7 @@ export const verifyOptions = options => {
 			console.error = prevError
 			throw new Error(message)
 		}
-		PropTypes.checkPropTypes(jmPropTypes, {options}, 'options', 'JsonModel')
+		PropTypes.checkPropTypes(jmPropTypes, {config}, 'config', 'JsonModel')
 		console.error = prevError
 		/* eslint-enable no-console */
 	}

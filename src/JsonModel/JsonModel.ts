@@ -1,6 +1,6 @@
 import debug from 'debug'
 import jsurl from 'jsurl2'
-import {sql} from '../DB'
+import DB, {sql} from '../DB'
 import DataLoader from 'dataloader'
 import {get, set} from 'lodash'
 import {normalizeColumn} from './normalizeColumn'
@@ -12,30 +12,267 @@ import {
 	byPathLength,
 	byPathLengthDesc,
 } from './prepareSqlCol'
-import {verifyOptions, verifyColumn} from './verifyOptions'
+import {verifyOptions, verifyColumn} from './verifyConfig'
 import {makeMigrations} from './makeMigrations'
 import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
+import {
+	SQLiteColumnType,
+	SQLiteModel,
+	SQLiteParam,
+	SQLiteRow,
+	SQLiteValue,
+} from '../DB/SQLite'
 
 const dbg = debug('strato-db/JSON')
 
-const encodeCursor = (row, cursorKeys, invert) => {
+type ForSure<T, keys extends keyof T> = T & {[k in keys]-?: T[k]}
+type NotSure<T, keys extends keyof T> = Omit<T, keys> & {[k in keys]?: T[k]}
+
+/** A cursor */
+export type JMCursor = string & {T?: 'cursor'}
+/** Model name */
+export type JMModelName = string & {T?: 'modelName'}
+/** Column name */
+export type JMColName = string & {T?: 'colName'}
+
+/** A real or virtual column definition in the created sqlite table */
+export type JMColumnDef<Item extends JMRecord = JMJsonRecord> = {
+	/** the column key, used for the column name if it's a real column.  */
+	name?: JMColName
+	/** is this a real table column. */
+	real?: boolean
+	/** sql column type as accepted by DB. */
+	type?: SQLiteColumnType
+	/** path to the value in the object. */
+	path?: string
+	/** INTEGER id column only: apply AUTOINCREMENT on the column. */
+	autoIncrement?: boolean
+	/** the alias to use in SELECT statements. */
+	alias?: string
+	/** should the column be included in search results. */
+	get?: boolean
+	/** process the value after getting from DB. */
+	parse?: (dbVal: SQLiteValue) => any
+	/** process the value before putting into DB. */
+	stringify?: (itemVal: any) => SQLiteParam
+	/** the value is an object and must always be there. If this is a real column, a NULL column value will be replaced by `{}` and vice versa. */
+	alwaysObject?: boolean
+	/** function getting the item to store and returning the value for the column; this creates a real column. Right now the column value is not regenerated for existing rows. */
+	value?: (item: Item) => any
+	/** same as value, but the result is used to generate a unique slug. */
+	slugValue?: (item: Item) => any
+	/** any sql expression to use in SELECT statements. */
+	sql?: string
+	/** if the value is nullish, this will be stored instead. */
+	default?: any
+	/** throw when trying to store a NULL. */
+	required?: boolean
+	/** store/retrieve this boolean value as either `true` or absent from the object. */
+	falsyBool?: boolean
+	/** should it be indexed? false: no. true: if `unique` is false, NULLs are not indexed. SPARSE: index without NULL. ALL: index all values */
+	index?: boolean | 'ALL' | 'SPARSE'
+	/** are null values ignored in the index?. */
+	ignoreNull?: boolean
+	/** should the index enforce uniqueness?. */
+	unique?: boolean
+	/** a function receiving `origVals` and returning the `vals` given to `where`. It should return falsy or an array of values. */
+	whereVal?: (vals: any[]) => any
+	/** the where clause for querying, or a function returning one given `(vals, origVals)`. */
+	where?: string | ((vals: any[], origVals: any[]) => any)
+	/** this column contains an array of values. */
+	isArray?: boolean
+	/** to query, this column value must match one of the given array items. */
+	in?: boolean
+	/** [isArray only] to query, this column value must match all of the given array items. */
+	inAll?: boolean
+	/** perform searches as substring search with LIKE. */
+	textSearch?: boolean
+	/** alias for isArray+inAll. */
+	isAnyOfArray?: boolean
+}
+export type JMColumnFn = (args: {columnName: JMColName}) => JMColumnDef
+export type JMColumnDefOrFn = JMColumnDef | JMColumnFn
+export type JMNormalizedColumnDef<Item extends JMRecord> = ForSure<
+	JMColumnDef<Item>,
+	'alias'
+> & {
+	/** Column name quoted for SQL */
+	quoted: string
+	/** Path within the JSON object */
+	parts: string[]
+}
+/**
+ * The value types that JsonModel can store without serializing.
+ * Basically, anything that fits in a JSON column.
+ */
+export type JMValue =
+	| string
+	| number
+	| boolean
+	| null
+	| JMValue[]
+	| {[key: string]: JMValue}
+/** The possible value types of the stored objects' id */
+export type JMIDType = (string | number) & {I?: 'id'}
+/** The minimum type JsonModel can store */
+export type JMRecord = Record<string, any>
+/** The minimum type JsonModel can store without column configuration */
+export type JMJsonRecord = Record<string, JMValue>
+
+export type IdRecord<IDCol extends string, IDType extends JMIDType> = {
+	[id in IDCol]: IDType
+}
+export type JMObject<IDCol extends string, IDType extends JMIDType> = JMRecord &
+	IdRecord<IDCol, IDType>
+type WithId<
+	T extends JMRecord,
+	IDCol extends string,
+	IDType extends JMIDType
+> = Omit<T, IDCol> & IdRecord<IDCol, IDType>
+type MaybeId<
+	T extends JMRecord,
+	IDCol extends string,
+	IDType extends JMIDType
+> = Omit<T, IDCol> & {[x in IDCol]?: IDType}
+
+type JMMigrationExtraArgs = Record<string, any> | undefined
+
+/** A function that performs a migration before the DB is opened */
+export type JMMigration<
+	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
+	ExtraArgs extends JMMigrationExtraArgs,
+	T extends JMObject<IDCol, IDType>,
+	Config extends JMBaseConfig<IDCol>,
+	IDCol extends string,
+	IDType extends JMIDType,
+	Name extends JMModelName
+> = (args: ExtraArgs & {db: DB; model: Model}) => void | Promise<void>
+export type JMMigrations<
+	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
+	ExtraArgs extends JMMigrationExtraArgs,
+	T extends JMObject<IDCol, IDType>,
+	Config extends JMBaseConfig<IDCol>,
+	IDCol extends string,
+	IDType extends JMIDType,
+	Name extends JMModelName
+> = {
+	[tag: string]: JMMigrations<Model, ExtraArgs, T, Config, IDCol, IDType, Name>
+}
+
+export type JMColumns<IDCol extends JMColName> = Record<
+	JMColName,
+	JMColumnDefOrFn
+> & {
+	[id in IDCol]?: JMColumnDef
+}
+
+export type JMBaseConfig<IDCol extends JMColName> = {
+	idCol?: IDCol
+	name: JMModelName
+	columns?: JMColumns<IDCol>
+}
+
+export type JMConfig<
+	Model extends JsonModel<T, Config, Name, IDCol, IDType>,
+	Config extends JMBaseConfig<IDCol>,
+	T extends JMObject<IDCol, IDType>,
+	IDCol extends JMColName,
+	IDType extends JMIDType,
+	MigrationArgs extends Record<string, any> | undefined,
+	Name extends JMModelName
+> = {
+	/** the table name  */
+	name: JMModelName
+	/** the key of the IDCol column  */
+	idCol?: IDCol
+	/** the column definitions */
+	columns?: JMColumns<IDCol>
+	/** an object with migration functions. They are run in alphabetical order  */
+	migrations?: JMMigrations<
+		Model,
+		MigrationArgs,
+		T,
+		Config,
+		IDCol,
+		IDType,
+		Name
+	>
+	/** free-form data passed to the migration functions  */
+	migrationOptions?: MigrationArgs
+	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
+	ItemClass?: T
+	/** preserve next available row id after vacuum  */
+	keepRowId?: boolean
+	/** @deprecated The DB instance, for internal use. */
+	db?: DB
+}
+
+type Loader<T, U> = import('dataloader')<U, T | undefined>
+/** A lookup cache, managed by DataLoader */
+type JMCache<Item extends Record<string, any>, IDCol extends string> = {
+	[name: string]: Loader<Item, Item[IDCol]>
+}
+
+/**
+ * Keys: literal WHERE clauses that are AND-ed together.
+ *
+ * They are applied if the value is an array, and the number of items in the
+ * array must match the number of `?` in the clause.
+ */
+type JMWhereClauses = {
+	[key: string]: (string | number | boolean)[] | undefined | null | false
+}
+/** Search for simple values. Keys are column names, values are what they should equal */
+type JMSearchAttrs<ColNames extends string> = {
+	[attr in ColNames]?: any
+}
+type JMSearchOptions<ColNames extends string> = {
+	/** literal value search, for convenience. */
+	attrs?: JMSearchAttrs<ColNames>
+	/** sql expressions as keys with arrays of applicable parameters as values. */
+	where?: JMWhereClauses
+	/** arbitrary join clause. Not processed at all. */
+	join?: string
+	/** values needed by the join clause. */
+	joinVals?: any[]
+	/** object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first. */
+	sort?: {[colName in ColNames]?: number}
+	/** max number of rows to return. */
+	limit?: number
+	/** number of rows to skip. */
+	offset?: number
+	/** override the columns to select. */
+	cols?: ColNames[]
+	/** opaque value telling from where to continue. */
+	cursor?: string
+	/** do not calculate cursor. */
+	noCursor?: boolean
+	/** do not calculate totals. */
+	noTotal?: boolean
+}
+
+const encodeCursor = (
+	row: SQLiteRow,
+	cursorKeys: string[],
+	invert?: boolean
+): JMCursor => {
 	const encoded = jsurl.stringify(
 		cursorKeys.map(k => row[k]),
 		{short: true}
 	)
 	return invert ? `!${encoded}` : encoded
 }
-const decodeCursor = cursor => {
-	let cursorVals,
+const decodeCursor = (cursor: JMCursor) => {
+	let cursorVals: any[] | undefined,
 		invert = false
 	if (cursor) {
 		if (cursor.startsWith('!!')) {
 			invert = true
 			cursor = cursor.slice(1)
 		}
-		cursorVals = jsurl.parse(cursor)
+		cursorVals = jsurl.parse(cursor) as any[]
 	}
 	return {cursorVals, invert}
 }
@@ -43,24 +280,55 @@ const decodeCursor = cursor => {
 /**
  * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
  * per object (document). Each object must have a unique ID, normally at `obj.id`.
+ *
+ * Generics are:
+ * - The type of returned Item
+ * - the configuration
+ * - The type of input Item
+ * - Column name of id
  */
+class JsonModel<
+	RealItem extends JMRecord = JMJsonRecord,
+	Config extends JMBaseConfig<IDCol> = {name: 'unknown'},
+	Name extends JMModelName = Config['name'],
+	IDCol extends string = Config['idCol'] extends JMColName
+		? Config['idCol']
+		: 'id',
+	IDType extends JMIDType = RealItem[IDCol] extends JMIDType
+		? RealItem[IDCol]
+		: string,
+	Item extends JMObject<IDCol, IDType> = WithId<RealItem, IDCol, IDType>,
+	InputItem extends JMObject<IDCol, IDType> = MaybeId<RealItem, IDCol, IDType>,
+	Columns extends JMColumns<IDCol> = Config['columns'] extends JMColumns<IDCol>
+		? Config['columns']
+		: // If we didn't get a config, assume all keys are columns
+		  {[colName in keyof Item]: JMColumnDef},
+	ColNames extends string = Extract<keyof Columns, string>,
+	SearchAttrs = JMSearchAttrs<ColNames>,
+	SearchOptions = JMSearchOptions<ColNames>
+> implements SQLiteModel<Name>
+{
+	/** The DB instance storing this model */
+	db: DB
+	/** The table name */
+	name: Name
+	/** The SQL-quoted table name */
+	quoted: string
+	/** The name of the id column */
+	idCol: IDCol
+	/** The SQL-quoted name of the id column */
+	idColQ: string
+	/** The prototype of returned Items */
+	Item: Item
+	/** The column definitions */
+	columnArr: JMColumnDef[]
+	/** The column definitions keyed by name and alias */
+	columns: Columns
+	/** The columns that need to be taken from the SQL table */
+	getCols: JMColumnDef[]
 
-/**
- * A stored object. It will always have a value for the `id` column
- *
- * A table-unique identifier
- *
- * simple equality lookup values for searching.
- *
- * @class JsonModelImpl
- * @template Item
- * @template IDCol
- * @implements {JsonModel<Item, IDCol>}
- */
-class JsonModelImpl {
-	/** @param {JMOptions<Item, IDCol>} options  - the model declaration. */
-	constructor(options) {
-		verifyOptions(options)
+	constructor(config: JMConfig<Item, IDCol, IDType>) {
+		verifyOptions(config)
 		const {
 			db,
 			name,
@@ -70,17 +338,27 @@ class JsonModelImpl {
 			ItemClass,
 			idCol = 'id',
 			keepRowId = true,
-		} = options
+		} = config
 
-		this.db = db
-		this.name = name
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		this.db = db!
+		this.name = name as Name
 		this.quoted = sql.quoteId(name)
-		this.idCol = idCol
+		this.idCol = idCol as IDCol
 		this.idColQ = sql.quoteId(idCol)
-		this.Item = ItemClass
+		this.Item = ItemClass as Item
 
-		const idColDef = (columns && columns[idCol]) || {}
-		const jsonColDef = (columns && columns.json) || {}
+		const idColDefOrFn: JMColumnDefOrFn = (columns && columns[idCol]) || {}
+		const jsonColDefOrFn: JMColumnDefOrFn = (columns && columns.json) || {}
+		const idColDef =
+			typeof idColDefOrFn === 'function'
+				? (idColDefOrFn as JMColumnFn)({columnName: idCol})
+				: idColDefOrFn
+		const jsonColDef =
+			typeof jsonColDefOrFn === 'function'
+				? (jsonColDefOrFn as JMColumnFn)({columnName: 'json'})
+				: jsonColDefOrFn
+
 		const allColumns = {
 			...columns,
 			[idCol]: {
@@ -105,10 +383,12 @@ class JsonModelImpl {
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
-		this.columns = {}
+		this.columns = {} as Columns
 		let i = 0
-		for (const colName of Object.keys(allColumns)) {
-			const colDef = allColumns[colName]
+		for (const [colName, colDef] of Object.entries(allColumns) as [
+			ColNames,
+			JMColumnDefOrFn
+		][]) {
 			let col
 			if (typeof colDef === 'function') {
 				col = colDef({columnName: colName})
@@ -122,9 +402,9 @@ class JsonModelImpl {
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
 
-			normalizeColumn(col, colName)
+			col = normalizeColumn(col, colName)
 			this.columns[colName] = col
-			this.columns[col.alias] = col
+			this.columns[col.alias as ColNames] = col
 			this.columnArr.push(col)
 		}
 		assignJsonParents(this.columnArr)
@@ -505,7 +785,7 @@ class JsonModelImpl {
 	 *
 	 * @param {JMSearchAttrs}   attrs      - simple value attributes.
 	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<Item | null>} - the result or null if no match.
+	 * @returns {Promise<Item | undefined>} - the result or null if no match.
 	 */
 	searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
@@ -695,7 +975,7 @@ class JsonModelImpl {
 	 * @param {IDValue} id                    - the value for the column.
 	 * @param {string}  [colName=this.idCol]  - the columnname, defaults to the ID
 	 *                                        column.
-	 * @returns {Promise<Item | null>} - the object if it exists.
+	 * @returns {Promise<Item | undefined>} - the object if it exists.
 	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
@@ -723,7 +1003,7 @@ class JsonModelImpl {
 	 * @param {IDValue[]} ids                   - the values for the column.
 	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
 	 *                                          ID column.
-	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they don't
+	 * @returns {Promise<(Item | undefined)[]>} - the objects, or undefined where they don't
 	 *                                     exist, in order of their requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
@@ -924,4 +1204,4 @@ class JsonModelImpl {
 	}
 }
 
-export default JsonModelImpl
+export default JsonModel

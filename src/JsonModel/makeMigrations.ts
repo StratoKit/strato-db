@@ -1,4 +1,5 @@
 import {sql} from '../DB'
+import {DBMigrations} from '../DB/DB'
 
 export const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
@@ -14,7 +15,7 @@ export const makeMigrations = ({
 	keepRowId,
 	migrations,
 	migrationOptions,
-}) => {
+}): DBMigrations => {
 	const tableQuoted = sql.quoteId(tableName)
 	const allMigrations = {
 		...migrations,
