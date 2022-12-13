@@ -338,7 +338,7 @@ class ESModel extends JsonModel {
 	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
 	 */
 	static async preprocessor({model, event, isMainEvent}) {
-		if (isMainEvent) this._maxId = 0
+		if (isMainEvent) model._maxId = 0
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
 			// Always overwrite, so repeat events get correct ids
