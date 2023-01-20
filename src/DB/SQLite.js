@@ -393,6 +393,7 @@ class SQLiteImpl extends EventEmitter {
 				const duration = performance.now() - now
 				if (dbgQ.enabled)
 					dbgQ(
+						'%s',
 						`${name}.${method} ${
 							error ? `SQLite error: ${error.message} ` : ''
 						}${query} ${argsToString(args, isStmt)} ${duration.toLocaleString(
