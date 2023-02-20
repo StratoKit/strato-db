@@ -1,6 +1,6 @@
 import {sortBy} from 'lodash'
 import debug from 'debug'
-import SQLite, {SQLiteModel, sql, SQLiteCallback, SQLiteConfig} from './SQLite'
+import SQLite, {sql, SQLiteCallback, SQLiteConfig} from './SQLite'
 import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/DB')
