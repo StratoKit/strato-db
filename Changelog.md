@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.2
+
+### Fixes
+
+- SQLite: prevent interpolation in query debug output
+- Remove old build dependencies
+- Slightly improve types, mostly replacing null returns with undefined
+
 ## 3.5.1
 
 ### Fixes
