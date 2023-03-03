@@ -1,4 +1,4 @@
-const {rimraf, series} = require('nps-utils')
+const {series} = require('nps-utils')
 const {version} = require('./package.json')
 
 const isPR = process.env.GH_EVENT === 'pull_request'
@@ -8,7 +8,7 @@ const runBabel = `NODE_ENV=production babel -s true --ignore '**/*.test.js,**/__
 const scripts = {
 	build: {
 		default: `nps build.clean build.babel`,
-		clean: rimraf('dist/'),
+		clean: 'rm -r dist/',
 		babel: `${runBabel} src/`,
 		watch: `${runBabel} --watch src/`,
 		git: `sh build-git.sh v${version.split('.')[0]}`,

@@ -54,6 +54,7 @@ const suck = {
 	'unicorn/no-nested-ternary': 0,
 	'unicorn/no-null': 0,
 	'unicorn/no-process-exit': 0,
+	'unicorn/no-typeof-undefined': 0,
 	'unicorn/no-useless-undefined': 0,
 	'unicorn/number-literal-case': 0,
 	'unicorn/prefer-module': 0,
