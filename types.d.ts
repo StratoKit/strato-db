@@ -328,18 +328,18 @@ type JMColumnDef = {
 type JMColumnDefOrFn = (({name: string}) => JMColumnDef) | JMColumnDef
 
 /** A function that performs a migration before the DB is opened */
-type JMMigration<T, IDCol extends string> = (
+type JMMigration<T extends {[x: string]: any}, IDCol extends string> = (
 	args: Record<string, any> & {db: DB; model: JsonModel<T, IDCol>}
 ) => Promise<void>
 
 type JMColums<IDCol extends string = 'id'> = {
-	[colName: string]: JMColumnDefOrFn
+	[colName: string]: JMColumnDefOrFn | undefined
 } & {
 	[id in IDCol]?: JMColumnDef
 }
 
 type JMOptions<
-	T,
+	T extends {[x: string]: any},
 	IDCol extends string = 'id',
 	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}}
 > = {
@@ -368,7 +368,7 @@ type JMOptions<
  * array must match the number of `?` in the clause.
  */
 type JMWhereClauses = {
-	[key: string]: (string | number | boolean)[] | null | false
+	[key: string]: (string | number | boolean)[] | undefined | null | false
 }
 
 type JMSearchOptions<Columns> = {
@@ -427,7 +427,7 @@ interface JsonModel<
 	/** The table name */
 	name: string
 	/** The SQL-quoted table name */
-	qouted: string
+	quoted: string
 	/** The name of the id column */
 	idCol: IDCol
 	/** The SQL-quoted name of the id column */
@@ -451,13 +451,13 @@ interface JsonModel<
 	/**
 	 * Search the first matching object.
 	 *
-	 * @returns The result or null if no match.
+	 * @returns The result or undefined if no match.
 	 */
 	searchOne(
 		/** Simple value attributes. */
 		attrs: SearchAttrs,
 		options?: SearchOptions
-	): Promise<Item | null>
+	): Promise<Item | undefined>
 	/**
 	 * Search the all matching objects.
 	 *
@@ -473,7 +473,7 @@ interface JsonModel<
 	): Promise<{items: Item[]; cursor: string}>
 	search(
 		/** Simple value attributes. */
-		attrs: SearchAttrs | null,
+		attrs: SearchAttrs | null | undefined,
 		options: SearchOptions & {
 			/** Return only the items array. */
 			itemsOnly: true
@@ -560,19 +560,19 @@ interface JsonModel<
 		id: SQLiteParam,
 		/** The column name, defaults to the ID column */
 		colName?: JMColName
-	): Promise<Item | null>
+	): Promise<Item | undefined>
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @returns - the objects, or null where they don't exist, in order of their
-	 *          requested ID.
+	 * @returns - the objects, or undefined where they don't exist, in order of
+	 *          their requested ID.
 	 */
 	getAll(
 		/** The values for the column */
 		ids: SQLiteParam[],
 		/** The column name, defaults to the ID column */
 		colName?: JMColName
-	): Promise<(Item | null)[]>
+	): Promise<(Item | undefined)[]>
 	/**
 	 * Get an object by a unique value, like its ID, using a cache.
 	 * This also coalesces multiple calls in the same tick into a single query,
@@ -588,7 +588,7 @@ interface JsonModel<
 		id: SQLiteParam,
 		/** The column name, defaults to the ID column */
 		colName?: JMColName
-	): Promise<Item | null>
+	): Promise<Item | undefined>
 	/**
 	 * Lets you clear all the cache or just a key. Useful for when you change only
 	 * some items.
@@ -691,7 +691,7 @@ type ESEvent = {
 	/** event processing result */
 	result?: Record<string, ReduceResult>
 }
-type EQOptions<T> = JMOptions<T, 'v'> & {
+type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** the table name, defaults to `"history"` */
 	name?: string
 	/** should getNext poll forever? */
@@ -758,10 +758,14 @@ type ReduxArgs<M extends ESDBModel> = {
 }
 type PreprocessorFn<M extends ESDBModel = ESModel<{}>> = (
 	args: ReduxArgs<M>
-) => Promise<ESEvent | null> | ESEvent | null
+) => Promise<ESEvent | undefined> | ESEvent | undefined
 type ReducerFn<M extends ESDBModel = ESModel<{}>> = (
 	args: ReduxArgs<M>
-) => Promise<ReduceResult | null | false> | ReduceResult | null | false
+) =>
+	| Promise<ReduceResult | undefined | false>
+	| ReduceResult
+	| undefined
+	| false
 type ApplyResultFn = (result: ReduceResult) => Promise<void>
 type DeriverFn<M extends ESDBModel = ESModel<{}>> = (
 	args: ReduxArgs<M> & {result: ReduceResult}
@@ -842,7 +846,10 @@ interface EventSourcingDB extends EventEmitter {
 	handledVersion(v: number): Promise<void>
 }
 
-type EMOptions<T, IDCol extends string> = JMOptions<T, IDCol> & {
+type EMOptions<T extends {[x: string]: any}, IDCol extends string> = JMOptions<
+	T,
+	IDCol
+> & {
 	/** the ESDB dispatch function */
 	dispatch: DispatchFn
 	/** emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers.*/
@@ -876,7 +883,7 @@ interface ESModel<
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue}
-> extends JsonModel<Item, ConfigOrID, IDCol>,
+> extends JsonModel<RealItem, ConfigOrID, IDCol, Item>,
 		ESDBModel {
 	new (options: EMOptions<Item, IDCol>): this
 	REMOVE: 0
