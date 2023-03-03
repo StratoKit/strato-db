@@ -70,12 +70,9 @@
     "eslint-plugin-unicorn": "^44.0.2",
     "fs-extra": "^10.1.0",
     "jest-cli": "^29.2.0",
-    "jsdoc": "3.6.11",
-    "jsdoc-to-markdown": "7.1.1",
     "nps-utils": "^1.7.0",
     "prettier": "^2.7.1",
     "tmp-promise": "3.0.3",
-    "tsd-jsdoc": "^2.5.0",
     "typescript": "^4.8.4"
   },
   "jest": {

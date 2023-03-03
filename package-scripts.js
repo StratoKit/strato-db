@@ -12,19 +12,6 @@ const scripts = {
 		babel: `${runBabel} src/`,
 		watch: `${runBabel} --watch src/`,
 		git: `sh build-git.sh v${version.split('.')[0]}`,
-		doc: series(
-			`echo '# API' > API.md`,
-			`echo >> API.md`,
-			`jsdoc2md -f src/*.js src/**/*js >> API.md`,
-			`echo >> API.md`,
-			`git log -n1 --format=format:"_Generated from %H, %cI_" >> API.md`,
-			`prettier --write API.md`
-		),
-		types: series(
-			`jsdoc -t node_modules/tsd-jsdoc/dist -r src -d dist`,
-			// https://github.com/englercj/tsd-jsdoc/issues/64
-			`echo 'export const DB: DB; export const EventSourcingDB: EventSourcingDB; export const SQLite: SQLite; export const EventQueue: EventQueue; export const applyResult: applyResult; export const ESModel: ESModel; export const JsonModel: JsonModel;' >> dist/types.d.ts`
-		),
 	},
 	lint: {
 		default: 'eslint .',
