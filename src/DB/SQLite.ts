@@ -686,7 +686,7 @@ class SQLite extends EventEmitter {
 		return v
 	}
 
-	transactionP = Promise.resolve()
+	transactionP = Promise.resolve() as Promise<any>
 
 	/**
 	 * Run a function in an immediate transaction. Within a connection, the
@@ -697,7 +697,7 @@ class SQLite extends EventEmitter {
 	 * @returns A promise For transaction completion.
 	 * @throws When the transaction fails or after too many retries.
 	 */
-	async withTransaction(fn: () => void | Promise<void>) {
+	async withTransaction<R>(fn: () => R): Promise<Awaited<R>> {
 		if (this.readOnly) throw new Error(`${this.name}: DB is readonly`)
 		if (!this._sqlite) await this._hold('transaction')
 
@@ -708,7 +708,10 @@ class SQLite extends EventEmitter {
 		return this.transactionP
 	}
 
-	async __withTransaction(fn, busyRetry = RETRY_COUNT) {
+	async __withTransaction<R>(
+		fn: () => R,
+		busyRetry = RETRY_COUNT
+	): Promise<Awaited<R>> {
 		try {
 			this.inTransaction = true
 			await this.exec(`BEGIN IMMEDIATE`)

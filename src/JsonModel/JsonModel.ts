@@ -18,17 +18,20 @@ import {makeIdValue} from './makeDefaultIdValue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
 import {
+	SQLiteChangesMeta,
 	SQLiteColumnType,
 	SQLiteModel,
 	SQLiteParam,
 	SQLiteRow,
 	SQLiteValue,
 } from '../DB/SQLite'
+import type Statement from '../DB/Statement'
 
 const dbg = debug('strato-db/JSON')
 
 type ForSure<T, keys extends keyof T> = T & {[k in keys]-?: T[k]}
-type NotSure<T, keys extends keyof T> = Omit<T, keys> & {[k in keys]?: T[k]}
+// type NotSure<T, keys extends keyof T> = Omit<T, keys> & {[k in keys]?: T[k]}
+type IIf<If, A, B> = If extends true ? A : B
 
 /** A cursor */
 export type JMCursor = string & {T?: 'cursor'}
@@ -102,6 +105,14 @@ export type JMNormalizedColumnDef<Item extends JMRecord> = ForSure<
 	quoted: string
 	/** Path within the JSON object */
 	parts: string[]
+	/** The select column expression */
+	select: string
+	/** The alias */
+	alias: string
+
+	_getSql: Statement
+	_getAllSql: Statement
+	_changeIdSql: Statement
 }
 
 /**
@@ -137,6 +148,8 @@ type MaybeId<
 	IDCol extends string,
 	IDType extends JMIDType
 > = Omit<T, IDCol> & {[x in IDCol]?: IDType}
+
+export type JMItemCallback<T> = (item: T, index: number) => void | Promise<void>
 
 export type JMMigrationExtraArgs = Record<string, any> | undefined
 
@@ -181,17 +194,17 @@ export type JMConfig<
 	/** free-form data passed to the migration functions  */
 	migrationOptions?: MigrationArgs
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
-	ItemClass?: RealItem
+	ItemClass?: {new (): RealItem}
 	/** preserve next available row id after vacuum  */
 	keepRowId?: boolean
 	/** @deprecated The DB instance, for internal use. */
 	db?: DB
 }
 
-type Loader<T, U> = import('dataloader')<U, T | undefined>
+type Loader<Key, Value> = import('dataloader')<Key, Value | undefined>
 /** A lookup cache, managed by DataLoader */
-type JMCache<Item extends Record<string, any>, IDCol extends string> = {
-	[name: string]: Loader<Item, Item[IDCol]>
+type JMCache<Item> = {
+	[name: string]: Loader<SQLiteValue, Item>
 }
 
 /**
@@ -209,7 +222,7 @@ type JMSearchAttrs<ColNames extends string> = {
 }
 type JMSearchOptions<ColNames extends string> = {
 	/** literal value search, for convenience. */
-	attrs?: JMSearchAttrs<ColNames>
+	attrs?: JMSearchAttrs<ColNames> | null
 	/** sql expressions as keys with arrays of applicable parameters as values. */
 	where?: JMWhereClauses
 	/** arbitrary join clause. Not processed at all. */
@@ -232,6 +245,17 @@ type JMSearchOptions<ColNames extends string> = {
 	noTotal?: boolean
 }
 
+type JMEachOptions<O> = Omit<O, 'limit'> & {
+	/** Number of callbacks running concurrently */
+	concurrent?: number
+	/** Number of results to fetch from the table per batch */
+	batchSize?: number
+	/** @deprecated Same as batchSize. Will become max total items to fetch. */
+	limit?: number
+	/** @deprecated */
+	fn?: JMItemCallback<any>
+}
+
 const encodeCursor = (
 	row: SQLiteRow,
 	cursorKeys: string[],
@@ -243,7 +267,7 @@ const encodeCursor = (
 	)
 	return invert ? `!${encoded}` : encoded
 }
-const decodeCursor = (cursor: JMCursor) => {
+const decodeCursor = (cursor?: JMCursor) => {
 	let cursorVals: any[] | undefined,
 		invert = false
 	if (cursor) {
@@ -254,6 +278,17 @@ const decodeCursor = (cursor: JMCursor) => {
 		cursorVals = jsurl.parse(cursor) as any[]
 	}
 	return {cursorVals, invert}
+}
+
+type SearchResults<DBItem> = {
+	/** The array of results */
+	items: DBItem[]
+	/** The total number of results or undefined if options.noTotal */
+	total?: number
+	/** The cursor for the next page or undefined if no more items or options.noCursor */
+	cursor?: JMCursor
+	/** The cursor for the previous page or undefined if options.noCursor */
+	prevCursor?: JMCursor
 }
 
 /**
@@ -267,30 +302,42 @@ const decodeCursor = (cursor: JMCursor) => {
  * - Column name of id
  */
 class JsonModel<
-	RealItem extends JMRecord = JMJsonRecord,
+	ItemType extends JMRecord = JMJsonRecord,
 	Config extends JMBaseConfig<IDCol> = {name: 'unknown'},
 	Name extends JMModelName = Config['name'],
 	IDCol extends string = Config['idCol'] extends JMColName
 		? Config['idCol']
 		: 'id',
-	IDType extends JMIDType = RealItem[IDCol] extends JMIDType
-		? RealItem[IDCol]
+	IDType extends JMIDType = ItemType[IDCol] extends JMIDType
+		? ItemType[IDCol]
 		: string,
-	Item extends JMObject<IDCol, IDType> = WithId<RealItem, IDCol, IDType>,
-	InputItem extends JMObject<IDCol, IDType> = MaybeId<RealItem, IDCol, IDType>,
+	DBItem extends WithId<ItemType, IDCol, IDType> = WithId<
+		ItemType,
+		IDCol,
+		IDType
+	>,
+	InputItem extends MaybeId<Partial<ItemType>, IDCol, IDType> = MaybeId<
+		Partial<ItemType>,
+		IDCol,
+		IDType
+	>,
+	// Inferred generics below
 	Columns extends JMColumns<IDCol> = Config['columns'] extends JMColumns<IDCol>
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
-		  {[colName in keyof Item]: JMColumnDef},
-	ColNames extends string = Extract<keyof Columns, string>,
-	SearchAttrs = JMSearchAttrs<ColNames>,
-	SearchOptions = JMSearchOptions<ColNames>,
+		  {[colName in keyof DBItem]: JMColumnDef},
+	ColName extends string | IDCol | 'json' =
+		| Extract<keyof Columns, string>
+		| IDCol
+		| 'json',
+	SearchAttrs extends JMSearchAttrs<ColName> = JMSearchAttrs<ColName>,
+	SearchOptions extends JMSearchOptions<ColName> = JMSearchOptions<ColName>,
 	MigrationArgs extends JMMigrationExtraArgs = Config['migrationOptions'] extends JMMigrationExtraArgs
 		? Config['migrationOptions']
 		: undefined,
-	RealConfig extends JMConfig<IDCol, RealItem, MigrationArgs> = JMConfig<
+	RealConfig extends JMConfig<IDCol, ItemType, MigrationArgs> = JMConfig<
 		IDCol,
-		RealItem,
+		ItemType,
 		MigrationArgs
 	>
 > implements SQLiteModel<Name>
@@ -306,13 +353,23 @@ class JsonModel<
 	/** The SQL-quoted name of the id column */
 	idColQ: string
 	/** The prototype of returned Items */
-	Item: Item
+	Item?: {new (): ItemType}
 	/** The column definitions */
-	columnArr: JMColumnDef[]
+	columnArr: JMNormalizedColumnDef<DBItem>[]
 	/** The column definitions keyed by name and alias */
-	columns: Record<ColNames, JMNormalizedColumnDef<Item>>
+	columns: Record<ColName, JMNormalizedColumnDef<DBItem>>
 	/** The columns that need to be taken from the SQL table */
-	getCols: JMColumnDef[]
+	getCols: JMNormalizedColumnDef<DBItem>[]
+
+	_selectColNames: ColName[]
+	_selectColAliases: string[]
+	_selectColsSql: string
+
+	_allSql: Statement
+	_existsSql: Statement
+	_insertSql: Statement
+	_updateSql: Statement
+	_deleteSql: Statement
 
 	_set: ReturnType<typeof this._makeSetFn>
 
@@ -335,7 +392,7 @@ class JsonModel<
 		this.quoted = sql.quoteId(name)
 		this.idCol = idCol as IDCol
 		this.idColQ = sql.quoteId(idCol)
-		this.Item = ItemClass as Item
+		this.Item = ItemClass
 
 		const idColDefOrFn: JMColumnDefOrFn = (columns && columns[idCol]) || {}
 		const jsonColDefOrFn: JMColumnDefOrFn = (columns && columns.json) || {}
@@ -372,10 +429,10 @@ class JsonModel<
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
-		this.columns = {} as Record<ColNames, JMNormalizedColumnDef<Item>>
+		this.columns = {} as Record<ColName, JMNormalizedColumnDef<DBItem>>
 		let i = 0
 		for (const [colName, colDef] of Object.entries(allColumns) as [
-			ColNames,
+			ColName,
 			JMColumnDefOrFn
 		][]) {
 			let col
@@ -393,7 +450,7 @@ class JsonModel<
 
 			col = normalizeColumn(col, colName)
 			this.columns[colName] = col
-			this.columns[col.alias as ColNames] = col
+			this.columns[col.alias as ColName] = col
 			this.columnArr.push(col)
 		}
 		assignJsonParents(this.columnArr)
@@ -415,19 +472,23 @@ class JsonModel<
 		this._set = this._makeSetFn()
 		// The columns we should normally fetch - json + get columns
 
-		this.selectCols = this.columnArr.filter(c => c.get || c.name === 'json')
-		this.selectColNames = this.selectCols.map(c => c.name)
-		this.selectColAliases = this.selectCols.map(c => c.alias)
-		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
+		const selectCols = this.columnArr.filter(c => c.get || c.name === 'json')
+		this._selectColNames = selectCols.map(c => c.name) as ColName[]
+		this._selectColAliases = selectCols.map(c => c.alias)
+		this._selectColsSql = selectCols.map(c => c.select).join(',')
 	}
 
-	parseRow = (row, options) => {
-		/** @type {JMColumnDef<Item, IDCol>[]} */
-		const mapCols =
+	parseRow = (
+		row: SQLiteRow,
+		options?: {cols?: ColName[]}
+	): typeof options extends {cols: (infer C extends keyof DBItem)[]}
+		? Pick<DBItem, C>
+		: DBItem => {
+		const mapCols: JMNormalizedColumnDef<DBItem>[] =
 			options && options.cols
 				? options.cols.map(n => this.columns[n])
 				: this.getCols
-		const out = this.Item ? new this.Item() : {}
+		const out = (this.Item ? new this.Item() : {}) as DBItem
 		for (const k of mapCols) {
 			let val
 			if (dbg.enabled) {
@@ -460,33 +521,40 @@ class JsonModel<
 
 	_makeSetFn() {
 		const {db, Item, columnArr, quoted, idCol, name} = this
-		const valueCols = columnArr.filter(c => c.value).sort(byPathLength)
+		const valueCols = columnArr
+			.filter(c => c.value)
+			.sort(byPathLength) as ForSure<JMNormalizedColumnDef<DBItem>, 'value'>[]
 		const realCols = columnArr
 			.filter(c => c.real)
 			.sort(byPathLengthDesc)
 			.map((c, i) => ({
 				...c,
 				i,
-				valueI: c.value && valueCols.indexOf(c),
-			}))
+				valueI: c.value && valueCols.indexOf(c as (typeof valueCols)[0]),
+			})) as ForSure<
+			// valueI is actualy undefined if no value but this is easier
+			JMNormalizedColumnDef<DBItem> & {i: number; valueI: number},
+			'real'
+		>[]
 		// This doesn't include sql expressions, you need to .get() for those
 		const setCols = [...realCols].filter(c => c.get).reverse()
-		const mutators = new Set()
+		/** The paths that calculate their value on */
+		const calculators = new Set<string>()
 		for (const col of valueCols) {
 			for (let i = 1; i < col.parts.length; i++)
-				mutators.add(col.parts.slice(0, i).join('.'))
+				calculators.add(col.parts.slice(0, i).join('.'))
 		}
 		for (const col of realCols) {
 			for (let i = 1; i < col.parts.length; i++)
-				if (col.get) mutators.add(col.parts.slice(0, i).join('.'))
+				if (col.get) calculators.add(col.parts.slice(0, i).join('.'))
 		}
-		const mutatePaths = [...mutators].sort(
+		const calcPaths = [...calculators].sort(
 			(a, b) => (a ? a.split('.').length : 0) - (b ? b.split('.').length : 0)
 		)
-		const cloneObj = mutatePaths.length
+		const cloneObj = calcPaths.length
 			? obj => {
 					obj = {...obj}
-					for (const path of mutatePaths) {
+					for (const path of calcPaths) {
 						set(obj, path, {...get(obj, path)})
 					}
 					return obj
@@ -496,7 +564,7 @@ class JsonModel<
 		const setSql = `INTO ${quoted}(${colSqls.join(',')}) VALUES(${colSqls
 			.map(() => '?')
 			.join(',')})`
-		return async (o, insertOnly, noReturn) => {
+		return async (o: InputItem, insertOnly?: boolean, noReturn?: boolean) => {
 			if (this._insertSql?.db !== db) {
 				this._insertSql = db.prepare(`INSERT ${setSql}`, `ins ${name}`)
 				const updateSql = colSqls
@@ -537,7 +605,7 @@ class JsonModel<
 				? P
 				: P.then(result => {
 						// Return what get(id) would return
-						const newObj = Item ? new Item() : {}
+						const newObj = (Item ? new Item() : {}) as DBItem
 						for (const col of setCols) {
 							const val = colVals[col.i]
 							const v = col.parse ? col.parse(val) : val
@@ -546,7 +614,7 @@ class JsonModel<
 						}
 						if (newObj[this.idCol] == null) {
 							// This can only happen for integer ids, so we use the last inserted rowid
-							newObj[this.idCol] = result.lastID
+							newObj[this.idCol] = result.lastID as any
 						}
 						return newObj
 				  })
@@ -558,7 +626,7 @@ class JsonModel<
 	}
 
 	// Converts a row or array of rows to objects
-	toObj = (thing, options) => {
+	toObj = (thing: SQLiteRow | SQLiteRow[], options?: {cols?: ColName[]}) => {
 		if (!thing) {
 			return
 		}
@@ -572,7 +640,7 @@ class JsonModel<
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
 	 */
-	makeSelect(/** @type {JMSearchOptions} */ options) {
+	makeSelect(options: JMSearchOptions<ColName>) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
 				k =>
@@ -594,21 +662,21 @@ class JsonModel<
 				console.warn('Got unknown options for makeSelect:', extras, options) // eslint-disable-line no-console
 			}
 		}
-		let {
-			cols,
+		const {
+			cols: origCols,
 			attrs,
 			join,
 			joinVals,
 			where: extraWhere,
 			limit,
 			offset,
-			sort,
 			cursor,
 			noCursor,
 			noTotal,
 		} = options
+		let {sort} = options
 
-		cols = cols || this.selectColNames
+		let cols = origCols || this._selectColNames
 		let cursorColAliases, cursorQ, cursorArgs
 		const makeCursor = limit && !noCursor
 
@@ -616,20 +684,26 @@ class JsonModel<
 
 		if (cursor || makeCursor) {
 			// We need a tiebreaker sort for cursors
-			sort = sort && sort[this.idCol] ? sort : {...sort, [this.idCol]: 100_000}
+			sort =
+				sort && sort[this.idCol as ColName]
+					? sort
+					: {...sort, [this.idCol]: 100_000}
 		}
 
+		/* eslint-disable @typescript-eslint/no-non-null-assertion */
 		// Columns to sort by, in priority order
 		const sortNames =
 			sort &&
-			Object.keys(sort)
-				.filter(k => sort[k])
-				.sort((a, b) => Math.abs(sort[a]) - Math.abs(sort[b]))
+			(Object.keys(sort)
+				.filter(k => sort![k])
+				.sort((a, b) => Math.abs(sort![a]) - Math.abs(sort![b])) as
+				| ColName[]
+				| undefined)
 
 		if (makeCursor || cursor) {
 			let copiedCols = false
 			// We need the sort columns in the output to get the cursor value
-			for (const colName of sortNames) {
+			for (const colName of sortNames!) {
 				if (!cols.includes(colName)) {
 					if (!copiedCols) {
 						cols = [...cols]
@@ -638,7 +712,7 @@ class JsonModel<
 					cols.push(colName)
 				}
 			}
-			cursorColAliases = sortNames.map(c =>
+			cursorColAliases = sortNames!.map(c =>
 				this.columns[c] ? this.columns[c].alias : c
 			)
 		}
@@ -655,29 +729,30 @@ class JsonModel<
 			// Match direction and order follow sort direction and order.
 
 			// invert inverts sort direction
-			const getDir = i => ((sort[sortNames[i]] < 0) ^ invert ? '<' : '>')
-			const len = cursorVals.length - 1
+			// @ts-expect-error 2447
+			const getDir = i => ((sort![sortNames![i]]! < 0) ^ invert ? '<' : '>')
+			const len = cursorVals!.length - 1
 			cursorQ = `${cursorColAliases[len]}${getDir(len)}?`
-			cursorArgs = [cursorVals[len]] // ID added at first
+			cursorArgs = [cursorVals![len]] // ID added at first
 			for (let i = len - 1; i >= 0; i--) {
 				cursorQ =
 					`(${cursorColAliases[i]}${getDir(i)}=?` +
 					` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
-				const val = cursorVals[i]
+				const val = cursorVals![i]
 				cursorArgs.unshift(val, val)
 			}
 		}
 
 		const colsSql =
-			cols === this.selectColNames
-				? this.selectColsSql
+			cols === this._selectColNames
+				? this._selectColsSql
 				: cols
 						.map(c => (this.columns[c] ? this.columns[c].select : c))
 						.join(',')
 		const selectQ = `SELECT ${colsSql} FROM ${this.quoted} tbl`
 
-		const vals = []
-		const conds = []
+		const vals: SQLiteValue[] = []
+		const conds: string[] = []
 		if (extraWhere) {
 			for (const w of Object.keys(extraWhere)) {
 				const val = extraWhere[w]
@@ -688,7 +763,7 @@ class JsonModel<
 						)
 					}
 					conds.push(w)
-					vals.push(...extraWhere[w])
+					vals.push(...(extraWhere[w] as SQLiteValue[]))
 				}
 			}
 		}
@@ -730,13 +805,17 @@ class JsonModel<
 					const col = this.columns[k]
 					// If we selected we can use the alias
 					const colSql = col
-						? cols.includes(col.name)
+						? cols.includes(col.name as ColName)
 							? col.alias
 							: col.sql
 						: k
-					return `${colSql}${(sort[k] < 0) ^ invert ? ` DESC` : ``}`
+					return `${colSql}${
+						// @ts-expect-error 2447
+						(sort[k]! < 0) ^ invert ? ` DESC` : ``
+					}`
 				})
 				.join(',')}`
+		/* eslint-enable @typescript-eslint/no-non-null-assertion */
 
 		// note: if preparing, this can be replaced with LIMIT(?,?)
 		// First is offset (can be 0) and second is limit (-1 for no limit)
@@ -765,28 +844,52 @@ class JsonModel<
 			[`SELECT COUNT(*) as t from (`, selectQ, join, whereQ, ')']
 				.filter(Boolean)
 				.join(' ')
-		// TODO next major make this an object
+		// TODO make this an object instead (somewhat breaking change)
 		return [q, qVals, cursorColAliases, totalQ, vals, invert]
 	}
 
 	/**
 	 * Search the first matching object.
 	 *
-	 * @param {JMSearchAttrs}   attrs      - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<Item | undefined>} - the result or null if no match.
+	 * @param attrs      - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result or undefined if no match.
 	 */
-	searchOne(attrs, options) {
+	async searchOne(
+		attrs: SearchAttrs | undefined | null,
+		options?: SearchOptions
+	): Promise<DBItem | undefined> {
 		const [q, vals] = this.makeSelect({
 			attrs,
 			...options,
 			limit: 1,
 			noCursor: true,
 		})
-		return this.db.get(q, vals).then(this.toObj)
+		const row = await this.db.get(q, vals)
+		return row && this.parseRow(row)
 	}
 
-	async search(attrs, {itemsOnly, ...options} = {}) {
+	/**
+	 * Search all matching objects with pagination.
+	 *
+	 * @param attrs      - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns If itemsOnly is true, returns an array of items. Otherwise,
+	 *          returns an object with items, total count and cursor. If there
+	 *          are no more items, cursor will be undefined.
+	 */
+	async search(
+		attrs: SearchAttrs | undefined | null,
+		options: SearchOptions & {itemsOnly: true}
+	): Promise<DBItem[]>
+	async search(
+		attrs: SearchAttrs | undefined | null,
+		options?: SearchOptions & {itemsOnly?: false}
+	): Promise<SearchResults<DBItem>>
+	async search(
+		attrs: SearchAttrs | undefined | null,
+		{itemsOnly, ...options} = {} as SearchOptions & {itemsOnly?: boolean}
+	): Promise<DBItem[] | SearchResults<DBItem>> {
 		const [q, vals, cursorKeys, totalQ, totalVals, invert] = this.makeSelect({
 			attrs,
 			noCursor: itemsOnly,
@@ -798,7 +901,7 @@ class JsonModel<
 		])
 		// When using prevCursor, the results are reversed
 		if (invert) rows.reverse()
-		const items = this.toObj(rows, options)
+		const items = this.toObj(rows, options) as DBItem[]
 		if (itemsOnly) return items
 		let cursor, prevCursor
 		if (rows.length && options?.limit && !options.noCursor) {
@@ -812,7 +915,8 @@ class JsonModel<
 		return {items, cursor, prevCursor, total: totalO?.t}
 	}
 
-	searchAll(attrs, options) {
+	/** Same as search but returns items only */
+	searchAll(attrs: SearchAttrs, options: SearchOptions) {
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
 
@@ -820,12 +924,15 @@ class JsonModel<
 	 * Check for existence of objects. Returns `true` if the search would yield
 	 * results.
 	 *
-	 * @returns {Promise<boolean>} The search results exist.
+	 * @returns Whether the search results exist.
 	 */
-	exists(idOrAttrs, options) {
+	async exists(
+		idOrAttrs: IDType | SearchAttrs,
+		options: SearchOptions
+	): Promise<boolean> {
 		if (idOrAttrs && typeof idOrAttrs !== 'object') {
 			if (this._existsSql?.db !== this.db) {
-				const where = this.columns[this.idCol].sql
+				const where = this.columns[this.idCol as ColName].sql
 				this._existsSql = this.db.prepare(
 					`SELECT 1 FROM ${this.quoted} tbl WHERE ${where} = ?`,
 					`existsId ${this.name}`
@@ -842,17 +949,18 @@ class JsonModel<
 			noCursor: true,
 			cols: ['1'],
 		})
-		return this.db.get(q, vals).then(row => !!row)
+		const row = await this.db.get(q, vals)
+		return !!row
 	}
 
 	/**
 	 * Count of search results.
 	 *
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the count.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - Search options.
+	 * @returns - the count.
 	 */
-	count(attrs, options) {
+	async count(attrs?: SearchAttrs, options?: SearchOptions): Promise<number> {
 		const [q, vals] = this.makeSelect({
 			attrs,
 			...options,
@@ -862,21 +970,29 @@ class JsonModel<
 			limit: undefined,
 			offset: undefined,
 			noCursor: true,
-			cols: ['COUNT(*) AS c'],
+			// Hack: You can actually pass select expressions
+			cols: ['COUNT(*) AS c' as ColName],
 		})
-		return this.db.get(q, vals).then(row => row.c)
+		const row = await this.db.get(q, vals)
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		return row!.c as number
 	}
 
 	/**
 	 * Numeric Aggregate Operation.
 	 *
-	 * @param {string}          op         - the SQL function, e.g. MAX.
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param op         - the SQL function, e.g. MAX.
+	 * @param colName    - column to aggregate.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result.
 	 */
-	numAggOp(op, colName, attrs, options) {
+	async numAggOp(
+		op: 'AVG' | 'MAX' | 'MIN' | 'SUM' | 'TOTAL',
+		colName: ColName,
+		attrs?: SearchAttrs | null,
+		options?: SearchOptions
+	): Promise<number> {
 		const col = this.columns[colName]
 		const colSql = (col && col.sql) || colName
 		const o = {
@@ -886,117 +1002,123 @@ class JsonModel<
 			limit: undefined,
 			offset: undefined,
 			noCursor: true,
+			noTotal: true,
 			cols: [`${op}(CAST(${colSql} AS NUMERIC)) AS val`],
-		}
+		} as SearchOptions
 		if (col && col.ignoreNull) {
 			// Make sure we can use the index
 			o.where = {...o.where, [`${colSql} IS NOT NULL`]: []}
 		}
 		const [q, vals] = this.makeSelect(o)
-		return this.db.get(q, vals).then(row => row.val)
+		const row = await this.db.get(q, vals)
+		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+		return row!.val as number
 	}
 
 	/**
 	 * Maximum value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param colName    - column to aggregate.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result.
 	 */
-	max(colName, attrs, options) {
+	max(colName: ColName, attrs?: SearchAttrs | null, options?: SearchOptions) {
 		return this.numAggOp('MAX', colName, attrs, options)
 	}
 
 	/**
 	 * Minimum value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param colName    - column to aggregate.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result.
 	 */
-	min(colName, attrs, options) {
+	min(colName: ColName, attrs?: SearchAttrs | null, options?: SearchOptions) {
 		return this.numAggOp('MIN', colName, attrs, options)
 	}
 
 	/**
 	 * Sum values.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param colName    - column to aggregate.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result.
 	 */
-	sum(colName, attrs, options) {
+	sum(colName: ColName, attrs?: SearchAttrs | null, options?: SearchOptions) {
 		return this.numAggOp('SUM', colName, attrs, options)
 	}
 
 	/**
 	 * Average value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param colName    - column to aggregate.
+	 * @param [attrs]    - simple value attributes.
+	 * @param [options]  - search options.
+	 * @returns The result.
 	 */
-	avg(colName, attrs, options) {
+	avg(colName: ColName, attrs?: SearchAttrs | null, options?: SearchOptions) {
 		return this.numAggOp('AVG', colName, attrs, options)
 	}
 
 	/**
 	 * Get all objects.
 	 *
-	 * @returns {Promise<Item[]>} - the table contents.
+	 * @returns The table contents.
 	 */
-	all() {
+	async all(): Promise<DBItem[]> {
 		if (this._allSql?.db !== this.db)
 			this._allSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl`,
+				`SELECT ${this._selectColsSql} FROM ${this.quoted} tbl`,
 				`all ${this.name}`
 			)
-		return this._allSql.all().then(this.toObj)
+		const rows = await this._allSql.all()
+		return this.toObj(rows) as DBItem[]
 	}
 
 	/**
 	 * Get an object by a unique value, like its ID.
 	 *
-	 * @param {IDValue} id                    - the value for the column.
-	 * @param {string}  [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                        column.
-	 * @returns {Promise<Item | undefined>} - the object if it exists.
+	 * @param id         - the value for the column.
+	 * @param [colName]  - the columnname, defaults to the ID column.
+	 * @returns The object if it exists.
 	 */
-	get(id, colName = this.idCol) {
+	async get(
+		id: SQLiteValue,
+		colName = this.idCol as ColName
+	): Promise<DBItem | undefined> {
 		if (id == null) {
-			return Promise.reject(
-				new Error(`No id given for "${this.name}.${colName}"`)
-			)
+			throw new Error(`No id given for "${this.name}.${colName}"`)
 		}
 		const col = this.columns[colName]
 		if (!col)
-			return Promise.reject(
-				new Error(`Unknown column "${colName}" given for "${this.name}"`)
-			)
+			throw new Error(`Unknown column "${colName}" given for "${this.name}"`)
 		if (col._getSql?.db !== this.db) {
 			col._getSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${col.sql} = ?`,
+				`SELECT ${this._selectColsSql} FROM ${this.quoted} tbl WHERE ${col.sql} = ?`,
 				`get ${this.name}.${colName}`
 			)
 		}
-		return col._getSql.get([id]).then(this.toObj)
+		const row = await col._getSql.get([id])
+		return row && this.parseRow(row)
 	}
 
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @param {IDValue[]} ids                   - the values for the column.
-	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
-	 *                                          ID column.
-	 * @returns {Promise<(Item | undefined)[]>} - the objects, or undefined where they don't
-	 *                                     exist, in order of their requested ID.
+	 * @param ids        - the values for the column.
+	 * @param [colName]  - the columnname, defaults to the ID column.
+	 * @returns - the objects, or undefined where they don't exist, in order of
+	 *          their requested ID.
 	 */
-	async getAll(ids, colName = this.idCol) {
-		let {path, _getAllSql} = this.columns[colName]
+	async getAll(
+		ids: readonly SQLiteValue[],
+		colName = this.idCol as ColName
+	): Promise<(DBItem | undefined)[]> {
+		const {path} = this.columns[colName]
+		let {_getAllSql} = this.columns[colName]
 		if (_getAllSql?.db !== this.db) {
 			const {sql: where, real, get: isSelected} = this.columns[colName]
 			if (real && !isSelected)
@@ -1004,7 +1126,7 @@ class JsonModel<
 					`JsonModel: Cannot getAll on get:false column ${colName}`
 				)
 			_getAllSql = this.db.prepare(
-				`SELECT ${this.selectColsSql} FROM ${this.quoted} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
+				`SELECT ${this._selectColsSql} FROM ${this.quoted} tbl WHERE ${where} IN (SELECT value FROM json_each(?))`,
 				`get ${this.name}.${colName}`
 			)
 			this.columns[colName]._getAllSql = _getAllSql
@@ -1012,11 +1134,14 @@ class JsonModel<
 		if (!ids?.length) return []
 		if (ids.length === 1) return [await this.get(ids[0], colName)]
 		const rows = await _getAllSql.all([JSON.stringify(ids)])
-		const objs = this.toObj(rows)
+		const objs = this.toObj(rows) as DBItem[]
 		return ids.map(id => objs.find(o => get(o, path) === id))
 	}
 
-	_ensureLoader(/** @type {JMCache<Item, IDCol>} */ cache, colName) {
+	_ensureLoader(
+		cache: JMCache<DBItem>,
+		colName: ColName
+	): Loader<SQLiteValue, DBItem> {
 		if (!cache) throw new Error(`cache is required`)
 		const key = `_DL_${this.name}_${colName}`
 		if (!cache[key]) {
@@ -1028,7 +1153,18 @@ class JsonModel<
 		return cache[key]
 	}
 
-	getCached(cache, id, colName = this.idCol) {
+	/**
+	 * Get an object by a unique value, like its ID, using a cache.
+	 * This also coalesces multiple calls in the same tick into a single query,
+	 * courtesy of DataLoader.
+	 *
+	 * @returns - the object if it exists. It will be cached.
+	 */
+	getCached(
+		cache: JMCache<DBItem>,
+		id: SQLiteValue,
+		colName = this.idCol as ColName
+	) {
 		if (!cache) return this.get(id, colName)
 		return this._ensureLoader(cache, colName).load(id)
 	}
@@ -1037,123 +1173,169 @@ class JsonModel<
 	 * Lets you clear all the cache or just a key. Useful for when you change only
 	 * some items.
 	 *
-	 * @param {Object} cache                 - the lookup cache. It is managed with
-	 *                                       DataLoader.
-	 * @param {ID}     [id]                  - the value for the column.
-	 * @param {string} [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                       column.
-	 * @returns {Loader} - the actual cache, you can call `.prime(key, value)` on
-	 *                   it to insert a value.
+	 * @param cache      - the lookup cache. It is managed with DataLoader.
+	 * @param [id]       - the value for the column.
+	 * @param [colName]  - the columnname, defaults to the ID column.
+	 * @returns The actual cache, you can call `.prime(key, value)` on it to
+	 *          insert a value.
 	 */
-	clearCache(cache, id, colName = this.idCol) {
+	clearCache(
+		cache: JMCache<DBItem>,
+		id: SQLiteValue,
+		colName = this.idCol as ColName
+	): Loader<SQLiteValue, DBItem> {
 		const loader = this._ensureLoader(cache, colName)
 		if (id) return loader.clear(id)
 		return loader.clearAll()
 	}
 
-	// I wish I could use these types
-	// @typedef {(o: Item) => Promise<void>} RowCallback
-	// @typedef {
-	// 	(fn: RowCallback) => Promise<void> |
-	// 	(attrs: JMSearchAttrs, fn: RowCallback) => Promise<void> |
-	// 	(attrs: JMSearchAttrs, options: JMSearchOptions, fn: RowCallback) => Promise<void>
-	// } EachFn
 	/**
 	 * Iterate through search results. Calls `fn` on every result.
 	 * The iteration uses a cursored search, so changes to the model during the
 	 * iteration can influence the iteration.
 	 *
-	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
-	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
-	 * @param {RowCallback} [fn]
-	 * @returns {Promise<void>} Table iteration completed.
+	 * When a callback errors, no new batches are started and the last error will
+	 * be thrown.
+	 *
+	 * @returns Promise for search completion.
 	 */
-	async each(attrsOrFn, optionsOrFn, fn) {
+	async each(
+		attrs: SearchAttrs,
+		options: JMEachOptions<SearchOptions>,
+		fn: JMItemCallback<DBItem>
+	): Promise<void>
+	async each(attrs: SearchAttrs, fn: JMItemCallback<DBItem>): Promise<void>
+	async each(fn: JMItemCallback<DBItem>): Promise<void>
+	async each(
+		attrsOrFn: SearchAttrs | JMItemCallback<DBItem>,
+		optionsOrFn?: JMEachOptions<SearchOptions> | JMItemCallback<DBItem>,
+		fn?: JMItemCallback<DBItem>
+	): Promise<void> {
 		if (!fn) {
 			if (optionsOrFn) {
 				if (typeof optionsOrFn === 'function') {
 					fn = optionsOrFn
 					optionsOrFn = undefined
-				} else {
+				} else if (optionsOrFn.fn) {
 					fn = optionsOrFn.fn
 					delete optionsOrFn.fn
 				}
 			} else if (typeof attrsOrFn === 'function') {
 				fn = attrsOrFn
-				attrsOrFn = undefined
+				attrsOrFn = undefined as any
 			}
 			if (!fn) throw new Error('each requires function')
 		}
-		if (!optionsOrFn) optionsOrFn = {}
-		// In the next major release, limit will apply to the total amount, not the batch size
+		if (!optionsOrFn) optionsOrFn = {} as JMEachOptions<SearchOptions>
 		const {
 			concurrent = 5,
 			batchSize = 50,
+			// In the next major release, limit will apply to the total amount, not the batch size
 			limit = batchSize,
+			// We need the cursor
 			noCursor: _,
 			...rest
-		} = optionsOrFn
+		} = optionsOrFn as JMEachOptions<SearchOptions>
 		rest.noTotal = true
-		let cursor
+		let cursor: JMCursor | undefined
 		let i = 0
 		do {
-			const result = await this.search(attrsOrFn, {...rest, limit, cursor})
+			const result = await this.search(
+				attrsOrFn as SearchAttrs,
+				{...rest, limit, cursor} as SearchOptions
+			)
 			cursor = result.cursor
-			await settleAll(result.items, async v => fn(v, i++), concurrent)
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			await settleAll(result.items, async v => fn!(v, i++), concurrent)
 		} while (cursor)
 	}
 
 	// --- Mutator methods below ---
 
-	// Contract: All subclasses use set() to store values
-	set(...args) {
+	/**
+	 * Insert or replace the given object into the database.
+	 *
+	 * Note: All subclasses must use .set() to store values.
+	 *
+	 * @param obj           - the object to store. If there is no `id` value (or
+	 *                      whatever the `id` column is named), one is assigned
+	 *                      automatically.
+	 * @param [insertOnly]  - don't allow replacing existing objects.
+	 * @param [noReturn]    - do not return the stored object; an optimization.
+	 * @returns - if `noReturn` is falsy, the stored object is returned.
+	 */
+	set<NoReturn extends boolean>(
+		obj: InputItem,
+		insertOnly?: boolean,
+		noReturn?: NoReturn
+	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
 		// we cannot store `set` directly on the instance because it would override subclass `set` functions
-		return this._set(...args)
-	}
-
-	// Change only the given fields, shallowly
-	// upsert: also allow inserting
-	async updateNoTrans(obj, upsert, noReturn) {
-		if (!obj) throw new Error('update() called without object')
-		const id = obj[this.idCol]
-		if (id == null) {
-			if (!upsert) throw new Error('Can only update object with id')
-			return this.set(obj, false, noReturn)
-		}
-		let prev = await this.get(id)
-		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
-		if (prev)
-			for (const [key, value] of Object.entries(obj)) {
-				if (value == null) delete prev[key]
-				else prev[key] = value
-			}
-		else prev = obj
-		return this.set(prev, false, noReturn)
+		return this._set(obj, insertOnly, noReturn) as any
 	}
 
 	/**
-	 * Update or upsert an object.
+	 * Update or upsert an object, shallowly merging the changes.
+	 * Setting a key to `null` or `undefined` will remove it from the object.
+	 * This does not use a transaction so is open to race conditions if you don't
+	 * run it in a transaction.
 	 *
-	 * @param {Object}  obj         The changes to store, including the id field.
-	 * @param {boolean} [upsert]    Insert the object if it doesn't exist.
-	 * @param {boolean} [noReturn]  Do not return the stored object.
-	 * @returns {Promise<Item | undefined>} A copy of the stored object.
+	 * @param changes     The changes to store, including the id field.
+	 * @param [upsert]    Insert the object if it doesn't exist.
+	 * @param [noReturn]  Do not return the stored object, an optimization.
+	 * @returns - if `noReturn` is falsy, the stored object is returned.
 	 */
-	update(obj, upsert, noReturn) {
+	async updateNoTrans<NoReturn extends boolean>(
+		changes: InputItem,
+		upsert?: boolean,
+		noReturn?: NoReturn
+	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
+		if (!changes) throw new Error('update() called without object')
+		const id = changes[this.idCol]
+		if (id == null) {
+			if (!upsert) throw new Error('Can only update object with id')
+			return this.set(changes, false, noReturn)
+		}
+		let prev: DBItem | InputItem | undefined = await this.get(id)
+		if (!upsert && !prev) throw new Error(`No object with id ${id} exists yet`)
+		if (prev)
+			for (const [key, value] of Object.entries(changes)) {
+				if (value == null) delete prev[key]
+				else prev[key] = value
+			}
+		else prev = changes
+		return this.set(prev as InputItem, false, noReturn)
+	}
+
+	/**
+	 * Update or upsert an object, shallowly merging the changes.
+	 * Setting a key to `null` or `undefined` will remove it from the object.
+	 * This uses a transaction if one is not active.
+	 *
+	 * @param obj         The changes to store, including the id field.
+	 * @param [upsert]    Insert the object if it doesn't exist.
+	 * @param [noReturn]  Do not return the stored object, an optimization.
+	 * @returns - if `noReturn` is falsy, the stored object is returned.
+	 */
+	update<NoReturn extends boolean>(
+		changes: InputItem,
+		upsert?: boolean,
+		noReturn?: NoReturn
+	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
 		// Update needs to read the object to apply the changes, so it needs a transaction
-		if (this.db.inTransaction) return this.updateNoTrans(obj, upsert, noReturn)
+		if (this.db.inTransaction)
+			return this.updateNoTrans(changes, upsert, noReturn)
 		return this.db.withTransaction(() =>
-			this.updateNoTrans(obj, upsert, noReturn)
+			this.updateNoTrans(changes, upsert, noReturn)
 		)
 	}
 
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
-	 * @param {ID | Object} idOrObj  The id or the object itself.
-	 * @returns {Promise<void>} A promise for the deletion.
+	 * @param idOrObj  The id or the object itself.
+	 * @returns A promise for the deletion.
 	 */
-	remove(idOrObj) {
+	remove(idOrObj: IDCol | DBItem) {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		if (this._deleteSql?.db !== this.db)
 			this._deleteSql = this.db.prepare(
@@ -1163,7 +1345,8 @@ class JsonModel<
 		return this._deleteSql.run([id])
 	}
 
-	delete(idOrObj) {
+	/** @deprecated use .remove() */
+	delete(idOrObj: IDCol | DBItem) {
 		if (DEV) deprecated('deleteMethod', 'use .remove() instead of .delete()')
 		return this.remove(idOrObj)
 	}
@@ -1171,25 +1354,24 @@ class JsonModel<
 	/**
 	 * "Rename" an object.
 	 *
-	 * @param {ID} oldId  The current ID. If it doesn't exist this will throw.
-	 * @param {ID} newId  The new ID. If this ID is already in use this will throw.
-	 * @returns {Promise<void>} A promise for the rename.
+	 * @param oldId  The current ID. If it doesn't exist this will throw.
+	 * @param newId  The new ID. If this ID is already in use this will throw.
+	 * @returns A promise for the rename.
 	 */
-	changeId(oldId, newId) {
+	async changeId(oldId, newId) {
 		if (newId == null) throw new TypeError('newId must be a valid id')
-		let {_changeIdSql} = this.columns[this.idCol]
+		let {_changeIdSql} = this.columns[this.idCol as ColName]
 		if (_changeIdSql?.db !== this.db) {
-			const {quoted} = this.columns[this.idCol]
+			const {quoted} = this.columns[this.idCol as ColName]
 			_changeIdSql = this.db.prepare(
 				`UPDATE ${this.quoted} SET ${quoted} = ? WHERE ${quoted} = ?`,
 				`mv ${this.name}`
 			)
-			this.columns[this.idCol]._changeIdSql = _changeIdSql
+			this.columns[this.idCol as ColName]._changeIdSql = _changeIdSql
 		}
-		return _changeIdSql.run([newId, oldId]).then(({changes}) => {
-			if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
-			return undefined
-		})
+		const {changes} = await _changeIdSql.run([newId, oldId])
+		if (changes !== 1) throw new Error(`row with id ${oldId} not found`)
+		return undefined
 	}
 }
 

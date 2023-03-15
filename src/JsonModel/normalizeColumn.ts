@@ -11,7 +11,7 @@ import {
 export const normalizeColumn = <Item extends JMRecord>(
 	origCol: JMColumnDef<Item>,
 	name: JMColName
-) => {
+): JMNormalizedColumnDef<Item> => {
 	const col = {...origCol} as JMNormalizedColumnDef<Item>
 	col.name = name
 	col.quoted = sql.quoteId(name)
