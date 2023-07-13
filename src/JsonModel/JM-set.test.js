@@ -164,6 +164,6 @@ test('.changeId(missing, newId) race', async () => {
 })
 test('.changeId(oldId, invalid)', async () => {
 	const m = getModel()
-	expect(() => m.changeId('a', null)).toThrow(TypeError)
-	expect(() => m.changeId('a', undefined)).toThrow(TypeError)
+	await expect(() => m.changeId('a', null)).rejects.toThrow(TypeError)
+	await expect(() => m.changeId('a', undefined)).rejects.toThrow(TypeError)
 })

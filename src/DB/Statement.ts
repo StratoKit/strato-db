@@ -35,13 +35,13 @@ class Statement<
 	I extends SQLiteInterpolation = any
 > {
 	/** The SQLite instance it's bound to */
-	db: SQLite
+	declare db: SQLite
 	/** A name for debugging */
-	name: string
+	declare name: string
 
-	_sql: string
-	_name: string
-	_stmt?: SQLiteStatement
+	declare _sql: string
+	declare _name: string
+	declare _stmt?: SQLiteStatement
 
 	constructor(db: SQLite, sql: string, name?: string) {
 		db.statements[sql] = this as Statement

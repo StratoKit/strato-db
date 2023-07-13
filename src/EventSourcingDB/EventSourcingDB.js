@@ -246,8 +246,9 @@ class EventSourcingDB extends EventEmitter {
 							.exec(
 								`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
 							)
-							/* shrug */
-							.catch(() => {})
+							.catch(() => {
+								/* shrug */
+							})
 					: db.run(`DELETE FROM metadata WHERE id="version"`))
 			},
 		})
@@ -411,9 +412,7 @@ class EventSourcingDB extends EventEmitter {
 			if (wantVersion > this._minVersion) this._minVersion = wantVersion
 		} else if (!this._isPolling) {
 			this._isPolling = true
-			// @ts-ignore
 			if (module.hot) {
-				// @ts-ignore
 				module.hot.dispose(() => {
 					this.stopPolling()
 				})
@@ -544,7 +543,6 @@ class EventSourcingDB extends EventEmitter {
 				}
 			}
 			if (o && process.env.NODE_ENV === 'test') {
-				// @ts-ignore
 				if (!this.__BE_QUIET)
 					// eslint-disable-next-line no-console
 					console.error(
@@ -634,7 +632,6 @@ class EventSourcingDB extends EventEmitter {
 					return _resultQueue.set(result)
 				})
 				.catch(error => {
-					// @ts-ignore
 					if (!this.__BE_QUIET)
 						// eslint-disable-next-line no-console
 						console.error(
@@ -653,7 +650,6 @@ class EventSourcingDB extends EventEmitter {
 
 			if (resultEvent.error) {
 				errorCount++
-				// @ts-ignore
 				if (!this.__BE_QUIET) {
 					let path, error
 					// find the deepest error
@@ -776,7 +772,6 @@ class EventSourcingDB extends EventEmitter {
 				}
 				let out
 				try {
-					// @ts-ignore
 					out = await model.reducer(helpers)
 				} catch (error) {
 					out = {
@@ -878,7 +873,6 @@ class EventSourcingDB extends EventEmitter {
 		if (event.error) return event
 
 		// Allow GC
-		// @ts-ignore
 		cache = null
 
 		event = await this._applyEvent(event, isMainEvent)
@@ -967,7 +961,6 @@ class EventSourcingDB extends EventEmitter {
 					return addEvent(...args)
 				}
 				await settleAll(this._deriverModels, async model =>
-					// @ts-ignore
 					model.deriver({
 						event,
 						model,

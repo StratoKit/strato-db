@@ -29,9 +29,9 @@ import type Statement from '../DB/Statement'
 
 const dbg = debug('strato-db/JSON')
 
-type ForSure<T, keys extends keyof T> = T & {[k in keys]-?: T[k]}
+export type ForSure<T, keys extends keyof T> = T & {[k in keys]-?: T[k]}
 // type NotSure<T, keys extends keyof T> = Omit<T, keys> & {[k in keys]?: T[k]}
-type IIf<If, A, B> = If extends true ? A : B
+export type IIf<If, A, B> = If extends true ? A : B
 
 /** A cursor */
 export type JMCursor = string & {T?: 'cursor'}
@@ -97,7 +97,7 @@ export type JMColumnFn = (args: {columnName: JMColName}) => JMColumnDef
 export type JMColumnDefOrFn = JMColumnDef | JMColumnFn
 export type JMNormalizedColumnDef<Item extends JMRecord> = ForSure<
 	JMColumnDef<Item>,
-	'alias' | 'get' | 'path'
+	'alias' | 'get' | 'path' | 'sql'
 > & {
 	/** the column key, used for the column name if it's a real column.  */
 	name: JMColName
@@ -138,12 +138,12 @@ export type IdRecord<IDCol extends string, IDType extends JMIDType> = {
 }
 export type JMObject<IDCol extends string, IDType extends JMIDType> = JMRecord &
 	IdRecord<IDCol, IDType>
-type WithId<
+export type WithId<
 	T extends JMRecord,
 	IDCol extends string,
 	IDType extends JMIDType
 > = Omit<T, IDCol> & IdRecord<IDCol, IDType>
-type MaybeId<
+export type MaybeId<
 	T extends JMRecord,
 	IDCol extends string,
 	IDType extends JMIDType
@@ -161,26 +161,26 @@ export type JMMigration = <
 	args: ExtraArgs & {db: DB; model: Model}
 ) => void | Promise<void>
 export type JMMigrations = {
-	[tag: string]: JMMigration
+	[tag: string]: JMMigration | {up: JMMigration} | null | undefined | false
 }
 
-export type JMColumns<IDCol extends JMColName> = Record<
+export type JMColumns<IDCol extends JMColName = string> = Record<
 	JMColName,
 	JMColumnDefOrFn
 > & {
 	[id in IDCol]?: JMColumnDef
 }
 
-export type JMBaseConfig<IDCol extends JMColName> = {
-	idCol?: IDCol
+export type JMBaseConfig = {
+	idCol?: string
 	name: JMModelName
-	columns?: JMColumns<IDCol>
+	columns?: JMColumns
 	migrationOptions?: JMMigrationExtraArgs
 }
 
 export type JMConfig<
 	IDCol extends JMColName,
-	RealItem extends JMRecord,
+	ItemType extends JMRecord,
 	MigrationArgs extends JMMigrationExtraArgs
 > = {
 	/** the table name  */
@@ -194,16 +194,16 @@ export type JMConfig<
 	/** free-form data passed to the migration functions  */
 	migrationOptions?: MigrationArgs
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
-	ItemClass?: {new (): RealItem}
+	ItemClass?: {new (): ItemType}
 	/** preserve next available row id after vacuum  */
 	keepRowId?: boolean
 	/** @deprecated The DB instance, for internal use. */
 	db?: DB
 }
 
-type Loader<Key, Value> = import('dataloader')<Key, Value | undefined>
+type Loader<Key, Value> = DataLoader<Key, Value | undefined>
 /** A lookup cache, managed by DataLoader */
-type JMCache<Item> = {
+export type JMCache<Item> = {
 	[name: string]: Loader<SQLiteValue, Item>
 }
 
@@ -213,14 +213,14 @@ type JMCache<Item> = {
  * They are applied if the value is an array, and the number of items in the
  * array must match the number of `?` in the clause.
  */
-type JMWhereClauses = {
+export type JMWhereClauses = {
 	[key: string]: (string | number | boolean)[] | undefined | null | false
 }
 /** Search for simple values. Keys are column names, values are what they should equal */
-type JMSearchAttrs<ColNames extends string> = {
+export type JMSearchAttrs<ColNames extends string> = {
 	[attr in ColNames]?: any
 }
-type JMSearchOptions<ColNames extends string> = {
+export type JMSearchOptions<ColNames extends string> = {
 	/** literal value search, for convenience. */
 	attrs?: JMSearchAttrs<ColNames> | null
 	/** sql expressions as keys with arrays of applicable parameters as values. */
@@ -245,7 +245,7 @@ type JMSearchOptions<ColNames extends string> = {
 	noTotal?: boolean
 }
 
-type JMEachOptions<O> = Omit<O, 'limit'> & {
+export type JMEachOptions<O> = Omit<O, 'limit'> & {
 	/** Number of callbacks running concurrently */
 	concurrent?: number
 	/** Number of results to fetch from the table per batch */
@@ -280,7 +280,7 @@ const decodeCursor = (cursor?: JMCursor) => {
 	return {cursorVals, invert}
 }
 
-type SearchResults<DBItem> = {
+export type SearchResults<DBItem> = {
 	/** The array of results */
 	items: DBItem[]
 	/** The total number of results or undefined if options.noTotal */
@@ -303,25 +303,27 @@ type SearchResults<DBItem> = {
  */
 class JsonModel<
 	ItemType extends JMRecord = JMJsonRecord,
-	Config extends JMBaseConfig<IDCol> = {name: 'unknown'},
-	Name extends JMModelName = Config['name'],
-	IDCol extends string = Config['idCol'] extends JMColName
+	Config extends JMBaseConfig = {name: 'unknown'},
+	//
+	// Inferred generics below
+	//
+	IDCol extends string = Config['idCol'] extends string
 		? Config['idCol']
 		: 'id',
 	IDType extends JMIDType = ItemType[IDCol] extends JMIDType
 		? ItemType[IDCol]
 		: string,
-	DBItem extends WithId<ItemType, IDCol, IDType> = WithId<
-		ItemType,
-		IDCol,
-		IDType
-	>,
 	InputItem extends MaybeId<Partial<ItemType>, IDCol, IDType> = MaybeId<
 		Partial<ItemType>,
 		IDCol,
 		IDType
 	>,
-	// Inferred generics below
+	DBItem extends WithId<ItemType, IDCol, IDType> = WithId<
+		ItemType,
+		IDCol,
+		IDType
+	>,
+	Name extends JMModelName = Config['name'],
 	Columns extends JMColumns<IDCol> = Config['columns'] extends JMColumns<IDCol>
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
@@ -334,7 +336,7 @@ class JsonModel<
 	SearchOptions extends JMSearchOptions<ColName> = JMSearchOptions<ColName>,
 	MigrationArgs extends JMMigrationExtraArgs = Config['migrationOptions'] extends JMMigrationExtraArgs
 		? Config['migrationOptions']
-		: undefined,
+		: JMMigrationExtraArgs,
 	RealConfig extends JMConfig<IDCol, ItemType, MigrationArgs> = JMConfig<
 		IDCol,
 		ItemType,
@@ -343,35 +345,29 @@ class JsonModel<
 > implements SQLiteModel<Name>
 {
 	/** The DB instance storing this model */
-	db: DB
+	declare db: DB
 	/** The table name */
-	name: Name
+	declare name: Name
 	/** The SQL-quoted table name */
-	quoted: string
+	declare quoted: string
 	/** The name of the id column */
-	idCol: IDCol
+	declare idCol: IDCol
 	/** The SQL-quoted name of the id column */
-	idColQ: string
+	declare idColQ: string
 	/** The prototype of returned Items */
-	Item?: {new (): ItemType}
+	declare Item?: {new (): ItemType}
 	/** The column definitions */
-	columnArr: JMNormalizedColumnDef<DBItem>[]
+	declare columnArr: JMNormalizedColumnDef<DBItem>[]
 	/** The column definitions keyed by name and alias */
-	columns: Record<ColName, JMNormalizedColumnDef<DBItem>>
+	declare columns: Record<ColName, JMNormalizedColumnDef<DBItem>>
 	/** The columns that need to be taken from the SQL table */
-	getCols: JMNormalizedColumnDef<DBItem>[]
+	declare getCols: JMNormalizedColumnDef<DBItem>[]
 
-	_selectColNames: ColName[]
-	_selectColAliases: string[]
-	_selectColsSql: string
+	declare _selectColNames: ColName[]
+	declare _selectColAliases: string[]
+	declare _selectColsSql: string
 
-	_allSql: Statement
-	_existsSql: Statement
-	_insertSql: Statement
-	_updateSql: Statement
-	_deleteSql: Statement
-
-	_set: ReturnType<typeof this._makeSetFn>
+	declare _set: ReturnType<typeof this._makeSetFn>
 
 	constructor(config: RealConfig) {
 		verifyOptions(config)
@@ -448,12 +444,14 @@ class JsonModel<
 					`Cannot alias ${col.name} over existing name ${col.alias}`
 				)
 
+			// Step 1 of normalization
 			col = normalizeColumn(col, colName)
 			this.columns[colName] = col
 			this.columns[col.alias as ColName] = col
 			this.columnArr.push(col)
 		}
 		assignJsonParents(this.columnArr)
+		// Step 2 of normalization
 		for (const col of this.columnArr) prepareSqlCol(col, this.name)
 		this.getCols = this.columnArr.filter(c => c.get).sort(byPathLength)
 
@@ -518,6 +516,9 @@ class JsonModel<
 		}
 		return out
 	}
+
+	declare _insertSql: Statement
+	declare _updateSql: Statement
 
 	_makeSetFn() {
 		const {db, Item, columnArr, quoted, idCol, name} = this
@@ -920,15 +921,17 @@ class JsonModel<
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
 
+	declare _existsSql: Statement
+
 	/**
 	 * Check for existence of objects. Returns `true` if the search would yield
 	 * results.
 	 *
 	 * @returns Whether the search results exist.
 	 */
-	async exists(
-		idOrAttrs: IDType | SearchAttrs,
-		options: SearchOptions
+	async exists<IdObj extends IDType | SearchAttrs>(
+		idOrAttrs: IdObj,
+		options?: IdObj extends IDType ? never : SearchOptions
 	): Promise<boolean> {
 		if (idOrAttrs && typeof idOrAttrs !== 'object') {
 			if (this._existsSql?.db !== this.db) {
@@ -947,7 +950,8 @@ class JsonModel<
 			limit: 1,
 			offset: undefined,
 			noCursor: true,
-			cols: ['1'],
+			// Slight hack, don't ask for any row data
+			cols: ['1' as ColName],
 		})
 		const row = await this.db.get(q, vals)
 		return !!row
@@ -1062,6 +1066,8 @@ class JsonModel<
 	avg(colName: ColName, attrs?: SearchAttrs | null, options?: SearchOptions) {
 		return this.numAggOp('AVG', colName, attrs, options)
 	}
+
+	declare _allSql: Statement
 
 	/**
 	 * Get all objects.
@@ -1262,13 +1268,15 @@ class JsonModel<
 	 *                      automatically.
 	 * @param [insertOnly]  - don't allow replacing existing objects.
 	 * @param [noReturn]    - do not return the stored object; an optimization.
+	 *                      It will return the sqlite changes summary instead
+	 *                      (if the subclass supports it).
 	 * @returns - if `noReturn` is falsy, the stored object is returned.
 	 */
 	set<NoReturn extends boolean>(
 		obj: InputItem,
 		insertOnly?: boolean,
 		noReturn?: NoReturn
-	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
+	): Promise<IIf<NoReturn, SQLiteChangesMeta | undefined, DBItem>> {
 		// we cannot store `set` directly on the instance because it would override subclass `set` functions
 		return this._set(obj, insertOnly, noReturn) as any
 	}
@@ -1288,7 +1296,7 @@ class JsonModel<
 		changes: InputItem,
 		upsert?: boolean,
 		noReturn?: NoReturn
-	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
+	): Promise<IIf<NoReturn, SQLiteChangesMeta | undefined, DBItem>> {
 		if (!changes) throw new Error('update() called without object')
 		const id = changes[this.idCol]
 		if (id == null) {
@@ -1320,7 +1328,7 @@ class JsonModel<
 		changes: InputItem,
 		upsert?: boolean,
 		noReturn?: NoReturn
-	): Promise<IIf<NoReturn, SQLiteChangesMeta, DBItem>> {
+	): Promise<IIf<NoReturn, SQLiteChangesMeta | undefined, DBItem>> {
 		// Update needs to read the object to apply the changes, so it needs a transaction
 		if (this.db.inTransaction)
 			return this.updateNoTrans(changes, upsert, noReturn)
@@ -1329,13 +1337,15 @@ class JsonModel<
 		)
 	}
 
+	declare _deleteSql: Statement
+
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
 	 * @param idOrObj  The id or the object itself.
 	 * @returns A promise for the deletion.
 	 */
-	remove(idOrObj: IDCol | DBItem) {
+	remove(idOrObj: IDCol | DBItem): Promise<SQLiteChangesMeta | undefined> {
 		const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
 		if (this._deleteSql?.db !== this.db)
 			this._deleteSql = this.db.prepare(

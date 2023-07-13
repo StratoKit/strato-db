@@ -464,8 +464,12 @@ describe('ESModel', () => {
 
 		describe('event creators', () => {
 			const fake = {
-				registerMigrations: () => {},
-				on: () => {},
+				registerMigrations: () => {
+					// mock
+				},
+				on: () => {
+					// mock
+				},
 				setMaxListeners: () => 10,
 				getMaxListeners: () => 10,
 			}

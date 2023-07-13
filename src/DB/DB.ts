@@ -1,6 +1,6 @@
 import {sortBy} from 'lodash'
 import debug from 'debug'
-import SQLite, {sql, SQLiteCallback, SQLiteConfig} from './SQLite'
+import SQLite, {sql, SQLiteCallback, SQLiteConfig, SQLiteModel} from './SQLite'
 import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/DB')
@@ -22,10 +22,11 @@ type DBConfig = {
 	onBeforeMigrations?: SQLiteCallback
 } & SQLiteConfig
 
-interface DBModel {
+export type DBModel<Name extends string> = SQLiteModel<Name> & {
+	new (config: Record<string, unknown> & {db: DB}): DBModel<Name>
 	db: DB
-	attachDb(db: DB): DBMigrations | undefined
 }
+export type DBModels = {[name in string]: DBModel<name>}
 
 export const _getRanMigrations = async db => {
 	if (
@@ -63,11 +64,12 @@ const _markMigration = async (db, runKey, up) => {
 
 /**
  * DB adds model management and migrations to Wrapper.
- * The migration state is kept in the table ""{sdb} migrations"".
+ * The migration state is kept in the table `"{sdb} migrations"`.
  */
 class DB extends SQLite {
 	migrationsRan = false
 	_migrations: {up: SQLiteCallback; runKey: string}[] = []
+	declare store: DBModels
 
 	constructor({onBeforeMigrations, ...config}: DBConfig = {}) {
 		const onDidOpen = config.readOnly
@@ -82,7 +84,7 @@ class DB extends SQLite {
 
 	static sql = sql
 
-	/** @deprecated */
+	/** @deprecated Use `.store`. */
 	get models() {
 		if (DEV) deprecated(`use db.store instead of db.models`)
 		return this.store
@@ -97,10 +99,7 @@ class DB extends SQLite {
 	 * @param [config]  - config passed during Model creation.
 	 * @returns The created Model instance.
 	 */
-	addModel<N extends string, O extends {db: DB}>(
-		Model: DBModel<N, O>,
-		config: O
-	) {
+	addModel<N extends string, O extends {db: DB}>(Model: DBModel<N>, config: O) {
 		const model = new Model({
 			...config,
 			db: this,

@@ -250,22 +250,16 @@ describe('transact', () => {
 			foo: {
 				transact: async ({event, dispatch}) => {
 					if (event.type === 'hi')
-						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-hi')).resolves.toEqual(
-							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-hi',
-								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)
 					if (event.type === 'sub-hi')
-						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-sub-hi')).resolves.toEqual(
-							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-sub-hi',
-								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)
@@ -286,7 +280,6 @@ describe('transact', () => {
 			foo: {
 				reducer: ({event: {type, data}}) => {
 					if (type === 'sub') {
-						// eslint-disable-next-line jest/no-conditional-expect
 						expect(lastSeen).toBeLessThan(data)
 						lastSeen = data
 					}

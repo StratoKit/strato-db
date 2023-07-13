@@ -177,27 +177,27 @@ export type SQLiteConfig = {
  */
 class SQLite extends EventEmitter {
 	/** DB file path */
-	file: string
+	declare file: string
 	/** DB name */
-	name: string
+	declare name: string
 	/** Are we in withTransaction? */
 	inTransaction = false
-	readOnly: boolean
-	store: SQLiteModels
-	statements: Statements
-	config: Pick<
+	declare readOnly: boolean
+	declare store: SQLiteModels
+	declare statements: Statements
+	declare config: Pick<
 		SQLiteConfig,
 		'onWillOpen' | 'onDidOpen' | 'verbose' | 'autoVacuum'
 	> &
 		Required<Pick<SQLiteConfig, 'vacuumInterval' | 'vacuumPageCount'>>
-	dbP: Promise<this>
+	declare dbP: Promise<this>
 
-	_sqlite?: SqlInstance
-	_isChild: boolean
-	_openingDbP?: Promise<this>
-	_resolveDbP?: (instance: this | Promise<this>) => void
-	_vacuumToken?: NodeJS.Timer
-	_optimizerToken?: NodeJS.Timer
+	declare _sqlite?: SqlInstance
+	declare _isChild: boolean
+	declare _openingDbP?: Promise<this>
+	declare _resolveDbP?: (instance: this | Promise<this>) => void
+	declare _vacuumToken?: NodeJS.Timer
+	declare _optimizerToken?: NodeJS.Timer
 
 	constructor({
 		file,
