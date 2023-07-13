@@ -5,6 +5,7 @@ import {inspect} from 'util'
 import sqlite3 from 'sqlite3'
 import Statement from './Statement'
 import {EventEmitter} from 'events'
+import {Sema} from 'async-sema'
 
 const dbg = debug('strato-db/sqlite')
 const dbgQ = dbg.extend('query')
@@ -125,6 +126,7 @@ class SQLiteImpl extends EventEmitter {
 		this.dbP = new Promise(resolve => {
 			this._resolveDbP = resolve
 		})
+		this._sema = new Sema(1)
 	}
 
 	static sql = sql
@@ -356,19 +358,34 @@ class SQLiteImpl extends EventEmitter {
 		}
 
 		const shouldDebug = dbgQ.enabled || this.listenerCount('call')
-		const now = shouldDebug ? performance.now() : undefined
-		let fnResult
+		let now, duration
 		const result = new Promise((resolve, reject) => {
-			let cb
-			const runQuery = () => {
-				fnResult = _sqlite[method](...(args || []), cb)
-			}
+			let cb, fnResult
+			const runQuery = shouldDebug
+				? () => {
+						fnResult = this._sema
+							.acquire()
+							.then(() => {
+								now = performance.now()
+								return _sqlite[method](...(args || []), cb)
+							})
+							.finally(() => {
+								duration = performance.now() - now
+								this._sema.release()
+							})
+				  }
+				: () => {
+						fnResult = _sqlite[method](...(args || []), cb)
+				  }
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
 			cb = function (err, out) {
 				if (err) {
 					if (isBusyError(err) && busyRetry--) {
-						return busyWait().then(runQuery)
+						dbgQ(`${name} busy, retrying`)
+						// eslint-disable-next-line promise/no-promise-in-callback
+						busyWait().then(runQuery).catch(reject)
+						return
 					}
 					const error = new Error(`${name}: sqlite3: ${err.message}`)
 					// @ts-ignore
@@ -385,12 +402,11 @@ class SQLiteImpl extends EventEmitter {
 			}
 			if (!_sqlite[method])
 				return cb({message: `method ${method} not supported`})
-			fnResult = _sqlite[method](...(args || []), cb)
+			runQuery()
 		})
 		if (shouldDebug) {
 			const query = isStmt ? obj._name : String(args[0]).replace(/\s+/g, ' ')
 			const notify = (error, output) => {
-				const duration = performance.now() - now
 				if (dbgQ.enabled)
 					dbgQ(
 						'%s',
@@ -412,17 +428,10 @@ class SQLiteImpl extends EventEmitter {
 						output,
 						error,
 					})
+				if (error) throw error
+				return output
 			}
-			// eslint-disable-next-line promise/catch-or-return
-			result.then(
-				output => {
-					if (returnFn) output = fnResult
-					notify(undefined, output)
-				},
-				error => {
-					notify(error)
-				}
-			)
+			return result.then(output => notify(undefined, output), notify)
 		}
 		return result
 	}
