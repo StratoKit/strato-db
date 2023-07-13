@@ -110,6 +110,8 @@
 
 ### Important
 
+- [ ] allow passing metadata when creating an event
+  - and use it in ESModel (breaking)
 - [ ] allow marking an event as being processed, by setting worker id `where workerId is null` or something similar
 - [ ] workers should register in a table and write timestamps for a watchdog
 - [ ] while an event is being worked, next event can't be worked on.
@@ -131,6 +133,7 @@
 
 ### Important
 
+- [ ] sometimes dispatch ignores error. Perhaps user version is increased during transaction and dispatch reads that version instead of the read-only one?
 - [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
   - Ideally, the results go in a different db that can be split at will.
   - for multi-process, lock the result db exclusively to worker

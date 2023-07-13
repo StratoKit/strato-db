@@ -111,11 +111,12 @@ class EventQueue<
 		forever,
 		withViews,
 		...rest
-	}: JMConfig<'v', Event, Config['migrationOptions']> & {
+	}: Omit<JMConfig<'v', Event, Config['migrationOptions']>, 'name'> & {
 		/** should getNext poll forever? */
 		forever?: boolean
 		/** add views to the database to assist with inspecting the data */
 		withViews?: boolean
+		name?: JMModelName
 	}) {
 		const columns = {...defaultColumns}
 		if (rest.columns)

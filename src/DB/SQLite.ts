@@ -34,7 +34,7 @@ export type SQLiteColumnType =
 	| 'JSON'
 export type SQLiteEachCallback<O extends SQLiteRow> = (
 	row: O
-) => Promise<void> | void
+) => Promise<unknown> | unknown
 type SqlTemplateArgs<_O extends SQLiteRow, I extends SQLiteParam[]> = [
 	tpl: TemplateStringsArray,
 	...vars: I
@@ -53,7 +53,7 @@ type TemplateOrSql<
 export type SQLiteModel<Name extends string> = {name: Name; [x: string]: any}
 export type SQLiteModels = {[name in string]: SQLiteModel<name>}
 type Statements = {[key: string]: Statement}
-export type SQLiteCallback = (db: SQLite) => void | Promise<void>
+export type SQLiteCallback = (db: SQLite) => unknown | Promise<unknown>
 
 /** An instance of sqlite3 */
 type SqlInstance = InstanceType<typeof sqlite3.Database>
@@ -145,7 +145,7 @@ export type SQLiteConfig = {
 	/** verbose errors. */
 	verbose?: boolean
 	/** called before opening. */
-	onWillOpen?: () => void | Promise<void>
+	onWillOpen?: () => unknown | Promise<unknown>
 	/** called after opened. */
 	onDidOpen?: SQLiteCallback
 	/** name for debugging. */

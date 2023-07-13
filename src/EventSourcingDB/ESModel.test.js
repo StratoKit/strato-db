@@ -225,14 +225,14 @@ describe('ESModel', () => {
 		test('remove by id', () =>
 			withESDB({test: {Model: ESModel}}, async eSDB => {
 				await eSDB.store.test.set(sampleObject)
-				expect(await eSDB.store.test.remove(sampleObject.id)).toEqual(true)
+				expect(await eSDB.store.test.remove(sampleObject.id)).toEqual(undefined)
 				expect(await eSDB.store.test.all()).toEqual([])
 			}))
 
 		test('remove by object', () =>
 			withESDB({test: {Model: ESModel}}, async eSDB => {
 				await eSDB.store.test.set(sampleObject)
-				expect(await eSDB.store.test.remove(sampleObject)).toEqual(true)
+				expect(await eSDB.store.test.remove(sampleObject)).toEqual(undefined)
 				expect(await eSDB.store.test.all()).toEqual([])
 			}))
 

@@ -149,7 +149,10 @@ export type MaybeId<
 	IDType extends JMIDType
 > = Omit<T, IDCol> & {[x in IDCol]?: IDType}
 
-export type JMItemCallback<T> = (item: T, index: number) => void | Promise<void>
+export type JMItemCallback<T> = (
+	item: T,
+	index: number
+) => unknown | Promise<unknown>
 
 export type JMMigrationExtraArgs = Record<string, any> | undefined
 
@@ -159,7 +162,7 @@ export type JMMigration = <
 	ExtraArgs extends JMMigrationExtraArgs = undefined
 >(
 	args: ExtraArgs & {db: DB; model: Model}
-) => void | Promise<void>
+) => unknown | Promise<unknown>
 export type JMMigrations = {
 	[tag: string]: JMMigration | {up: JMMigration} | null | undefined | false
 }
