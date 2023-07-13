@@ -2,7 +2,7 @@ declare module 'strato-db'
 
 type EventEmitter = import('events').EventEmitter
 
-type DBCallback = (db: DB) => Promise<void> | void
+type DBCallback = (db: DB) => Promise<unknown> | unknown
 /** The types that SQLite can handle as parameter values */
 type SQLiteValue = string | number | null
 type SQLiteParam = SQLiteValue | boolean
@@ -16,7 +16,7 @@ type SQLiteColumnType =
 	| 'BLOB'
 	| 'JSON'
 
-type DBEachCallback = (row: SQLiteRow) => Promise<void> | void
+type DBEachCallback = (row: SQLiteRow) => Promise<unknown> | unknown
 
 type SqlTag = (
 	tpl: TemplateStringsArray,
@@ -46,9 +46,9 @@ type SQLiteOptions = {
 	/** verbose errors. */
 	verbose?: boolean
 	/** called before opening. */
-	onWillOpen?: (...params: any[]) => any
+	onWillOpen?: () => Promise<unknown> | unknown
 	/** called after opened. */
-	onDidOpen?: (...params: any[]) => any
+	onDidOpen?: DBCallback
 	/** name for debugging. */
 	name?: string
 	/** run incremental vacuum. */
