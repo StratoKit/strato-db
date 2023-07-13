@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.6.0
+
+### Changes
+
+- SQLite: accurate query time measurement. Before, query timing included any queries that were underway. This change serializes all calls to the SQLite connection when either debug has `strato-db/sqlite:query` enabled or there are listeners on the `call` event. This might have a performance impact, but likely very small. Note that SQLite itself can only do one DB operation at a time (per connection).
+
 ## 3.5.2
 
 ### Fixes
