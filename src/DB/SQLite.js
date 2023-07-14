@@ -369,17 +369,20 @@ class SQLiteImpl extends EventEmitter {
 								now = performance.now()
 								return _sqlite[method](...(args || []), cb)
 							})
-							.finally(() => {
-								duration = performance.now() - now
-								this._sema.release()
-							})
+							.catch(cb)
 				  }
 				: () => {
 						fnResult = _sqlite[method](...(args || []), cb)
 				  }
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
+			// eslint-disable-next-line unicorn/no-this-assignment, @typescript-eslint/no-this-alias -- we need it
+			const self = this
 			cb = function (err, out) {
+				if (shouldDebug) {
+					duration = performance.now() - now
+					self._sema.release()
+				}
 				if (err) {
 					if (isBusyError(err) && busyRetry--) {
 						dbgQ(`${name} busy, retrying`)
