@@ -96,7 +96,7 @@ const errorToString = error => {
 	const msg = error
 		? error.stack || error.message || String(error)
 		: new Error('missing error').stack
-	return String(msg).replace(/\s+/g, ' ')
+	return String(msg).replaceAll(/\s+/g, ' ')
 }
 
 const fixupOldReducer = (name, reducer) => {
@@ -151,6 +151,7 @@ const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
  *
  * @augments EventEmitter
  */
+// eslint-disable-next-line unicorn/prefer-event-target
 class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 

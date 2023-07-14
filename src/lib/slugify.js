@@ -24,10 +24,10 @@ export const slugifyString = (name, alwaysResult) => {
 		throw new Error(`Cannot slugify ${name}`)
 	}
 	return encodeURIComponent(deburr(t).trim())
-		.replace(/(%..|['()_~])/g, '-')
-		.replace(/--+/g, '-')
+		.replaceAll(/(%..|['()_~])/g, '-')
+		.replaceAll(/--+/g, '-')
 		.toLowerCase()
-		.replace(/(^[^\da-z]+|[^\da-z]+$)/g, '')
+		.replaceAll(/(^[^\da-z]+|[^\da-z]+$)/g, '')
 		.slice(0, 30)
 }
 

@@ -197,7 +197,6 @@ describe('ESDB migrations', () => {
 				})
 			}
 
-			// eslint-disable-next-line @typescript-eslint/no-empty-function -- needed for valid model
 			static reducer(_args) {}
 		}
 		const eSDB = new ESDB({
@@ -229,7 +228,7 @@ describe('ESDB migrations', () => {
 				})
 			}
 
-			static reducer(args) {}
+			static reducer(_args) {}
 		}
 		const eSDB = new ESDB({
 			models: {metadata: {Model: M}},
