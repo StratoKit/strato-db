@@ -1,24 +1,41 @@
 {
 	"compilerOptions": {
-		"target": "ES2021",
-		"module": "ES2020",
-		"lib": ["ES2020"],
+		// Code generation, not actually used
+		"target": "ES2017",
+		"module": "ES2022",
+		"incremental": true,
+		"isolatedModules": true,
+		"outDir": "tmp",
+		"noEmit": true,
+
+		// Available types
+		"lib": ["ES2021"],
+		"types": ["vite/client", "vitest/globals"],
+
+		// Module resolution
+		"forceConsistentCasingInFileNames": true,
+		"moduleResolution": "node",
+		"esModuleInterop": true,
 		"resolveJsonModule": true,
-		"downlevelIteration": true,
-		"strictNullChecks": true,
-		"strictBindCallApply": true,
-		"jsx": "preserve",
+
+		// Strictness
+		"strict": true,
+		"noImplicitAny": false,
+		"allowImportingTsExtensions": true,
+
 		// Check JS files too
 		"allowJs": true,
 		"checkJs": true,
-		"declaration": true,
-		"declarationDir": "lib-types",
-		"moduleResolution": "node",
-		"esModuleInterop": true,
+
+		// Make TS lots faster by skipping lib checks
 		"skipLibCheck": true,
-		"incremental": true,
-		"isolatedModules": true,
-		"types": ["vite/client", "vitest/globals"]
+
+		// Uncomment for more details in errors
+		// "extendedDiagnostics": true,
+		// "noErrorTruncation": true
+
+		"declaration": true,
+		"declarationDir": "lib-types"
 	},
-	"include": ["src"]
+	"exclude": ["node_modules", "dist", "tmp", "coverage"]
 }

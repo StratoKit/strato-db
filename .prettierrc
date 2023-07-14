@@ -2,7 +2,7 @@
 	"arrowParens": "avoid",
 	"bracketSpacing": false,
 	"jsdocUseInlineCommentForASingleTagBlock": true,
-	"plugins": ["./node_modules/@homer0/prettier-plugin-jsdoc"],
+	"plugins": ["@homer0/prettier-plugin-jsdoc"],
 	"semi": false,
 	"singleQuote": true,
 	"trailingComma": "es5",

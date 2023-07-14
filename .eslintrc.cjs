@@ -30,6 +30,7 @@ const nicest = {
 
 // Would be nice to make these error
 const maybe = {
+	'@typescript-eslint/ban-ts-comment': 1,
 	'no-warning-comments': 1, // set to 0 and remove allowWarning from unicorn rule above
 	'require-atomic-updates': 1, // too many false positives
 }
