@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.6.1
+
+### Changes
+
+- Tooling: switch to Vite + Vitest
+- Tooling: define direnv devshell with Nix
+
+### Fixes
+
+- SQLite: fix time measurement. It was just measuring the time of the sqlite initial call :-/
+
 ## 3.6.0
 
 ### Changes
