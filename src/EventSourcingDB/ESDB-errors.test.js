@@ -96,7 +96,7 @@ test('old reducer signature', async () => {
 	// eslint-disable-next-line no-console
 	const prev = console.warn
 	// eslint-disable-next-line no-console
-	console.warn = jest.fn()
+	console.warn = vi.fn()
 	const eSDB = new ESDB({
 		models: {
 			old: {

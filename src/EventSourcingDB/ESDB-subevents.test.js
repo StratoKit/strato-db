@@ -66,7 +66,7 @@ describe('subevents', () => {
 			},
 		}
 		return withESDB(models, async eSDB => {
-			const spy = jest.fn(event => event.type)
+			const spy = vi.fn(event => event.type)
 			eSDB.on('result', spy)
 			const event = await eSDB.dispatch('hi')
 			expect(spy).toHaveBeenCalledTimes(1)
@@ -85,7 +85,7 @@ describe('subevents', () => {
 		}
 		return withESDB(models, async eSDB => {
 			eSDB.__BE_QUIET = true
-			const doNotCall = jest.fn()
+			const doNotCall = vi.fn()
 			const event = await eSDB.dispatch('hi').then(doNotCall, e => e)
 			expect(doNotCall).toHaveBeenCalledTimes(0)
 			expect(event).toHaveProperty(
@@ -116,7 +116,7 @@ describe('subevents', () => {
 describe('transact', () => {
 	test('gets called', async () => {
 		const models = {
-			foo: {transact: jest.fn()},
+			foo: {transact: vi.fn()},
 		}
 		return withESDB(models, async eSDB => {
 			await eSDB.dispatch('hi')
@@ -250,22 +250,16 @@ describe('transact', () => {
 			foo: {
 				transact: async ({event, dispatch}) => {
 					if (event.type === 'hi')
-						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-hi')).resolves.toEqual(
-							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-hi',
-								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)
 					if (event.type === 'sub-hi')
-						// eslint-disable-next-line jest/no-conditional-expect
 						await expect(dispatch('sub-sub-hi')).resolves.toEqual(
-							// eslint-disable-next-line jest/no-conditional-expect
 							expect.objectContaining({
 								type: 'sub-sub-hi',
-								// eslint-disable-next-line jest/no-conditional-expect
 								result: expect.any(Object),
 							})
 						)
@@ -286,7 +280,6 @@ describe('transact', () => {
 			foo: {
 				reducer: ({event: {type, data}}) => {
 					if (type === 'sub') {
-						// eslint-disable-next-line jest/no-conditional-expect
 						expect(lastSeen).toBeLessThan(data)
 						lastSeen = data
 					}

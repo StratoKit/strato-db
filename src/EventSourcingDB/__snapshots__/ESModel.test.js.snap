@@ -1,6 +1,6 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`ESModel events are updated 1`] = `
+exports[`ESModel > events > are updated 1`] = `
 [
   {
     "data": [
@@ -114,7 +114,7 @@ exports[`ESModel events are updated 1`] = `
 ]
 `;
 
-exports[`ESModel events work 1`] = `
+exports[`ESModel > events > work 1`] = `
 [
   {
     "data": [

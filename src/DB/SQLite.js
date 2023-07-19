@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
+import {performance} from 'node:perf_hooks'
+import {inspect} from 'node:util'
+import {EventEmitter} from 'node:events'
 import debug from 'debug'
-import {performance} from 'perf_hooks'
-import {inspect} from 'util'
 import sqlite3 from 'sqlite3'
 import Statement from './Statement'
-import {EventEmitter} from 'events'
 import {Sema} from 'async-sema'
 
 const dbg = debug('strato-db/sqlite')
@@ -20,13 +20,13 @@ const objToString = o => {
 	return s.length > 250 ? `${s.slice(0, 250)}… (${s.length}b)` : s
 }
 
-const quoteSqlId = s => `"${s.toString().replace(/"/g, '""')}"`
+const quoteSqlId = s => `"${s.toString().replaceAll('"', '""')}"`
 
 export const valToSql = v => {
 	if (typeof v === 'boolean') return v ? '1' : '0'
 	if (typeof v === 'number') return v.toString()
 	if (v == null) return 'NULL'
-	return `'${v.toString().replace(/'/g, "''")}'`
+	return `'${v.toString().replaceAll("'", "''")}'`
 }
 
 const isBusyError = err => err.code === 'SQLITE_BUSY'
@@ -82,6 +82,7 @@ let connId = 1
  *
  * @implements {SQLite}
  */
+// eslint-disable-next-line unicorn/prefer-event-target
 class SQLiteImpl extends EventEmitter {
 	/** @param {SQLiteOptions} options */
 	constructor({
@@ -137,7 +138,7 @@ class SQLiteImpl extends EventEmitter {
 	_queuedOnOpen = []
 
 	async _openDB() {
-		const {file, readOnly, _isChild, _queuedOnOpen, options, store} = this
+		const {file, readOnly, _isChild, options, store} = this
 		const {verbose, onWillOpen, onDidOpen, autoVacuum, vacuumInterval} = options
 
 		if (_isChild)
@@ -408,7 +409,7 @@ class SQLiteImpl extends EventEmitter {
 			runQuery()
 		})
 		if (shouldDebug) {
-			const query = isStmt ? obj._name : String(args[0]).replace(/\s+/g, ' ')
+			const query = isStmt ? obj._name : String(args[0]).replaceAll(/\s+/g, ' ')
 			const notify = (error, output) => {
 				if (dbgQ.enabled)
 					dbgQ(

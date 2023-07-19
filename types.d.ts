@@ -1,7 +1,5 @@
 declare module 'strato-db'
 
-type EventEmitter = import('events').EventEmitter
-
 type DBCallback = (db: DB) => Promise<unknown> | unknown
 /** The types that SQLite can handle as parameter values */
 type SQLiteValue = string | number | null
@@ -198,7 +196,7 @@ type DBMigration = {up: DBCallback} | DBCallback
 /** Migrations are marked completed by their name in the `{sdb} migrations` table */
 type DBMigrations = Record<string, DBMigration>
 interface DBModel<Options extends {db: DB} = {db: DB}> {
-	new (options: Options): DBModel<Options>
+	new (options: Options): any
 }
 type DBOptions = {
 	/** open the DB read-only */
@@ -215,7 +213,7 @@ type DBOptions = {
  * DB adds model management and migrations to Wrapper.
  * The migration state is kept in the table ""{sdb} migrations"".
  */
-interface DB extends SQLite {
+interface DBI extends SQLite {
 	new (options: DBOptions): DB
 
 	/** The models. */
@@ -249,6 +247,7 @@ interface DB extends SQLite {
 	 */
 	runMigrations(db: SQLite): Promise<void>
 }
+declare class DB implements DBI {}
 
 /** A callback receiving an item */
 type ItemCallback<Item> = (obj: Item) => Promise<void>
@@ -341,7 +340,7 @@ type JMColums<IDCol extends string = 'id'> = {
 type JMOptions<
 	T extends {[x: string]: any},
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}}
+	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
 > = {
 	/** a DB instance, normally passed by DB  */
 	db: DB
@@ -354,7 +353,7 @@ type JMOptions<
 	/** the column definitions */
 	columns?: Columns
 	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
-	ItemClass?: Object
+	ItemClass?: object
 	/** the key of the IDCol column  */
 	idCol?: IDCol
 	/** preserve row id after vacuum  */
@@ -412,13 +411,13 @@ interface JsonModel<
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
-	Config = ConfigOrID extends string ? {} : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: {}}
+	Config = ConfigOrID extends string ? object : ConfigOrID,
+	Columns extends JMColums<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
-		  {[colName in keyof Item]: {}},
+		  {[colName in keyof Item]: object},
 	SearchAttrs = JMSearchAttrs<Columns>,
-	SearchOptions = JMSearchOptions<Columns>
+	SearchOptions = JMSearchOptions<Columns>,
 > {
 	// TODO have it infer the columns from the call to super
 	new (options: JMOptions<Item, IDCol, Columns>): this
@@ -433,7 +432,7 @@ interface JsonModel<
 	/** The SQL-quoted name of the id column */
 	idColQ: string
 	/** The prototype of returned Items */
-	Item: Object
+	Item: object
 	/** The column definitions */
 	columnArr: JMColumnDef[]
 	/** The column definitions keyed by name */
@@ -583,7 +582,7 @@ interface JsonModel<
 	getCached(
 		/** The lookup cache. It is managed with DataLoader. */
 		// We add the {} to allow easy initialization
-		cache: JMCache<Item, IDCol> | {},
+		cache: JMCache<Item, IDCol> | object,
 		/** The value for the column */
 		id: SQLiteParam,
 		/** The column name, defaults to the ID column */
@@ -704,7 +703,7 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
  */
 interface EventQueue<
 	T extends ESEvent = ESEvent,
-	Config extends Partial<EQOptions<T>> = {}
+	Config extends Partial<EQOptions<T>> = object,
 > extends JsonModel<
 		T,
 		{idCol: 'v'; columns: import('./dist/EventQueue').Columns} & Config
@@ -749,17 +748,17 @@ interface EventQueue<
 
 type ReduceResult = {[applyType: string]: any}
 type ReduxArgs<M extends ESDBModel> = {
-	cache: {}
+	cache: object
 	model: InstanceType<M>
 	event: ESEvent
 	store: EventSourcingDB['store']
 	addEvent: AddEventFn
 	isMainEvent: boolean
 }
-type PreprocessorFn<M extends ESDBModel = ESModel<{}>> = (
+type PreprocessorFn<M extends ESDBModel = ESModel> = (
 	args: ReduxArgs<M>
 ) => Promise<ESEvent | undefined> | ESEvent | undefined
-type ReducerFn<M extends ESDBModel = ESModel<{}>> = (
+type ReducerFn<M extends ESDBModel = ESModel> = (
 	args: ReduxArgs<M>
 ) =>
 	| Promise<ReduceResult | undefined | false>
@@ -767,10 +766,10 @@ type ReducerFn<M extends ESDBModel = ESModel<{}>> = (
 	| undefined
 	| false
 type ApplyResultFn = (result: ReduceResult) => Promise<void>
-type DeriverFn<M extends ESDBModel = ESModel<{}>> = (
+type DeriverFn<M extends ESDBModel = ESModel> = (
 	args: ReduxArgs<M> & {result: ReduceResult}
 ) => Promise<void>
-type TransactFn<M extends ESDBModel = ESModel<{}>> = (
+type TransactFn<M extends ESDBModel = ESModel> = (
 	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
 ) => Promise<void>
 
@@ -882,7 +881,7 @@ interface ESModel<
 		: 'id',
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]: unknown}
 		? RealItem
-		: RealItem & {[id in IDCol]: IDValue}
+		: RealItem & {[id in IDCol]: IDValue},
 > extends JsonModel<RealItem, ConfigOrID, IDCol, Item>,
 		ESDBModel {
 	new (options: EMOptions<Item, IDCol>): this

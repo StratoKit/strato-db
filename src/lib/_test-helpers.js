@@ -34,9 +34,7 @@ export const testModels = {
 		migrations: {
 			init: {
 				up({db, model, queue}) {
-					// eslint-disable-next-line jest/no-standalone-expect
 					expect(db).toBeTruthy()
-					// eslint-disable-next-line jest/no-standalone-expect
 					expect(queue).toBeTruthy()
 					return model.set({id: 'count', total: 0, byType: {}})
 				},
@@ -65,8 +63,7 @@ export const testModels = {
 		},
 	},
 	ignorer: {
-		// eslint-disable-next-line no-unused-vars
-		reducer: args => {},
+		reducer: _args => {},
 	},
 	deriver: {
 		deriver: async ({model, store, result, event}) => {

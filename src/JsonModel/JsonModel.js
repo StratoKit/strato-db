@@ -536,7 +536,7 @@ class JsonModelImpl {
 			cursor =
 				(rows.length === options.limit &&
 					(!totalQ || totalO?.t > options.limit) &&
-					encodeCursor(rows[rows.length - 1], cursorKeys)) ||
+					encodeCursor(rows.at(-1), cursorKeys)) ||
 				undefined
 			prevCursor = encodeCursor(rows[0], cursorKeys, true)
 		}
