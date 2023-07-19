@@ -8,8 +8,8 @@
     "name": "Wout Mertens",
     "email": "Wout.Mertens@gmail.com"
   },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "types": "./types.d.ts",
   "files": [
     "dist",
