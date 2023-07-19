@@ -26,8 +26,8 @@ const scripts = {
 		default: series.nps('lint', 'test.full'),
 		// Note, this changes the repo during the run
 		ci: isPR
-			? `git reset ${comparisonRef} && vitest --ci --coverage --color --segfault-retry 5 --changed; out=$?; git reset HEAD@{1}; exit $out`
-			: `vitest --ci --coverage --color --segfault-retry 5`,
+			? `git reset ${comparisonRef} && vitest --coverage --color --segfault-retry 5 --changed; out=$?; git reset HEAD@{1}; exit $out`
+			: `vitest run --coverage --color --segfault-retry 5`,
 		full: 'vitest run --coverage --color --segfault-retry 5',
 		watch: 'vitest --color --watch',
 	},
