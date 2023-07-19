@@ -18,6 +18,7 @@ export default defineConfig(() => {
 				formats: ['es', 'cjs'],
 			},
 			rollupOptions: {
+				preserveModules: true,
 				// externalize deps that shouldn't be bundled into the library
 				external: [
 					/^node:.*/,

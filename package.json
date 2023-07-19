@@ -8,20 +8,12 @@
     "name": "Wout Mertens",
     "email": "Wout.Mertens@gmail.com"
   },
-  "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "types": "./dist-types/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist-types/index.d.ts"
-    }
-  },
+  "types": "./types.d.ts",
   "files": [
     "dist",
-    "dist-types",
+    "types.d.ts",
     "Readme.md"
   ],
   "engines": {

@@ -7,9 +7,9 @@ const comparisonRef = isPR ? `origin/${process.env.BASE_REF}` : 'HEAD^'
 
 const scripts = {
 	build: {
-		default: `nps build.clean build.lib build.types`,
+		default: `nps build.clean build.lib`,
 		git: `sh build-git.sh v${version.split('.')[0]}`,
-		clean: 'rm -r dist-types/',
+		clean: '[ ! -e dist-types ] || rm -r dist-types/',
 		lib: 'vite build --mode lib',
 		types: `tsc --emitDeclarationOnly`,
 	},
