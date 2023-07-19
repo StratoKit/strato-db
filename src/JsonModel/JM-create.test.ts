@@ -8,7 +8,9 @@ test('create', () => {
 
 test('create invalid', () => {
 	const db = new DB()
+	// @ts-expect-error 2554
 	expect(() => new JsonModel()).toThrow()
+	// @ts-expect-error 2554
 	expect(() => new JsonModel({db})).toThrow()
 	expect(() => new JsonModel({name: 'foo'})).toThrow()
 })
@@ -16,7 +18,7 @@ test('create invalid', () => {
 test('derived set', async () => {
 	let ran = false
 	class Foo extends JsonModel {
-		set(obj) {
+		set(obj): any {
 			ran = true
 			return super.set(obj)
 		}
@@ -240,7 +242,9 @@ describe('each', () => {
 	test('uses noTotal', async () => {
 		const n = getModel()
 		n.search = vi.fn(() => ({items: []}))
-		await n.each(() => {})
+		await n.each(() => {
+			// mock
+		})
 		expect(n.search).toHaveBeenCalledTimes(1)
 		expect(n.search).toHaveBeenCalledWith(
 			undefined,
