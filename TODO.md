@@ -52,6 +52,7 @@
 
 - [ ] if migration is `{undo:fn}` run the `undo` only if the migration ran before. We never needed `down` migrations so far.
   - if you want to run something only on existing databases, first deploy a no-op `()=>{}` migration and then change it to an `undo`
+- [ ] measure runtime of migrations and store in table. Useful for preparing production deploy.
 
 ## JsonModel
 
@@ -136,6 +137,7 @@
 
 ### Nice to have
 
+- [ ] migration for results table. Careful about diskspace
 - [ ] make results table optional
 - [ ] add eventSpy, e.g. `eSDB.debug(boolean|{filter()})`
 - [ ] in non-prod, randomly run preprocessor twice (keep event in memory and restart handling) to verify repeatability
