@@ -780,8 +780,7 @@ type DispatchFn = (
 ) => Promise<ESEvent>
 
 type AddEventFn =
-	| ((type: string, data?: any) => void)
-	| ((arg: {type: string; data?: any}) => void)
+	 (...args: | [type: string, data?: any ]| [arg: {type: string; data?: any}]) => void
 
 // TODO get from models config
 type ESDBModelArgs = {
