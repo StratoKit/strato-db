@@ -444,7 +444,7 @@ class JsonModelImpl {
 						valid = false
 					}
 				} else {
-					vals.push(val)
+					vals.push(col.stringify ? col.stringify(val) : val)
 				}
 				if (valid) {
 					// Note that we don't attempt to use aliases, because of sharing the whereQ with
