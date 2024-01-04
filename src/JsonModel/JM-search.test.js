@@ -1,11 +1,14 @@
 import {getModel} from '../lib/_test-helpers'
 
 test('searchOne', async () => {
-	const m = getModel()
+	const m = getModel({columns: {upperId: {sql: 'upper(id)'}}})
 	const obj = {id: 'foobar', fluffy: true}
 	await m.set(obj)
 	const saved = await m.searchOne({id: obj.id})
 	expect(saved).toEqual(obj)
+	// check if `options` argument is properly passed
+	const idOnly = await m.searchOne({id: obj.id}, {cols: ['upperId']})
+	expect(idOnly).toEqual({upperId: obj.id.toUpperCase()})
 })
 
 test('search[One] attrs=null', async () => {
