@@ -507,14 +507,15 @@ class JsonModelImpl {
 	 * @param {JMSearchOptions} [options]  - search options.
 	 * @returns {Promise<Item | null>} - the result or null if no match.
 	 */
-	searchOne(attrs, options) {
+	async searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
 			attrs,
 			...options,
 			limit: 1,
 			noCursor: true,
 		})
-		return this.db.get(q, vals).then(this.toObj)
+		const row = await this.db.get(q, vals)
+		return this.toObj(row, options)
 	}
 
 	async search(attrs, {itemsOnly, ...options} = {}) {
