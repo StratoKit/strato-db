@@ -311,6 +311,7 @@ class JsonModelImpl {
 						'attrs',
 						'cols',
 						'cursor',
+						'distinct',
 						'join',
 						'joinVals',
 						'limit',
@@ -326,17 +327,18 @@ class JsonModelImpl {
 			}
 		}
 		let {
-			cols,
 			attrs,
+			cols,
+			cursor,
+			distinct,
 			join,
 			joinVals,
-			where: extraWhere,
 			limit,
-			offset,
-			sort,
-			cursor,
 			noCursor,
 			noTotal,
+			offset,
+			sort,
+			where: extraWhere,
 		} = options
 
 		cols = cols || this.selectColNames
@@ -405,7 +407,9 @@ class JsonModelImpl {
 				: cols
 						.map(c => (this.columns[c] ? this.columns[c].select : c))
 						.join(',')
-		const selectQ = `SELECT ${colsSql} FROM ${this.quoted} tbl`
+		const selectQ = `SELECT${distinct ? ' DISTINCT' : ''} ${colsSql} FROM ${
+			this.quoted
+		} tbl`
 
 		const vals = []
 		const conds = []
