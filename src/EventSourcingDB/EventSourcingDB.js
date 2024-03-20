@@ -465,6 +465,7 @@ class EventSourcingDB extends EventEmitter {
 	 */
 	dispatch = makeDispatcher('dispatch', async (type, data, ts) => {
 		const event = await this.queue.add(type, data, ts)
+		this.emit('dispatch', event)
 		return this.handledVersion(event.v)
 	})
 
