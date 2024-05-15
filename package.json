@@ -38,7 +38,7 @@
     "async-sema": "^3",
     "dataloader": "^2",
     "debug": ">=2 <5",
-    "jsurl2": "^2",
+    "jsurl2": "^2.2.0",
     "lodash": "^4",
     "prop-types": "^15",
     "sqlite3": "^5",

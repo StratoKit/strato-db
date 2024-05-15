@@ -1,5 +1,5 @@
 import debug from 'debug'
-import jsurl from 'jsurl2'
+import {parse, stringify} from 'jsurl2'
 import {sql} from '../DB'
 import DataLoader from 'dataloader'
 import {get, set} from 'lodash'
@@ -21,7 +21,7 @@ import {DEV, deprecated} from '../lib/warning'
 const dbg = debug('strato-db/JSON')
 
 const encodeCursor = (row, cursorKeys, invert) => {
-	const encoded = jsurl.stringify(
+	const encoded = stringify(
 		cursorKeys.map(k => row[k]),
 		{short: true}
 	)
@@ -35,7 +35,7 @@ const decodeCursor = cursor => {
 			invert = true
 			cursor = cursor.slice(1)
 		}
-		cursorVals = jsurl.parse(cursor)
+		cursorVals = parse(cursor)
 	}
 	return {cursorVals, invert}
 }
@@ -724,9 +724,8 @@ class JsonModelImpl {
 	 * @param {IDValue[]} ids                   - the values for the column.
 	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
 	 *                                          ID column.
-	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they
-	 *                                     don't exist, in order of their
-	 *                                     requested ID.
+	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they don't
+	 *                                     exist, in order of their requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -799,8 +798,7 @@ class JsonModelImpl {
 	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
 	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
 	 * @param {RowCallback} [fn]
-	 * @returns {Promise<void>}
-	 * Table iteration completed.
+	 * @returns {Promise<void>} Table iteration completed.
 	 */
 	async each(attrsOrFn, optionsOrFn, fn) {
 		if (!fn) {
