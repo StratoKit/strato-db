@@ -198,7 +198,7 @@ class EventSourcingDB extends EventEmitter {
 							// Make sure migrations happened before opening
 							await this.rwDb.open()
 						},
-				  })
+					})
 
 		if (queue) {
 			this.queue = queue
@@ -344,7 +344,7 @@ class EventSourcingDB extends EventEmitter {
 								...rest,
 								dispatch,
 								emitter: this,
-						  })
+							})
 				model.preprocessor = preprocessor || Model.preprocessor
 				model.reducer = fixupOldReducer(name, reducer || Model.reducer)
 				if (!model.transact) model.transact = transact || Model.transact
@@ -461,7 +461,8 @@ class EventSourcingDB extends EventEmitter {
 	 * Event data, can be anything.
 	 * @param {number} [ts]
 	 * The timestamp of the event.
-	 * @returns {Promise<Event>} The processed event.
+	 * @returns {Promise<Event>}
+	 * The processed event.
 	 */
 	dispatch = makeDispatcher('dispatch', async (type, data, ts) => {
 		const event = await this.queue.add(type, data, ts)

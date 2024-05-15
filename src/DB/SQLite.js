@@ -371,10 +371,10 @@ class SQLiteImpl extends EventEmitter {
 								return _sqlite[method](...(args || []), cb)
 							})
 							.catch(cb)
-				  }
+					}
 				: () => {
 						fnResult = _sqlite[method](...(args || []), cb)
-				  }
+					}
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
 			// eslint-disable-next-line unicorn/no-this-assignment, @typescript-eslint/no-this-alias -- we need it
@@ -400,8 +400,8 @@ class SQLiteImpl extends EventEmitter {
 						returnFn
 							? fnResult
 							: returnThis
-							? {lastID: this.lastID, changes: this.changes}
-							: out
+								? {lastID: this.lastID, changes: this.changes}
+								: out
 					)
 			}
 			if (!_sqlite[method])
@@ -510,7 +510,8 @@ class SQLiteImpl extends EventEmitter {
 	 * - the variables to be bound to the statement.
 	 * @param {function(Object): Promise<void>} cb
 	 * - the function to call on each row.
-	 * @returns {Promise<void>} - a promise for execution completion.
+	 * @returns {Promise<void>}
+	 * - a promise for execution completion.
 	 */
 	each(...args) {
 		const lastIdx = args.length - 1

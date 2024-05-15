@@ -15,10 +15,10 @@ export const slugifyString = (name, alwaysResult) => {
 		typeof name === 'string'
 			? name
 			: typeof name === 'number'
-			? name.toString()
-			: name && typeof name === 'object'
-			? Object.values(name).find(v => typeof v === 'string' && v)
-			: null
+				? name.toString()
+				: name && typeof name === 'object'
+					? Object.values(name).find(v => typeof v === 'string' && v)
+					: null
 	if (!t) {
 		if (alwaysResult) return randomString(12)
 		throw new Error(`Cannot slugify ${name}`)

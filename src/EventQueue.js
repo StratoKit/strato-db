@@ -89,7 +89,7 @@ class EventQueueImpl extends JsonModel {
 							`)
 							// Recalculate size
 							await db.exec(`UPDATE history SET size=0`)
-					  }
+						}
 					: null,
 			},
 		})
@@ -234,7 +234,7 @@ class EventQueueImpl extends JsonModel {
 					? await this.searchOne(null, {
 							where: {'v > ?': [Number(v)]},
 							sort: {v: 1},
-					  })
+						})
 					: null
 			if (event || noWait) break
 			// Wait for next one from this process

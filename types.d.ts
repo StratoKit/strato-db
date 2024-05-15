@@ -406,8 +406,8 @@ interface JsonModel<
 	IDCol extends string = ConfigOrID extends {idCol: string}
 		? ConfigOrID['idCol']
 		: ConfigOrID extends string
-		? ConfigOrID
-		: 'id',
+			? ConfigOrID
+			: 'id',
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
@@ -415,7 +415,7 @@ interface JsonModel<
 	Columns extends JMColums<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
-		  {[colName in keyof Item]: object},
+			{[colName in keyof Item]: object},
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>,
 > {
@@ -460,8 +460,8 @@ interface JsonModel<
 	/**
 	 * Search the all matching objects.
 	 *
-	 * @returns - `{items[], cursor}`. If no cursor, you got all the results. If
-	 *          `options.itemsOnly`, returns only the items array.
+	 * @returns - `{items[], cursor}`. If no cursor, you got all the results.
+	 *          If `options.itemsOnly`, returns only the items array.
 	 */
 	search(
 		/** Simple value attributes. */
@@ -563,8 +563,8 @@ interface JsonModel<
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @returns - the objects, or undefined where they don't exist, in order of
-	 *          their requested ID.
+	 * @returns - the objects, or undefined where they don't exist, in order
+	 *          of their requested ID.
 	 */
 	getAll(
 		/** The values for the column */
@@ -625,8 +625,8 @@ interface JsonModel<
 	 *                      automatically.
 	 * @param [insertOnly]  - don't allow replacing existing objects.
 	 * @param [noReturn]    - do not return the stored object; an optimization.
-	 * @returns - if `noReturn` is false, the stored object is fetched from the
-	 *          DB.
+	 * @returns - if `noReturn` is false, the stored object is fetched from
+	 *          the DB.
 	 */
 	set(
 		obj: Partial<Item>,
@@ -779,8 +779,9 @@ type DispatchFn = (
 		| [arg: {type: string; data?: any; ts?: number}]
 ) => Promise<ESEvent>
 
-type AddEventFn =
-	 (...args: | [type: string, data?: any ]| [arg: {type: string; data?: any}]) => void
+type AddEventFn = (
+	...args: [type: string, data?: any] | [arg: {type: string; data?: any}]
+) => void
 
 // TODO get from models config
 type ESDBModelArgs = {
@@ -876,8 +877,8 @@ interface ESModel<
 	IDCol extends string = ConfigOrID extends {idCol: string}
 		? ConfigOrID['idCol']
 		: ConfigOrID extends string
-		? ConfigOrID
-		: 'id',
+			? ConfigOrID
+			: 'id',
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
@@ -934,8 +935,8 @@ interface ESModel<
 	 * @param [noReturn]    - do not return the stored object; an optimization.
 	 * @param [meta]        - extra metadata to store in the event but not in
 	 *                      the object.
-	 * @returns - if `noReturn` is false, the stored object is fetched from the
-	 *          DB.
+	 * @returns - if `noReturn` is false, the stored object is fetched from
+	 *          the DB.
 	 */
 	set(
 		obj: Partial<Item>,
@@ -952,8 +953,8 @@ interface ESModel<
 	 * @param [noReturn]  - do not return the stored object; an optimization.
 	 * @param [meta]      - extra metadata to store in the event at `data[3]`
 	 *                    but not in the object.
-	 * @returns - if `noReturn` is false, the stored object is fetched from the
-	 *          DB.
+	 * @returns - if `noReturn` is false, the stored object is fetched from
+	 *          the DB.
 	 */
 	update(
 		o: Partial<Item>,

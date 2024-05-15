@@ -14,7 +14,7 @@ export const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
 			: o => {
 					const id = o[idCol]
 					return id || id === 0 ? id : null
-			  }
+				}
 	}
 	// do not bind the value functions, they must be able to use other db during migrations
 	if (slugValue) {

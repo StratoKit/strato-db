@@ -105,7 +105,7 @@ export const columnPropType =
 				isAnyOfArray: PropTypes.bool,
 				isArray: PropTypes.bool,
 				textSearch: PropTypes.bool,
-		  })
+			})
 
 export const verifyColumn = (name, column) => {
 	if (process.env.NODE_ENV !== 'production') {
@@ -172,7 +172,7 @@ const jmPropTypes =
 					dispatch: PropTypes.any,
 					emitter: PropTypes.any,
 				}),
-		  }
+			}
 
 export const verifyOptions = options => {
 	if (process.env.NODE_ENV !== 'production') {

@@ -221,7 +221,7 @@ class JsonModelImpl {
 						set(obj, path, {...get(obj, path)})
 					}
 					return obj
-			  }
+				}
 			: obj => ({...obj})
 		const colSqls = realCols.map(col => col.quoted)
 		const setSql = `INTO ${quoted}(${colSqls.join(',')}) VALUES(${colSqls
@@ -280,7 +280,7 @@ class JsonModelImpl {
 							newObj[this.idCol] = result.lastID
 						}
 						return newObj
-				  })
+					})
 		}
 	}
 
@@ -724,8 +724,9 @@ class JsonModelImpl {
 	 * @param {IDValue[]} ids                   - the values for the column.
 	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
 	 *                                          ID column.
-	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they don't
-	 *                                     exist, in order of their requested ID.
+	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they
+	 *                                     don't exist, in order of their
+	 *                                     requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -798,7 +799,8 @@ class JsonModelImpl {
 	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
 	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
 	 * @param {RowCallback} [fn]
-	 * @returns {Promise<void>} Table iteration completed.
+	 * @returns {Promise<void>}
+	 * Table iteration completed.
 	 */
 	async each(attrsOrFn, optionsOrFn, fn) {
 		if (!fn) {

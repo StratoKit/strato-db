@@ -31,7 +31,7 @@ export const makeMigrations = ({
 				? `${type} NOT NULL`
 				: `${type} PRIMARY KEY ${
 						isIntegerId && autoIncrement ? 'AUTOINCREMENT' : ''
-				  } NOT NULL`
+					} NOT NULL`
 
 			await db.exec(
 				`CREATE TABLE ${tableQuoted}(${rowIdCol}${quoted} ${keySql}, json JSON);`
@@ -61,11 +61,11 @@ export const makeMigrations = ({
 					col.index
 						? `CREATE ${
 								col.unique ? 'UNIQUE ' : ''
-						  }INDEX IF NOT EXISTS ${sql.quoteId(
+							}INDEX IF NOT EXISTS ${sql.quoteId(
 								`${tableName}_${name}`
-						  )} ON ${tableQuoted}(${expr}) ${
+							)} ON ${tableQuoted}(${expr}) ${
 								col.ignoreNull ? `WHERE ${expr} IS NOT NULL` : ''
-						  };`
+							};`
 						: ''
 				}`
 			)

@@ -60,12 +60,12 @@ export const normalizeColumn = (col, name) => {
 					const r = await prev.call(this, o)
 					if (r == null) throw new Error(`${name}: value is required`)
 					return r
-			  }
+				}
 			: o => {
 					const v = get(o, col.path)
 					if (v == null) throw new Error(`${name}: value is required`)
 					return v
-			  }
+				}
 	}
 	if (col.falsyBool) {
 		const prev = col.value
@@ -73,11 +73,11 @@ export const normalizeColumn = (col, name) => {
 			? async function (o) {
 					const r = await prev.call(this, o)
 					return r ? true : undefined
-			  }
+				}
 			: o => {
 					const v = get(o, col.path)
 					return v ? true : undefined
-			  }
+				}
 		if (col.real) {
 			if (col.parse) throw new TypeError(`${name}: falsyBool can't have parse`)
 			col.parse = v => (v ? true : undefined)

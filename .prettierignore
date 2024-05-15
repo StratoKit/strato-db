@@ -3,3 +3,4 @@ coverage/
 package-lock.json
 package.json
 API.md
+flake.lock

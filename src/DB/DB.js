@@ -54,7 +54,7 @@ class DBImpl extends SQLite {
 					if (onBeforeMigrations) await onBeforeMigrations(db)
 					await this.runMigrations(db)
 					if (options.onDidOpen) await options.onDidOpen(db)
-			  }
+				}
 		super({...options, onDidOpen})
 		this.options.migrations = migrations
 	}

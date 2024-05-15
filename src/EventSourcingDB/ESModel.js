@@ -140,14 +140,16 @@ class ESModel extends JsonModel {
 		 * Create an event that will insert or replace the given object into the
 		 * database.
 		 *
-		 * @param {Object}  obj           - the object to store. If there is no `id`
-		 *                                value (or whatever the `id` column is
-		 *                                named), one is assigned automatically.
-		 * @param {boolean} [insertOnly]  - don't allow replacing existing objects.
-		 * @param {*}       [meta]        - extra metadata to store in the event but
-		 *                                not in the object.
-		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
-		 *                                           addEvent/dispatch.
+		 * @param {Object} obj
+		 * - the object to store. If there is no `id`
+		 * value (or whatever the `id` column is named), one is assigned
+		 * automatically.
+		 * @param {boolean} [insertOnly]
+		 * - don't allow replacing existing objects.
+		 * @param {*} [meta]
+		 * - extra metadata to store in the event but not in the object.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>}
+		 * - args to pass to addEvent/dispatch.
 		 */
 		set: (obj, insertOnly, meta) => {
 			const data = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
@@ -157,13 +159,14 @@ class ESModel extends JsonModel {
 		/**
 		 * Create an event that will update an existing object.
 		 *
-		 * @param {Object}  obj       - the data to store.
-		 * @param {boolean} [upsert]  - if `true`, allow inserting if the object
-		 *                            doesn't exist.
-		 * @param {*}       [meta]    - extra metadata to store in the event at
-		 *                            `data[3]` but not in the object.
-		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
-		 *                                           addEvent/dispatch.
+		 * @param {Object} obj
+		 * - the data to store.
+		 * @param {boolean} [upsert]
+		 * - if `true`, allow inserting if the object doesn't exist.
+		 * @param {*} [meta]
+		 * - extra metadata to store in the event at `data[3]` but not in the object.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>}
+		 * - args to pass to addEvent/dispatch.
 		 */
 		update: (obj, upsert, meta) => {
 			const id = obj[this.idCol]
@@ -185,8 +188,8 @@ class ESModel extends JsonModel {
 		 * - the id or the object itself.
 		 * @param {*} meta
 		 * - metadata, attached to the event only, at `data[3]`
-		 * @returns {Pick<ESEvent, 'type' | 'data'>} - args to pass to
-		 *                                           addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>}
+		 * - args to pass to addEvent/dispatch.
 		 */
 		remove: (idOrObj, meta) => {
 			const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
@@ -282,7 +285,8 @@ class ESModel extends JsonModel {
 	 * - the id or the object itself.
 	 * @param {*} meta
 	 * - metadata, attached to the event only, at `data[3]`
-	 * @returns {Promise<boolean>} - always returns true.
+	 * @returns {Promise<boolean>}
+	 * - always returns true.
 	 */
 	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
