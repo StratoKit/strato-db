@@ -1,21 +1,24 @@
 import {sql, valToSql} from '../DB'
 import {uniqueSlugId} from '../lib/slugify'
 import {get} from 'lodash'
+import JsonModel, {
+	JMColName,
+	JMColumnDef,
+	JMNormalizedColumnDef,
+	JMRecord,
+} from './JsonModel'
 
-/**
- * @param {JMColumnDef<Row, IDCol>} col
- * @param {JMColName}               name
- * @template <Row>
- * @template <IDCol>
- */
-
-export const normalizeColumn = (col, name) => {
+export const normalizeColumn = <Item extends JMRecord>(
+	origCol: JMColumnDef<Item>,
+	name: JMColName
+): JMNormalizedColumnDef<Item> => {
+	const col = {...origCol} as JMNormalizedColumnDef<Item>
 	col.name = name
 	col.quoted = sql.quoteId(name)
 	if (col.type) col.real = true
 	else if (col.real) col.type = col.falsyBool ? 'INTEGER' : 'BLOB'
 	if (col.get == null) col.get = !!col.real
-	if (!col.path && name !== 'json') col.path = name
+	col.path = name === 'json' ? '' : col.path || name
 	col.parts = col.path === '' ? [] : col.path.split('.')
 	if (col.index === 'ALL') col.ignoreNull = false
 	if (col.index === 'SPARSE') col.ignoreNull = true
@@ -30,9 +33,10 @@ export const normalizeColumn = (col, name) => {
 		if (col.value)
 			throw new TypeError(`${name}: slugValue and value can't both be defined`)
 		if (!col.index) throw new TypeError(`${name}: slugValue requires index`)
-		col.value = async function (o) {
+		const {slugValue} = col
+		col.value = async function (this: JsonModel, o) {
 			if (o[name] != null) return o[name]
-			return uniqueSlugId(this, await col.slugValue(o), name, o[this.idCol])
+			return uniqueSlugId(this, await slugValue(o), name, o[this.idCol])
 		}
 	}
 	if (col.default != null) {
@@ -56,7 +60,7 @@ export const normalizeColumn = (col, name) => {
 		col.ignoreNull = false
 		const prev = col.value
 		col.value = prev
-			? async function (o) {
+			? async function (this: JsonModel, o) {
 					const r = await prev.call(this, o)
 					if (r == null) throw new Error(`${name}: value is required`)
 					return r
@@ -70,7 +74,7 @@ export const normalizeColumn = (col, name) => {
 	if (col.falsyBool) {
 		const prev = col.value
 		col.value = prev
-			? async function (o) {
+			? async function (this: JsonModel, o) {
 					const r = await prev.call(this, o)
 					return r ? true : undefined
 			  }
@@ -85,6 +89,5 @@ export const normalizeColumn = (col, name) => {
 	}
 	if (!col.real && col.stringify)
 		throw new Error(`${name}: stringify only applies to real columns`)
-	if (!col.get && col.parse)
-		throw new Error(`${name}: parse only applies to get:true columns`)
+	return col
 }

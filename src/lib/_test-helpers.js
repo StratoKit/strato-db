@@ -6,12 +6,12 @@ import JsonModel from '../JsonModel'
 export {default as DB} from '../DB'
 export {default as JsonModel} from '../JsonModel'
 
-export const getModel = options => {
+export const getModel = config => {
 	const db = new DB()
 	return db.addModel(JsonModel, {
 		name: 'testing',
 		keepRowId: false,
-		...options,
+		...config,
 	})
 }
 

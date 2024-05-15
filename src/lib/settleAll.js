@@ -3,7 +3,7 @@ import {Sema} from 'async-sema'
 // Only throw after all items are processed
 /**
  * @param {Item[]} items
- * @param {(item: Item) => Promise<void> | void} fn
+ * @param {(item: Item) => Promise<unknown> | unknown} fn
  * Function to call on each item.
  * @param {number} [maxConcurrent]
  * Maximum functions running in parallel.

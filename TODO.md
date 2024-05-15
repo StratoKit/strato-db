@@ -2,6 +2,7 @@
 
 ## General
 
+- investigate using typebox or valibot for column defs
 - use JSDoc to move types back to implementations as much as possible, so subclassing etc works
   - probably everything we need is covered by JSDoc now
 - allow using https://github.com/rqlite/rqlite-js as a backend for a distributed DB
@@ -26,7 +27,10 @@
 
 ### Nice to have
 
-- [ ] event emitter proxying the sqlite3 events
+- [ ] add tapable hooks
+- [ ] deprecate eventemitter
+- [ ] hooks for the sqlite3 events
+- [ ] hooks: async beforeOpen, sync close
 - [ ] `ensureTable(columns)`: accept column defs and create/add if needed, using pragma table_info
 
   ```text
@@ -107,6 +111,8 @@
 
 ### Important
 
+- [ ] allow passing metadata when creating an event
+  - and use it in ESModel (breaking)
 - [ ] allow marking an event as being processed, by setting worker id `where workerId is null` or something similar
 - [ ] workers should register in a table and write timestamps for a watchdog
 - [ ] while an event is being worked, next event can't be worked on.
@@ -128,6 +134,7 @@
 
 ### Important
 
+- [ ] sometimes dispatch ignores error. Perhaps user version is increased during transaction and dispatch reads that version instead of the read-only one?
 - [ ] split queue in history (append-only) and results. The results are only for debugging and include one row per subevent and a diff vs the original data after preprocessing.
   - Ideally, the results go in a different db that can be split at will.
   - for multi-process, lock the result db exclusively to worker
@@ -142,3 +149,8 @@
 - [ ] `reducerByType` object keyed by type that gets the same arguments as preprocessor
   - same for preprocessor/deriver/transact
 - [ ] explore read-only clones that get the event queue changes only, dispatches go to primary db. Will need Raft implementation.
+
+## General API approach
+
+- DB|SQLite classes remain as they are
+- Model classes should be instantiated separately from adding to DB store. This way TS can infer types more easily

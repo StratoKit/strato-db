@@ -1,14 +1,40 @@
 // Note that this queue doesn't use any transactions by itself, to prevent deadlocks
 // Pass `forever: true` to keep Node running while waiting for events
 import debug from 'debug'
+import Statement from './DB/Statement'
 import JsonModel from './JsonModel'
+import {
+	JMBaseConfig,
+	JMColumnDef,
+	JMColumns,
+	JMConfig,
+	JMMigrationExtraArgs,
+	JMModelName,
+	JMSearchAttrs,
+	JMSearchOptions,
+	JMValue,
+	MaybeId,
+	WithId,
+} from './JsonModel/JsonModel'
 
 const dbg = debug('strato-db/queue')
 
 let warnedLatest
 
-/** @typedef {defaultColumns} Columns */
-const defaultColumns = {
+export interface ESEvent<T extends string = string, D = unknown> {
+	/** the version */
+	v: number
+	/** event type */
+	type: T
+	/** ms since epoch of event */
+	ts: number
+	/** event data */
+	data?: D
+	/** event processing result */
+	result?: Record<string, Record<string, JMValue>>
+}
+
+const defaultColumns: JMColumns<'v'> = {
 	v: {
 		type: 'INTEGER',
 		autoIncrement: true,
@@ -26,14 +52,73 @@ const defaultColumns = {
 
 /**
  * An event queue, including history.
- *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
  */
-class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
-	constructor({name = 'history', forever, withViews, ...rest}) {
+class EventQueue<
+	Event extends ESEvent = ESEvent,
+	Config extends JMBaseConfig = JMBaseConfig,
+	//
+	// Inferred generics below
+	//
+	InputEvent extends MaybeId<Partial<Event>, 'v', number> = MaybeId<
+		Partial<Event>,
+		'v',
+		number
+	>,
+	DBEvent extends WithId<Event, 'v', number> = WithId<Event, 'v', number>,
+	Name extends JMModelName = Config['name'],
+	Columns extends JMColumns<'v'> = Config['columns'] extends JMColumns<'v'>
+		? Config['columns']
+		: // If we didn't get a config, assume all keys are columns
+		  {[colName in keyof DBEvent]: JMColumnDef},
+	ColName extends string | 'v' | 'json' =
+		| Extract<keyof Columns, string>
+		| 'v'
+		| 'json',
+	SearchAttrs extends JMSearchAttrs<ColName> = JMSearchAttrs<ColName>,
+	SearchOptions extends JMSearchOptions<ColName> = JMSearchOptions<ColName>,
+	MigrationArgs extends
+		JMMigrationExtraArgs = Config['migrationOptions'] extends JMMigrationExtraArgs
+		? Config['migrationOptions']
+		: JMMigrationExtraArgs,
+	RealConfig extends JMConfig<'v', Event, MigrationArgs> = JMConfig<
+		'v',
+		Event,
+		MigrationArgs
+	>,
+> extends JsonModel<
+	Event,
+	Config,
+	'v',
+	number,
+	InputEvent,
+	DBEvent,
+	Name,
+	Columns,
+	ColName,
+	SearchAttrs,
+	SearchOptions,
+	MigrationArgs,
+	RealConfig
+> {
+	/** Latest known version */
+	declare knownV: number
+	/** Current version to our knowledge */
+	declare currentV: number
+	/** should getNext poll forever? */
+	declare forever: boolean
+
+	constructor({
+		name = 'history',
+		forever,
+		withViews,
+		...rest
+	}: Omit<JMConfig<'v', Event, Config['migrationOptions']>, 'name'> & {
+		/** should getNext poll forever? */
+		forever?: boolean
+		/** add views to the database to assist with inspecting the data */
+		withViews?: boolean
+		name?: JMModelName
+	}) {
 		const columns = {...defaultColumns}
 		if (rest.columns)
 			for (const [key, value] of Object.entries(rest.columns)) {
@@ -41,7 +126,7 @@ class EventQueueImpl extends JsonModel {
 				if (columns[key]) throw new TypeError(`Cannot override column ${key}`)
 				columns[key] = value
 			}
-		super({
+		const config: JMConfig<'v', Event, Config['migrationOptions']> = {
 			...rest,
 			name,
 			idCol: 'v',
@@ -92,7 +177,8 @@ class EventQueueImpl extends JsonModel {
 					  }
 					: null,
 			},
-		})
+		}
+		super(config as RealConfig)
 		this.currentV = -1
 		this.knownV = 0
 		this.forever = !!forever
@@ -101,17 +187,22 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event  - the new event.
-	 * @returns {Promise<void>} - Promise for set completion.
+	 * @param event  - the new event.
+	 * @returns Promise for set completion.
 	 */
-	set(event) {
+	set<NoReturn extends boolean>(
+		event: InputEvent,
+		insertOnly?: boolean,
+		noReturn?: NoReturn
+	) {
 		if (!event.v) {
 			throw new Error('cannot use set without v')
 		}
 		this.currentV = -1
-		return super.set(event)
+		return super.set<NoReturn>(event, insertOnly, noReturn)
 	}
 
+	/** @deprecated use .getMaxV() */
 	latestVersion() {
 		if (process.env.NODE_ENV !== 'production' && !warnedLatest) {
 			const {stack} = new Error(
@@ -124,12 +215,16 @@ class EventQueueImpl extends JsonModel {
 		return this.getMaxV()
 	}
 
+	declare _dataV: number
+	declare _maxSql: Statement
+	declare _addP: Promise<Event>
+
 	/**
 	 * Get the highest version stored in the queue.
 	 *
-	 * @returns {Promise<number>} - the version.
+	 * @returns The version.
 	 */
-	async getMaxV() {
+	async getMaxV(): Promise<number> {
 		if (this._addP) await this._addP
 
 		const dataV = await this.db.dataVersion()
@@ -143,22 +238,22 @@ class EventQueueImpl extends JsonModel {
 				`SELECT MAX(v) AS v from ${this.quoted}`,
 				'maxV'
 			)
-		const lastRow = await this._maxSql.get()
-		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		const lastRow = (await this._maxSql.get())!.v as number
+		this.currentV = Math.max(this.knownV, lastRow || 0)
 		return this.currentV
 	}
 
-	_addP = null
+	declare _addSql: Statement
 
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param {string} type             - event type.
-	 * @param {*}      [data]           - event data.
-	 * @param {number} [ts=Date.now()]  - event timestamp, ms since epoch.
-	 * @returns {Promise<Event>} - Promise for the added event.
+	 * @param type    - event type.
+	 * @param [data]  - event data.
+	 * @param [ts]    - event timestamp, ms since epoch.
+	 * @returns - Promise for the added event.
 	 */
-	add(type, data, ts) {
+	add(type: Event['type'], data: Event['data'], ts: number): Promise<Event> {
 		if (!type || typeof type !== 'string')
 			return Promise.reject(new Error('type should be a non-empty string'))
 		ts = Number(ts) || Date.now()
@@ -181,7 +276,7 @@ class EventQueueImpl extends JsonModel {
 
 			this.currentV = v
 
-			const event = {v, type, ts, data}
+			const event = {v, type, ts, data} as Event
 			dbg(`queued`, v, type)
 			if (this._nextAddedResolve) {
 				this._nextAddedResolve(event)
@@ -191,7 +286,10 @@ class EventQueueImpl extends JsonModel {
 		return this._addP
 	}
 
-	_nextAddedP = null
+	declare _nextAddedP?: Promise<Event | 'CANCEL'>
+	declare _resolveNAP?: (e: Event | 'CANCEL') => void
+	declare _NAPresolved?: boolean
+	declare _addTimer?: ReturnType<typeof setTimeout>
 
 	_nextAddedResolve = event => {
 		if (!this._resolveNAP) return
@@ -203,7 +301,7 @@ class EventQueueImpl extends JsonModel {
 	// promise to wait for next event with timeout
 	_makeNAP() {
 		if (this._nextAddedP && !this._NAPresolved) return
-		this._nextAddedP = new Promise(resolve => {
+		this._nextAddedP = new Promise<Event | 'CANCEL'>(resolve => {
 			this._resolveNAP = resolve
 			this._NAPresolved = false
 			// Timeout after 10s so we can also get events from other processes
@@ -219,12 +317,12 @@ class EventQueueImpl extends JsonModel {
 	 * Get the next event after v (gaps are ok).
 	 * The wait can be cancelled by `.cancelNext()`.
 	 *
-	 * @param {number}  [v=0]     The version.
-	 * @param {boolean} [noWait]  Do not wait for the next event.
-	 * @returns {Promise<Event>} The event if found.
+	 * @param [v=0]     The version.
+	 * @param [noWait]  Do not wait for the next event.
+	 * @returns The event if found.
 	 */
-	async getNext(v = 0, noWait = false) {
-		let event
+	async getNext(v = 0, noWait = false): Promise<DBEvent | undefined> {
+		let event: DBEvent | undefined
 		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
 		do {
 			this._makeNAP()
@@ -234,14 +332,15 @@ class EventQueueImpl extends JsonModel {
 					? await this.searchOne(null, {
 							where: {'v > ?': [Number(v)]},
 							sort: {v: 1},
-					  })
-					: null
+					  } as unknown as SearchOptions)
+					: undefined
 			if (event || noWait) break
 			// Wait for next one from this process
-			event = await this._nextAddedP
+			event = (await this._nextAddedP) as DBEvent
+			// @ts-expect-error 2367
 			if (event === 'CANCEL') return
 			// Ignore previous events
-			if (v && event && event.v < v) event = null
+			if (v && event && event.v < v) event = undefined
 		} while (!event)
 		return event
 	}
@@ -258,9 +357,9 @@ class EventQueueImpl extends JsonModel {
 	 * Set the latest known version.
 	 * New events will have higher versions.
 	 *
-	 * @param {number} v  - the last known version.
+	 * @param v  - the last known version.
 	 */
-	setKnownV(v) {
+	setKnownV(v: number) {
 		// set the sqlite autoincrement value
 		// Try changing current value, and insert if there was no change
 		// This doesn't need a transaction, either one or the other runs and
@@ -286,4 +385,4 @@ class EventQueueImpl extends JsonModel {
 	}
 }
 
-export default EventQueueImpl
+export default EventQueue

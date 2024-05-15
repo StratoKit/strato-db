@@ -56,12 +56,6 @@ test('long number string id', async () => {
 	expect(o.id).toBe(id)
 })
 
-test('parse validity', async () => {
-	expect(() =>
-		getModel({columns: {f: {value: o => o.f, parse: v => `_${v}`}}})
-	).toThrow()
-})
-
 test('parse function', async () => {
 	const m = getModel({
 		columns: {

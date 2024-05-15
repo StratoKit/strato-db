@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/prefer-event-target */
 /* eslint-disable require-atomic-updates */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
@@ -43,9 +44,81 @@ import debug from 'debug'
 import {isEmpty} from 'lodash'
 import DB from '../DB'
 import ESModel from './ESModel'
-import EventQueue from '../EventQueue'
+import EventQueue, {ESEvent} from '../EventQueue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
+import {DBModel} from '../DB/DB'
+import {ApplyResultFn, DeriverFn, PreprocessorFn, ReducerFn} from 'strato-db'
+import {JMJsonRecord, JMRecord} from '../JsonModel/JsonModel'
+
+type ESEventInput<E extends ESEvent = ESEvent> = Pick<E, 'type' | 'data'> & {
+	ts?: E['ts']
+}
+
+/** Dispatches an event */
+export type DispatchFn<E extends ESEvent = ESEvent> = (
+	...args: [ESEventInput<E>] | [type: E['type'], data?: E['data'], ts?: E['ts']]
+) => Promise<ESEvent>
+/** Adds a sub-event during the redux flow. This will be processed after the current event is processed */
+export type AddEventFn<E extends ESEvent = ESEvent> = (
+	...args: [ESEventInput<E>] | [type: E['type'], data?: E['data']]
+) => void
+
+export type ReduxArgs<M extends ESDBModel> = {
+	cache: object
+	model: InstanceType<M>
+	event: ESEvent
+	store: EventSourcingDB['store']
+	addEvent: AddEventFn
+	isMainEvent: boolean
+}
+export type PreprocessorFn<M extends ESDBModel = ESModel> = (
+	args: ReduxArgs<M>
+) => Promise<ESEvent | undefined> | ESEvent | undefined
+export type ReducerFn<M extends ESDBModel = ESModel> = (
+	args: ReduxArgs<M>
+) =>
+	| Promise<ReduceResult | undefined | false>
+	| ReduceResult
+	| undefined
+	| false
+export type ApplyResultFn = (result: ReduceResult) => Promise<void>
+export type DeriverFn<M extends ESDBModel = ESModel> = (
+	args: ReduxArgs<M> & {result: ReduceResult}
+) => Promise<void>
+export type TransactFn<M extends ESDBModel = ESModel> = (
+	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
+) => Promise<void>
+
+export type DefaultApplyMessages = 'rm' | 'set' | 'ins' | 'upd' | 'sav'
+export type DefaultReduceResult<Item extends JMRecord = JMJsonRecord> = {
+	[msg in DefaultApplyMessages]?: Partial<Item>
+}
+export type ReduceResult<
+	Item extends JMRecord = JMJsonRecord,
+	Message extends Record<string, any> = DefaultReduceResult<Item>,
+> = Message
+
+export type ESDBModel = DBModel & {
+	/**
+	 * Assigns the object id to the event at the start of the cycle.
+	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+	 */
+	preprocessor?: PreprocessorFn
+	/**
+	 * Calculates the desired change.
+	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+	 */
+	reducer?: ReducerFn
+	/**
+	 * Applies the result from the reducer.
+	 *
+	 * @param result  - free-form change descriptor.
+	 * @returns - Promise for completion.
+	 */
+	applyResult?: ApplyResultFn
+	deriver?: DeriverFn
+}
 
 const dbg = debug('strato-db/ESDB')
 
@@ -121,39 +194,62 @@ const fixupOldReducer = (name, reducer) => {
 }
 
 // In subevents ts is silently ignored
-const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
-	let type
-	if (typeof typeOrEvent === 'string') {
-		type = typeOrEvent
-	} else {
-		if (DEV) {
-			if (data)
-				throw new Error(
-					`${name}: second argument must not be defined when passing the event as an object`
-				)
-			const {type: _1, data: _2, ts: _3, ...rest} = typeOrEvent
-			if (Object.keys(rest).length)
-				throw new Error(`${name}: extra key(s) ${Object.keys(rest).join(',')}`)
+const makeDispatcher =
+	<E extends ESEvent>(name: string, fn): DispatchFn<E> =>
+	(
+		typeOrEvent: E['type'] | ESEventInput<E>,
+		data?: E['data'],
+		ts?: E['ts']
+	) => {
+		let type
+		if (typeof typeOrEvent === 'string') {
+			type = typeOrEvent
+		} else {
+			if (DEV) {
+				if (data)
+					throw new Error(
+						`${name}: second argument must not be defined when passing the event as an object`
+					)
+				const {type: _1, data: _2, ts: _3, ...rest} = typeOrEvent as ESEvent
+				if (Object.keys(rest).length)
+					throw new Error(
+						`${name}: extra key(s) ${Object.keys(rest).join(',')}`
+					)
+			}
+			data = typeOrEvent.data
+			ts = typeOrEvent.ts
+			type = typeOrEvent.type
 		}
-		data = typeOrEvent.data
-		ts = typeOrEvent.ts
-		type = typeOrEvent.type
+		if (!type || typeof type !== 'string')
+			throw new Error(`${name}: type is a required string`)
+		return fn(type, data, ts)
 	}
-	if (!type || typeof type !== 'string')
-		throw new Error(`${name}: type is a required string`)
-	return fn(type, data, ts)
-}
 
 /**
  * EventSourcingDB maintains a DB where all data is atomically updated based on
- * {@link Event events (free-form messages)}.
- * This is very similar to how Redux works in React.
- *
- * @augments EventEmitter
+ * {@link ESEvent events (free-form messages)}.
+ * This is very similar to how Redux works in React, but async.
  */
-// eslint-disable-next-line unicorn/prefer-event-target
-class EventSourcingDB extends EventEmitter {
+class EventSourcingDB<
+	Store extends DB['store'] = DB['store'],
+> extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
+
+	declare db: DB
+	declare rwDb: DB
+	declare queue: EventQueue
+	store: Store = {} as Store
+	rwStore: Store = {} as Store
+	_preprocModels: (InstanceType<ESDBModel> & {preprocessor: PreprocessorFn})[] =
+		[]
+	_reducerNames: string[] = []
+	_deriverModels: (InstanceType<ESDBModel> & {deriver: DeriverFn})[] = []
+	_transactModels: (InstanceType<ESDBModel> & {transact: TransactFn})[] = []
+	_readWriters = []
+
+	declare _resultQueue: EventQueue
+	declare _alsDispatch: AsyncLocalStorage<DispatchFn>
+	// declare _preprocModels:
 
 	constructor({
 		queue,
@@ -241,34 +337,24 @@ class EventSourcingDB extends EventEmitter {
 				const v = vObj && Number(vObj.v)
 				if (!v) return
 				await db.userVersion(v)
-				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
+				const {count} = (await db.get(
+					`SELECT count(*) AS count from metadata`
+				)) as {count: number}
 				await (count === 1
 					? db
 							.exec(
 								`DROP TABLE metadata; DELETE FROM _migrations WHERE runKey="0 metadata"`
 							)
-							/* shrug */
-							.catch(() => {})
+							.catch(() => {
+								/* shrug */
+							})
 					: db.run(`DELETE FROM metadata WHERE id="version"`))
 			},
 		})
 
-		/** @type {Record<string, InstanceType<ESDBModel>>} */
-		this.store = {}
-		/** @type {Record<string, InstanceType<ESDBModel>>} */
-		this.rwStore = {}
 		// Used for transact keeping track of call stacks
 		this._alsDispatch = new AsyncLocalStorage()
 
-		/** @type {(InstanceType<ESDBModel> & {preprocessor: PreprocessorFn})[]} */
-		this._preprocModels = []
-		/** @type {string[]} */
-		this._reducerNames = []
-		/** @type {(InstanceType<ESDBModel> & {deriver: DeriverFn})[]} */
-		this._deriverModels = []
-		/** @type {(InstanceType<ESDBModel> & {transact: TransactFn})[]} */
-		this._transactModels = []
-		this._readWriters = []
 		const reducers = {}
 		const migrationOptions = {queue: this.queue}
 
@@ -402,8 +488,7 @@ class EventSourcingDB extends EventEmitter {
 		return this.handledVersion(v)
 	}
 
-	/** @type {Promise<void> | null} */
-	_waitingP = null
+	_waitingP: Promise<void> | null = null
 
 	_minVersion = 0
 
@@ -412,9 +497,7 @@ class EventSourcingDB extends EventEmitter {
 			if (wantVersion > this._minVersion) this._minVersion = wantVersion
 		} else if (!this._isPolling) {
 			this._isPolling = true
-			// @ts-ignore
 			if (module.hot) {
-				// @ts-ignore
 				module.hot.dispose(() => {
 					this.stopPolling()
 				})
@@ -476,7 +559,7 @@ class EventSourcingDB extends EventEmitter {
 		})
 
 	/** @type {Promise<number> | null} */
-	_getVersionP = null
+	_getVersionP: Promise<number> | null = null
 
 	getVersion() {
 		if (!this._getVersionP) {
@@ -545,7 +628,6 @@ class EventSourcingDB extends EventEmitter {
 				}
 			}
 			if (o && process.env.NODE_ENV === 'test') {
-				// @ts-ignore
 				if (!this.__BE_QUIET)
 					// eslint-disable-next-line no-console
 					console.error(
@@ -635,7 +717,6 @@ class EventSourcingDB extends EventEmitter {
 					return _resultQueue.set(result)
 				})
 				.catch(error => {
-					// @ts-ignore
 					if (!this.__BE_QUIET)
 						// eslint-disable-next-line no-console
 						console.error(
@@ -654,7 +735,6 @@ class EventSourcingDB extends EventEmitter {
 
 			if (resultEvent.error) {
 				errorCount++
-				// @ts-ignore
 				if (!this.__BE_QUIET) {
 					let path, error
 					// find the deepest error
@@ -777,7 +857,6 @@ class EventSourcingDB extends EventEmitter {
 				}
 				let out
 				try {
-					// @ts-ignore
 					out = await model.reducer(helpers)
 				} catch (error) {
 					out = {
@@ -879,7 +958,6 @@ class EventSourcingDB extends EventEmitter {
 		if (event.error) return event
 
 		// Allow GC
-		// @ts-ignore
 		cache = null
 
 		event = await this._applyEvent(event, isMainEvent)
@@ -968,7 +1046,6 @@ class EventSourcingDB extends EventEmitter {
 					return addEvent(...args)
 				}
 				await settleAll(this._deriverModels, async model =>
-					// @ts-ignore
 					model.deriver({
 						event,
 						model,

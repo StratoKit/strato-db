@@ -228,7 +228,9 @@ describe('ESDB migrations', () => {
 				})
 			}
 
-			static reducer(_args) {}
+			static reducer(_args) {
+				// mock
+			}
 		}
 		const eSDB = new ESDB({
 			models: {metadata: {Model: M}},

@@ -1,4 +1,20 @@
 import {sql} from '../DB'
+import DB, {DBMigrations, DBModels} from '../DB/DB'
+import JsonModel, {
+	JMBaseConfig,
+	JMColumns,
+	JMConfig,
+	JMIDType,
+	JMMigrationExtraArgs,
+	JMMigrations,
+	JMModelName,
+	JMNormalizedColumnDef,
+	JMRecord,
+	JMSearchAttrs,
+	JMSearchOptions,
+	MaybeId,
+	WithId,
+} from './JsonModel'
 
 export const cloneModelWithDb = (m, db) => {
 	const model = Object.create(m)
@@ -7,20 +23,56 @@ export const cloneModelWithDb = (m, db) => {
 	return model
 }
 
-export const makeMigrations = ({
+export const makeMigrations = <
+	Model extends JsonModel<
+		ItemType,
+		Config,
+		IDCol,
+		IDType,
+		InputItem,
+		DBItem,
+		Name,
+		Columns,
+		ColName,
+		SearchAttrs,
+		SearchOptions,
+		MigrationArgs,
+		RealConfig
+	>,
+	ItemType extends JMRecord,
+	Config extends JMBaseConfig,
+	Name extends JMModelName,
+	IDCol extends string,
+	IDType extends JMIDType,
+	DBItem extends WithId<ItemType, IDCol, IDType>,
+	InputItem extends MaybeId<Partial<ItemType>, IDCol, IDType>,
+	Columns extends JMColumns<IDCol>,
+	ColName extends string | IDCol | 'json',
+	SearchAttrs extends JMSearchAttrs<ColName>,
+	SearchOptions extends JMSearchOptions<ColName>,
+	MigrationArgs extends JMMigrationExtraArgs,
+	RealConfig extends JMConfig<IDCol, ItemType, MigrationArgs>
+>({
 	name: tableName,
 	idCol,
 	columns,
 	keepRowId,
 	migrations,
 	migrationOptions,
-}) => {
+}: {
+	name: Model['name']
+	idCol: Model['idCol']
+	columns: Model['columns']
+	keepRowId?: boolean
+	migrations?: JMMigrations
+	migrationOptions?: MigrationArgs
+}): DBMigrations => {
 	const tableQuoted = sql.quoteId(tableName)
 	const allMigrations = {
 		...migrations,
 		// We make id a real column to allow foreign keys
 		0: async ({db}) => {
-			const {quoted, type, autoIncrement} = columns[idCol]
+			const {quoted, type, autoIncrement} = columns[idCol as ColName]
 			const isIntegerId = type === 'INTEGER'
 			const addRowId = !isIntegerId && keepRowId
 			// The NOT NULL is a SQLite bug, otherwise it allows NULL as id
@@ -46,7 +98,9 @@ export const makeMigrations = ({
 			}
 		},
 	}
-	for (const [name, col] of Object.entries(columns)) {
+	for (const [name, col] of Object.entries<JMNormalizedColumnDef<DBItem>>(
+		columns
+	)) {
 		// We already added these, or it's an alias
 		if (name === idCol || name === 'json' || name !== col.name) continue
 		const expr = col.sql.replace('tbl.', '')
@@ -74,14 +128,15 @@ export const makeMigrations = ({
 	const wrappedMigrations = {}
 	const wrap = fn =>
 		fn &&
-		(writeableDb => {
+		((writeableDb: DB) => {
 			if (!writeableDb.store.__madeWriteable) {
 				const {store} = writeableDb
-				const newStore = {__madeWriteable: true}
+				const newStore = {__madeWriteable: true} as unknown as DBModels & {
+					_madeWriteable: true
+				}
 				// Create a patched version of all models that uses the migration db
 				for (const m of Object.values(store)) {
-					if (typeof m !== 'object') continue
-					newStore[m.name] = cloneModelWithDb(m, writeableDb)
+					if (m?.name) newStore[m.name] = cloneModelWithDb(m, writeableDb)
 				}
 				writeableDb.store = newStore
 			}
