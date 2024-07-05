@@ -299,3 +299,15 @@ test('sum', async () => {
 	await m.set({v: '8'})
 	expect(await m.sum('v')).toBe(13)
 })
+
+test('distinct', async () => {
+	const m = getModel({})
+	expect(m.makeSelect({distinct: true})).toEqual([
+		'SELECT DISTINCT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl',
+		[],
+		undefined,
+		'SELECT COUNT(*) as t from ( SELECT DISTINCT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl )',
+		[],
+		false,
+	])
+})
