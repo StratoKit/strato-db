@@ -32,13 +32,12 @@ export const valToSql = v => {
 const isBusyError = err => err.code === 'SQLITE_BUSY'
 
 /**
- * sql provides templating for SQL.
+ * Sql provides templating for SQL.
  *
- * Example:
- * `` db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
- * ${obj}JSON` ``
+ * Example: `db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
+ * ${obj}JSON``
  *
- * is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
+ * Is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
  * JSON.stringify(obj)])`
  *
  * @type {{quoteId: quoteSqlId} & SqlTag}
@@ -76,9 +75,9 @@ const outputToString = (output, method) =>
 let connId = 1
 
 /**
- * SQLite is a wrapper around a single SQLite connection (via node-sqlite3).
- * It provides a Promise API, lazy opening, auto-cleaning prepared statements
- * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
+ * SQLite is a wrapper around a single SQLite connection (via node-sqlite3). It
+ * provides a Promise API, lazy opening, auto-cleaning prepared statements and
+ * safe `db.run`select * from foo where bar=${bar}` ` templating.
  *
  * @implements {SQLite}
  */
@@ -253,9 +252,7 @@ class SQLiteImpl extends EventEmitter {
 		return this
 	}
 
-	/**
-	 * `true` if an sqlite connection was set up. Mostly useful for tests.
-	 */
+	/** `true` if an sqlite connection was set up. Mostly useful for tests. */
 	get isOpen() {
 		return Boolean(this._sqlite)
 	}
@@ -263,7 +260,7 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Force opening the database instead of doing it lazily on first access.
 	 *
-	 * @returns {Promise<void>} - a promise for the DB being ready to use.
+	 * @returns {Promise<void>} - A promise for the DB being ready to use.
 	 */
 	open() {
 		const {_resolveDbP} = this
@@ -280,14 +277,14 @@ class SQLiteImpl extends EventEmitter {
 
 	/**
 	 * Runs the passed function once, either immediately if the connection is
-	 * already open, or when the database will be opened next.
-	 * Note that if the function runs immediately, its return value is returned.
-	 * If this is a Promise, it is the caller's responsibility to handle errors.
-	 * Otherwise, the function will be run once after onDidOpen, and errors will
-	 * cause the open to fail.
+	 * already open, or when the database will be opened next. Note that if the
+	 * function runs immediately, its return value is returned. If this is a
+	 * Promise, it is the caller's responsibility to handle errors. Otherwise, the
+	 * function will be run once after onDidOpen, and errors will cause the open
+	 * to fail.
 	 *
-	 * @param {(db: SQLite)=>void} fn
-	 * @returns {*} Either the function return value or undefined.
+	 * @param {(db: SQLite) => void} fn
+	 * @returns {any} Either the function return value or undefined.
 	 */
 	runOnceOnOpen(fn) {
 		if (this.isOpen) {
@@ -301,7 +298,7 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Close the database connection, including the prepared statements.
 	 *
-	 * @returns {Promise<void>} - a promise for the DB being closed.
+	 * @returns {Promise<void>} - A promise for the DB being closed.
 	 */
 	async close() {
 		if (this._openingDbP) {
@@ -443,9 +440,9 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Return all rows for the given query.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object[]>} - the results.
+	 * @param {string} sql - The SQL statement to be executed.
+	 * @param {any[]} [vars] - The variables to be bound to the statement.
+	 * @returns {Promise<Object[]>} - The results.
 	 */
 	all(...args) {
 		return this._call('all', args, this._sqlite, this.name)
@@ -454,9 +451,9 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Return the first row for the given query.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object | null>} - the result or falsy if missing.
+	 * @param {string} sql - The SQL statement to be executed.
+	 * @param {any[]} [vars] - The variables to be bound to the statement.
+	 * @returns {Promise<Object | null>} - The result or falsy if missing.
 	 */
 	get(...args) {
 		return this._call('get', args, this._sqlite, this.name)
@@ -465,9 +462,9 @@ class SQLiteImpl extends EventEmitter {
 	/**
 	 * Run the given query and return the metadata.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<Object>} - an object with `lastID` and `changes`
+	 * @param {string} sql - The SQL statement to be executed.
+	 * @param {any[]} [vars] - The variables to be bound to the statement.
+	 * @returns {Promise<Object>} - An object with `lastID` and `changes`
 	 */
 	run(...args) {
 		return this._call('run', args, this._sqlite, this.name, true)
@@ -477,9 +474,9 @@ class SQLiteImpl extends EventEmitter {
 	 * Run the given query and return nothing. Slightly more efficient than
 	 * {@link run}
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {any[]}  [vars]  - the variables to be bound to the statement.
-	 * @returns {Promise<void>} - a promise for execution completion.
+	 * @param {string} sql - The SQL statement to be executed.
+	 * @param {any[]} [vars] - The variables to be bound to the statement.
+	 * @returns {Promise<void>} - A promise for execution completion.
 	 */
 	async exec(...args) {
 		await this._call('exec', args, this._sqlite, this.name)
@@ -490,9 +487,9 @@ class SQLiteImpl extends EventEmitter {
 	 * will prepare the statement with SQLite whenever needed, as well as finalize
 	 * it when closing the connection.
 	 *
-	 * @param {string} sql     - the SQL statement to be executed.
-	 * @param {string} [name]  - a short name to use in debug logs.
-	 * @returns {Statement} - the statement.
+	 * @param {string} sql - The SQL statement to be executed.
+	 * @param {string} [name] - A short name to use in debug logs.
+	 * @returns {Statement} - The statement.
 	 */
 	// eslint-disable-next-line no-shadow
 	prepare(sql, name) {
@@ -501,17 +498,24 @@ class SQLiteImpl extends EventEmitter {
 	}
 
 	/**
-	 * Run the given query and call the function on each item.
-	 * Note that node-sqlite3 seems to just fetch all data in one go.
+	 * Run the given query and call the function on each item. Note that
+	 * node-sqlite3 seems to just fetch all data in one go.
 	 *
 	 * @param {string} sql
-	 * - the SQL statement to be executed.
+	 *
+	 *   - The SQL statement to be executed.
+	 *
 	 * @param {any[]} [vars]
-	 * - the variables to be bound to the statement.
+	 *
+	 *   - The variables to be bound to the statement.
+	 *
 	 * @param {function(Object): Promise<void>} cb
-	 * - the function to call on each row.
+	 *
+	 *   - The function to call on each row.
+	 *
 	 * @returns {Promise<void>}
-	 * - a promise for execution completion.
+	 *
+	 *   - A promise for execution completion.
 	 */
 	each(...args) {
 		const lastIdx = args.length - 1
@@ -527,7 +531,7 @@ class SQLiteImpl extends EventEmitter {
 	 * Returns the data_version, which increases when other connections write to
 	 * the database.
 	 *
-	 * @returns {Promise<number>} - the data version.
+	 * @returns {Promise<number>} - The data version.
 	 */
 	async dataVersion() {
 		if (!this._sqlite) await this._hold('dataVersion')
@@ -541,8 +545,8 @@ class SQLiteImpl extends EventEmitter {
 	 * Returns or sets the user_version, an arbitrary integer connected to the
 	 * database.
 	 *
-	 * @param {number} [newV]  - if given, sets the user version.
-	 * @returns {Promise<number>} - the user version.
+	 * @param {number} [newV] - If given, sets the user version.
+	 * @returns {Promise<number>} - The user version.
 	 */
 	async userVersion(newV) {
 		if (!this._sqlite) await this._hold('userVersion')
@@ -567,9 +571,9 @@ class SQLiteImpl extends EventEmitter {
 	 * invocations are serialized, and between connections it uses busy retry
 	 * waiting. During a transaction, the database can still be read.
 	 *
-	 * @param {function} fn  - the function to call. It doesn't get any parameters.
-	 * @returns {Promise<void>} - a promise for transaction completion.
-	 * @throws - when the transaction fails or after too many retries.
+	 * @param {function} fn - The function to call. It doesn't get any parameters.
+	 * @returns {Promise<void>} - A promise for transaction completion.
+	 * @throws - When the transaction fails or after too many retries.
 	 */
 	async withTransaction(fn) {
 		if (this.readOnly) throw new Error(`${this.name}: DB is readonly`)

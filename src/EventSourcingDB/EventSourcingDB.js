@@ -146,8 +146,8 @@ const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
 
 /**
  * EventSourcingDB maintains a DB where all data is atomically updated based on
- * {@link Event events (free-form messages)}.
- * This is very similar to how Redux works in React.
+ * {@link Event events (free-form messages)}. This is very similar to how Redux
+ * works in React.
  *
  * @augments EventEmitter
  */
@@ -456,13 +456,10 @@ class EventSourcingDB extends EventEmitter {
 
 	/**
 	 * @param {string | {type: string; data?: any; ts?: number}} typeOrEvent
-	 * Event type or the entire event.
-	 * @param {any} [data]
-	 * Event data, can be anything.
-	 * @param {number} [ts]
-	 * The timestamp of the event.
-	 * @returns {Promise<Event>}
-	 * The processed event.
+	 *   Event type or the entire event.
+	 * @param {any} [data] Event data, can be anything.
+	 * @param {number} [ts] The timestamp of the event.
+	 * @returns {Promise<Event>} The processed event.
 	 */
 	dispatch = makeDispatcher('dispatch', async (type, data, ts) => {
 		const event = await this.queue.add(type, data, ts)

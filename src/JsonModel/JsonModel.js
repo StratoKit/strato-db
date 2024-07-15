@@ -41,8 +41,9 @@ const decodeCursor = cursor => {
 }
 
 /**
- * JsonModel is a simple document store. It stores its data in SQLite as a table, one row
- * per object (document). Each object must have a unique ID, normally at `obj.id`.
+ * JsonModel is a simple document store. It stores its data in SQLite as a
+ * table, one row per object (document). Each object must have a unique ID,
+ * normally at `obj.id`.
  */
 
 /**
@@ -50,15 +51,15 @@ const decodeCursor = cursor => {
  *
  * A table-unique identifier
  *
- * simple equality lookup values for searching.
+ * Simple equality lookup values for searching.
  *
- * @class JsonModelImpl
  * @template Item
  * @template IDCol
+ * @class JsonModelImpl
  * @implements {JsonModel<Item, IDCol>}
  */
 class JsonModelImpl {
-	/** @param {JMOptions<Item, IDCol>} options  - the model declaration. */
+	/** @param {JMOptions<Item, IDCol>} options - The model declaration. */
 	constructor(options) {
 		verifyOptions(options)
 		const {
@@ -507,9 +508,9 @@ class JsonModelImpl {
 	/**
 	 * Search the first matching object.
 	 *
-	 * @param {JMSearchAttrs}   attrs      - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<Item | null>} - the result or null if no match.
+	 * @param {JMSearchAttrs} attrs - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<Item | null>} - The result or null if no match.
 	 */
 	async searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
@@ -584,9 +585,9 @@ class JsonModelImpl {
 	/**
 	 * Count of search results.
 	 *
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the count.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The count.
 	 */
 	count(attrs, options) {
 		const [q, vals] = this.makeSelect({
@@ -606,11 +607,11 @@ class JsonModelImpl {
 	/**
 	 * Numeric Aggregate Operation.
 	 *
-	 * @param {string}          op         - the SQL function, e.g. MAX.
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param {string} op - The SQL function, e.g. MAX.
+	 * @param {JMColName} colName - Column to aggregate.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The result.
 	 */
 	numAggOp(op, colName, attrs, options) {
 		const col = this.columns[colName]
@@ -635,10 +636,10 @@ class JsonModelImpl {
 	/**
 	 * Maximum value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param {JMColName} colName - Column to aggregate.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The result.
 	 */
 	max(colName, attrs, options) {
 		return this.numAggOp('MAX', colName, attrs, options)
@@ -647,10 +648,10 @@ class JsonModelImpl {
 	/**
 	 * Minimum value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param {JMColName} colName - Column to aggregate.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The result.
 	 */
 	min(colName, attrs, options) {
 		return this.numAggOp('MIN', colName, attrs, options)
@@ -659,10 +660,10 @@ class JsonModelImpl {
 	/**
 	 * Sum values.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param {JMColName} colName - Column to aggregate.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The result.
 	 */
 	sum(colName, attrs, options) {
 		return this.numAggOp('SUM', colName, attrs, options)
@@ -671,10 +672,10 @@ class JsonModelImpl {
 	/**
 	 * Average value.
 	 *
-	 * @param {JMColName}       colName    - column to aggregate.
-	 * @param {JMSearchAttrs}   [attrs]    - simple value attributes.
-	 * @param {JMSearchOptions} [options]  - search options.
-	 * @returns {Promise<number>} - the result.
+	 * @param {JMColName} colName - Column to aggregate.
+	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions} [options] - Search options.
+	 * @returns {Promise<number>} - The result.
 	 */
 	avg(colName, attrs, options) {
 		return this.numAggOp('AVG', colName, attrs, options)
@@ -683,7 +684,7 @@ class JsonModelImpl {
 	/**
 	 * Get all objects.
 	 *
-	 * @returns {Promise<Item[]>} - the table contents.
+	 * @returns {Promise<Item[]>} - The table contents.
 	 */
 	all() {
 		if (this._allSql?.db !== this.db)
@@ -697,10 +698,10 @@ class JsonModelImpl {
 	/**
 	 * Get an object by a unique value, like its ID.
 	 *
-	 * @param {IDValue} id                    - the value for the column.
-	 * @param {string}  [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                        column.
-	 * @returns {Promise<Item | null>} - the object if it exists.
+	 * @param {IDValue} id - The value for the column.
+	 * @param {string} [colName=this.idCol] - The columnname, defaults to the ID
+	 *   column. Default is `this.idCol`
+	 * @returns {Promise<Item | null>} - The object if it exists.
 	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
@@ -725,11 +726,11 @@ class JsonModelImpl {
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @param {IDValue[]} ids                   - the values for the column.
-	 * @param {string}    [colName=this.idCol]  - the columnname, defaults to the
-	 *                                          ID column.
-	 * @returns {Promise<(Item | null)[]>} - the objects, or null where they don't
-	 *                                     exist, in order of their requested ID.
+	 * @param {IDValue[]} ids - The values for the column.
+	 * @param {string} [colName=this.idCol] - The columnname, defaults to the ID
+	 *   column. Default is `this.idCol`
+	 * @returns {Promise<(Item | null)[]>} - The objects, or null where they don't
+	 *   exist, in order of their requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -773,13 +774,12 @@ class JsonModelImpl {
 	 * Lets you clear all the cache or just a key. Useful for when you change only
 	 * some items.
 	 *
-	 * @param {Object} cache                 - the lookup cache. It is managed with
-	 *                                       DataLoader.
-	 * @param {ID}     [id]                  - the value for the column.
-	 * @param {string} [colName=this.idCol]  - the columnname, defaults to the ID
-	 *                                       column.
-	 * @returns {Loader} - the actual cache, you can call `.prime(key, value)` on
-	 *                   it to insert a value.
+	 * @param {Object} cache - The lookup cache. It is managed with DataLoader.
+	 * @param {ID} [id] - The value for the column.
+	 * @param {string} [colName=this.idCol] - The columnname, defaults to the ID
+	 *   column. Default is `this.idCol`
+	 * @returns {Loader} - The actual cache, you can call `.prime(key, value)` on
+	 *   it to insert a value.
 	 */
 	clearCache(cache, id, colName = this.idCol) {
 		const loader = this._ensureLoader(cache, colName)
@@ -795,9 +795,9 @@ class JsonModelImpl {
 	// 	(attrs: JMSearchAttrs, options: JMSearchOptions, fn: RowCallback) => Promise<void>
 	// } EachFn
 	/**
-	 * Iterate through search results. Calls `fn` on every result.
-	 * The iteration uses a cursored search, so changes to the model during the
-	 * iteration can influence the iteration.
+	 * Iterate through search results. Calls `fn` on every result. The iteration
+	 * uses a cursored search, so changes to the model during the iteration can
+	 * influence the iteration.
 	 *
 	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
 	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
@@ -870,9 +870,9 @@ class JsonModelImpl {
 	/**
 	 * Update or upsert an object.
 	 *
-	 * @param {Object}  obj         The changes to store, including the id field.
-	 * @param {boolean} [upsert]    Insert the object if it doesn't exist.
-	 * @param {boolean} [noReturn]  Do not return the stored object.
+	 * @param {Object} obj The changes to store, including the id field.
+	 * @param {boolean} [upsert] Insert the object if it doesn't exist.
+	 * @param {boolean} [noReturn] Do not return the stored object.
 	 * @returns {Promise<Item | undefined>} A copy of the stored object.
 	 */
 	update(obj, upsert, noReturn) {
@@ -886,7 +886,7 @@ class JsonModelImpl {
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
-	 * @param {ID | Object} idOrObj  The id or the object itself.
+	 * @param {ID | Object} idOrObj The id or the object itself.
 	 * @returns {Promise<void>} A promise for the deletion.
 	 */
 	remove(idOrObj) {
@@ -907,8 +907,8 @@ class JsonModelImpl {
 	/**
 	 * "Rename" an object.
 	 *
-	 * @param {ID} oldId  The current ID. If it doesn't exist this will throw.
-	 * @param {ID} newId  The new ID. If this ID is already in use this will throw.
+	 * @param {ID} oldId The current ID. If it doesn't exist this will throw.
+	 * @param {ID} newId The new ID. If this ID is already in use this will throw.
 	 * @returns {Promise<void>} A promise for the rename.
 	 */
 	changeId(oldId, newId) {

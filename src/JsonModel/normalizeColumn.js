@@ -3,10 +3,10 @@ import {uniqueSlugId} from '../lib/slugify'
 import {get} from 'lodash'
 
 /**
- * @param {JMColumnDef<Row, IDCol>} col
- * @param {JMColName}               name
  * @template <Row>
  * @template <IDCol>
+ * @param {JMColumnDef<Row, IDCol>} col
+ * @param {JMColName} name
  */
 
 export const normalizeColumn = (col, name) => {

@@ -37,36 +37,37 @@ interface Statement {
 }
 
 type SQLiteOptions = {
-	/** path to db file. */
+	/** Path to db file. */
 	file?: string
-	/** open read-only. */
+	/** Open read-only. */
 	readOnly?: boolean
-	/** verbose errors. */
+	/** Verbose errors. */
 	verbose?: boolean
-	/** called before opening. */
+	/** Called before opening. */
 	onWillOpen?: () => Promise<unknown> | unknown
-	/** called after opened. */
+	/** Called after opened. */
 	onDidOpen?: DBCallback
-	/** name for debugging. */
+	/** Name for debugging. */
 	name?: string
-	/** run incremental vacuum. */
+	/** Run incremental vacuum. */
 	autoVacuum?: boolean
-	/** seconds between incremental vacuums. */
+	/** Seconds between incremental vacuums. */
 	vacuumInterval?: number
-	/** number of pages to clean per vacuum. */
+	/** Number of pages to clean per vacuum. */
 	vacuumPageCount?: number
 }
 
 /**
- * SQLite is a wrapper around a single SQLite connection (via node-sqlite3).
- * It provides a Promise API, lazy opening, auto-cleaning prepared statements
- * and safe ``db.run`select * from foo where bar=${bar}` `` templating.
- * emits these events, all without parameters:
- * * 'begin': transaction begins
- * * 'rollback': transaction finished with failure
- * * 'end': transaction finished successfully
- * * 'finally': transaction finished
- * * 'call': call to SQLite completed, includes data and duration
+ * SQLite is a wrapper around a single SQLite connection (via node-sqlite3). It
+ * provides a Promise API, lazy opening, auto-cleaning prepared statements and
+ * safe `db.run`select * from foo where bar=${bar}` ` templating. emits these
+ * events, all without parameters:
+ *
+ * - 'begin': transaction begins
+ * - 'rollback': transaction finished with failure
+ * - 'end': transaction finished successfully
+ * - 'finally': transaction finished
+ * - 'call': call to SQLite completed, includes data and duration
  */
 interface SQLite extends EventEmitter {
 	new (options?: SQLiteOptions)
@@ -75,38 +76,34 @@ interface SQLite extends EventEmitter {
 	 * Template Tag for SQL statements.
 	 *
 	 * @example
+	 * 	`` db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
+	 * 	${obj}JSON` ``
 	 *
-	 * `` db.all`select * from ${'foo'}ID where ${'t'}LIT = ${bar} AND json =
-	 * ${obj}JSON` ``
-	 *
-	 * is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
-	 * JSON.stringify(obj)])`
-	 *
+	 * 	is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
+	 * 	JSON.stringify(obj)])`
 	 */
 	sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
-	/**
-	 * `true` if an sqlite connection was set up. Mostly useful for tests.
-	 */
+	/** `true` if an sqlite connection was set up. Mostly useful for tests. */
 	isOpen: boolean
 	/**
 	 * Force opening the database instead of doing it lazily on first access.
 	 *
-	 * @returns - a promise for the DB being ready to use.
+	 * @returns - A promise for the DB being ready to use.
 	 */
 	open(): Promise<void>
 	/**
 	 * Close the database connection, including the prepared statements.
 	 *
-	 * @returns - a promise for the DB being closed.
+	 * @returns - A promise for the DB being closed.
 	 */
 	close(): Promise<void>
 	/**
 	 * Runs the passed function once, either immediately if the connection is
-	 * already open, or when the database will be opened next.
-	 * Note that if the function runs immediately, its return value is returned.
-	 * If this is a Promise, it is the caller's responsibility to handle errors.
-	 * Otherwise, the function will be run once after onDidOpen, and errors will
-	 * cause the open to fail.
+	 * already open, or when the database will be opened next. Note that if the
+	 * function runs immediately, its return value is returned. If this is a
+	 * Promise, it is the caller's responsibility to handle errors. Otherwise, the
+	 * function will be run once after onDidOpen, and errors will cause the open
+	 * to fail.
 	 *
 	 * @returns Either the function return value or undefined.
 	 */
@@ -114,16 +111,16 @@ interface SQLite extends EventEmitter {
 	/**
 	 * Return all rows for the given query.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [vars]  - the variables to be bound to the statement.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [vars] - The variables to be bound to the statement.
 	 */
 	all(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow[]>
 	all(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteRow[]>
 	/**
 	 * Return the first row for the given query.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [vars]  - the variables to be bound to the statement.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [vars] - The variables to be bound to the statement.
 	 */
 	get(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow | null>
 	get(
@@ -133,8 +130,8 @@ interface SQLite extends EventEmitter {
 	/**
 	 * Run the given query and return the metadata.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [vars]  - the variables to be bound to the statement.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [vars] - The variables to be bound to the statement.
 	 */
 	run(sql: string, vars?: SQLiteParam[]): Promise<SQLiteMeta>
 	run(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<SQLiteMeta>
@@ -142,9 +139,9 @@ interface SQLite extends EventEmitter {
 	 * Run the given query and return nothing. Slightly more efficient than
 	 * {@link run}.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [vars]  - the variables to be bound to the statement.
-	 * @returns - a promise for execution completion.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [vars] - The variables to be bound to the statement.
+	 * @returns - A promise for execution completion.
 	 */
 	exec(sql: string, vars?: SQLiteParam[]): Promise<void>
 	exec(sql: TemplateStringsArray, ...vars: SQLiteParam[]): Promise<void>
@@ -153,18 +150,18 @@ interface SQLite extends EventEmitter {
 	 * will prepare the statement with SQLite whenever needed, as well as finalize
 	 * it when closing the connection.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [name]  - a short name to use in debug logs.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [name] - A short name to use in debug logs.
 	 */
 	prepare(sql: string, name?: string): Statement
 	/**
-	 * Run the given query and call the function on each item.
-	 * Note that node-sqlite3 seems to just fetch all data in one go.
+	 * Run the given query and call the function on each item. Note that
+	 * node-sqlite3 seems to just fetch all data in one go.
 	 *
-	 * @param sql     - the SQL statement to be executed.
-	 * @param [vars]  - the variables to be bound to the statement.
-	 * @param cb      - the function to call on each row.
-	 * @returns - a promise for execution completion.
+	 * @param sql - The SQL statement to be executed.
+	 * @param [vars] - The variables to be bound to the statement.
+	 * @param cb - The function to call on each row.
+	 * @returns - A promise for execution completion.
 	 */
 	each(sql: string, cb: (row: SQLiteRow) => any): Promise<void>
 	each(sql: string, vars: SQLiteParam[], cb: DBEachCallback): Promise<void>
@@ -177,8 +174,8 @@ interface SQLite extends EventEmitter {
 	 * Returns or sets the user_version, an arbitrary integer connected to the
 	 * database.
 	 *
-	 * @param [newV]  - if given, sets the user version.
-	 * @returns - the user version or nothing when setting.
+	 * @param [newV] - If given, sets the user version.
+	 * @returns - The user version or nothing when setting.
 	 */
 	userVersion(newV?: number): Promise<number | void>
 	/**
@@ -186,8 +183,8 @@ interface SQLite extends EventEmitter {
 	 * invocations are serialized, and between connections it uses busy retry
 	 * waiting. During a transaction, the database can still be read.
 	 *
-	 * @param fn  - the function to call. It doesn't get any parameters.
-	 * @returns - a promise for transaction completion.
+	 * @param fn - The function to call. It doesn't get any parameters.
+	 * @returns - A promise for transaction completion.
 	 */
 	withTransaction(fn: () => Promise<void>): Promise<void>
 }
@@ -199,19 +196,21 @@ interface DBModel<Options extends {db: DB} = {db: DB}> {
 	new (options: Options): any
 }
 type DBOptions = {
-	/** open the DB read-only */
+	/** Open the DB read-only */
 	readOnly?: boolean
 	migrations?: DBMigrations
-	/** called before migrations run. Not called for read-only */
+	/** Called before migrations run. Not called for read-only */
 	onBeforeMigrations?: (...params: any[]) => any
-	/** Called after migrations ran. If readOnly is set, it runs after opening DB.
-	 * The DB is open after this function resolves. */
+	/**
+	 * Called after migrations ran. If readOnly is set, it runs after opening DB.
+	 * The DB is open after this function resolves.
+	 */
 	onDidOpen?: (...params: any[]) => any
 } & SQLiteOptions
 
 /**
- * DB adds model management and migrations to Wrapper.
- * The migration state is kept in the table ""{sdb} migrations"".
+ * DB adds model management and migrations to Wrapper. The migration state is
+ * kept in the table ""{sdb} migrations"".
  */
 interface DBI extends SQLite {
 	new (options: DBOptions): DB
@@ -221,29 +220,27 @@ interface DBI extends SQLite {
 
 	/**
 	 * Add a model to the DB, which will manage one or more tables in the SQLite
-	 * database.
-	 * The model should use the given `db` instance at creation time.
+	 * database. The model should use the given `db` instance at creation time.
 	 *
-	 * @param Model    - a class to be instatiated with the DB.
-	 * @param options  - options passed during Model creation as `{...options,
-	 *                 db}`.
-	 * @returns - the created Model instance.
+	 * @param Model - A class to be instatiated with the DB.
+	 * @param options - Options passed during Model creation as `{...options,
+	 *   db}`.
+	 * @returns - The created Model instance.
 	 */
 	addModel(Model: DBModel, options?: Record<string, any>): InstanceType<DBModel>
 	/**
-	 * Register an object with migrations.
-	 * Migrations are marked completed by the given name + their name in the `{sdb}
-	 * migrations` table.
+	 * Register an object with migrations. Migrations are marked completed by the
+	 * given name + their name in the `{sdb} migrations` table.
 	 *
-	 * @param groupName   - the name under which to register these migrations.
-	 * @param migrations  - the migrations object.
+	 * @param groupName - The name under which to register these migrations.
+	 * @param migrations - The migrations object.
 	 */
 	registerMigrations(groupName: string, migrations: DBMigrations): void
 	/**
 	 * Runs the migrations in a transaction and waits for completion.
 	 *
-	 * @param db  - an opened SQLite instance.
-	 * @returns - promise for completed migrations.
+	 * @param db - An opened SQLite instance.
+	 * @returns - Promise for completed migrations.
 	 */
 	runMigrations(db: SQLite): Promise<void>
 }
@@ -255,7 +252,10 @@ type ItemCallback<Item> = (obj: Item) => Promise<void>
 /** The value of the stored objects' id */
 type IDValue = string | number
 
-/** Search for simple values. Keys are column names, values are what they should equal */
+/**
+ * Search for simple values. Keys are column names, values are what they should
+ * equal
+ */
 type JMSearchAttrs<Columns> = {
 	[attr in keyof Columns]?: any
 }
@@ -271,57 +271,76 @@ type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 
 /** A real or virtual column definition in the created sqlite table */
 type JMColumnDef = {
-	/** the column key, used for the column name if it's a real column.  */
+	/** The column key, used for the column name if it's a real column. */
 	name?: JMColName
-	/** is this a real table column. */
+	/** Is this a real table column. */
 	real?: boolean
-	/** sql column type as accepted by DB. */
+	/** Sql column type as accepted by DB. */
 	type?: SQLiteColumnType
-	/** path to the value in the object. */
+	/** Path to the value in the object. */
 	path?: string
 	/** INTEGER id column only: apply AUTOINCREMENT on the column. */
 	autoIncrement?: boolean
-	/** the alias to use in SELECT statements. */
+	/** The alias to use in SELECT statements. */
 	alias?: string
-	/** should the column be included in search results. */
+	/** Should the column be included in search results. */
 	get?: boolean
-	/** process the value after getting from DB. */
+	/** Process the value after getting from DB. */
 	parse?: (val: SQLiteValue) => any
-	/** process the value before putting into DB. */
+	/** Process the value before putting into DB. */
 	stringify?: (any) => SQLiteParam
-	/** the value is an object and must always be there. If this is a real column, a NULL column value will be replaced by `{}` and vice versa. */
+	/**
+	 * The value is an object and must always be there. If this is a real column,
+	 * a NULL column value will be replaced by `{}` and vice versa.
+	 */
 	alwaysObject?: boolean
-	/** function getting object and returning the value for the column; this creates a real column. Right now the column value is not regenerated for existing rows. */
+	/**
+	 * Function getting object and returning the value for the column; this
+	 * creates a real column. Right now the column value is not regenerated for
+	 * existing rows.
+	 */
 	value?: (object: Record<string, any>) => any
-	/** same as value, but the result is used to generate a unique slug. */
+	/** Same as value, but the result is used to generate a unique slug. */
 	slugValue?: (object: Record<string, any>) => any
-	/** any sql expression to use in SELECT statements. */
+	/** Any sql expression to use in SELECT statements. */
 	sql?: string
-	/** if the value is nullish, this will be stored instead. */
+	/** If the value is nullish, this will be stored instead. */
 	default?: any
-	/** throw when trying to store a NULL. */
+	/** Throw when trying to store a NULL. */
 	required?: boolean
-	/** store/retrieve this boolean value as either `true` or absent from the object. */
+	/**
+	 * Store/retrieve this boolean value as either `true` or absent from the
+	 * object.
+	 */
 	falsyBool?: boolean
-	/** should it be indexed? If `unique` is false, NULLs are never indexed. */
+	/** Should it be indexed? If `unique` is false, NULLs are never indexed. */
 	index?: boolean
-	/** are null values ignored in the index?. */
+	/** Are null values ignored in the index?. */
 	ignoreNull?: boolean
-	/** should the index enforce uniqueness?. */
+	/** Should the index enforce uniqueness?. */
 	unique?: boolean
-	/** a function receiving `origVals` and returning the `vals` given to `where`. It should return falsy or an array of values. */
+	/**
+	 * A function receiving `origVals` and returning the `vals` given to `where`.
+	 * It should return falsy or an array of values.
+	 */
 	whereVal?: (vals: any[]) => any
-	/** the where clause for querying, or a function returning one given `(vals, origVals)`. */
+	/**
+	 * The where clause for querying, or a function returning one given `(vals,
+	 * origVals)`.
+	 */
 	where?: string | ((vals: any[], origVals: any[]) => any)
-	/** this column contains an array of values. */
+	/** This column contains an array of values. */
 	isArray?: boolean
-	/** to query, this column value must match one of the given array items. */
+	/** To query, this column value must match one of the given array items. */
 	in?: boolean
-	/** [isArray only] to query, this column value must match all of the given array items. */
+	/**
+	 * [isArray only] to query, this column value must match all of the given
+	 * array items.
+	 */
 	inAll?: boolean
-	/** perform searches as substring search with LIKE. */
+	/** Perform searches as substring search with LIKE. */
 	textSearch?: boolean
-	/** alias for isArray+inAll. */
+	/** Alias for isArray+inAll. */
 	isAnyOfArray?: boolean
 }
 type JMColumnDefOrFn = (({name: string}) => JMColumnDef) | JMColumnDef
@@ -342,21 +361,24 @@ type JMOptions<
 	IDCol extends string = 'id',
 	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
 > = {
-	/** a DB instance, normally passed by DB  */
+	/** A DB instance, normally passed by DB */
 	db: DB
-	/** the table name  */
+	/** The table name */
 	name: string
-	/** an object with migration functions. They are run in alphabetical order  */
+	/** An object with migration functions. They are run in alphabetical order */
 	migrations?: {[tag: string]: JMMigration<T, IDCol>}
-	/** free-form data passed to the migration functions  */
+	/** Free-form data passed to the migration functions */
 	migrationOptions?: Record<string, any>
-	/** the column definitions */
+	/** The column definitions */
 	columns?: Columns
-	/** an object class to use for results, must be able to handle `Object.assign(item, result)`  */
+	/**
+	 * An object class to use for results, must be able to handle
+	 * `Object.assign(item, result)`
+	 */
 	ItemClass?: object
-	/** the key of the IDCol column  */
+	/** The key of the IDCol column */
 	idCol?: IDCol
-	/** preserve row id after vacuum  */
+	/** Preserve row id after vacuum */
 	keepRowId?: boolean
 }
 
@@ -371,33 +393,36 @@ type JMWhereClauses = {
 }
 
 type JMSearchOptions<Columns> = {
-	/** literal value search, for convenience. */
+	/** Literal value search, for convenience. */
 	attrs?: JMSearchAttrs<Columns>
-	/** sql expressions as keys with arrays of applicable parameters as values. */
+	/** Sql expressions as keys with arrays of applicable parameters as values. */
 	where?: JMWhereClauses
-	/** arbitrary join clause. Not processed at all. */
+	/** Arbitrary join clause. Not processed at all. */
 	join?: string
-	/** values needed by the join clause. */
+	/** Values needed by the join clause. */
 	joinVals?: any[]
-	/** object with sql expressions as keys and +/- for direction and precedence. Lower number sort the column first. */
+	/**
+	 * Object with sql expressions as keys and +/- for direction and precedence.
+	 * Lower number sort the column first.
+	 */
 	sort?: Record<string, number>
-	/** max number of rows to return. */
+	/** Max number of rows to return. */
 	limit?: number
-	/** number of rows to skip. */
+	/** Number of rows to skip. */
 	offset?: number
-	/** override the columns to select. */
+	/** Override the columns to select. */
 	cols?: string[]
-	/** opaque value telling from where to continue. */
+	/** Opaque value telling from where to continue. */
 	cursor?: string
-	/** do not calculate cursor. */
+	/** Do not calculate cursor. */
 	noCursor?: boolean
-	/** do not calculate totals. */
+	/** Do not calculate totals. */
 	noTotal?: boolean
 }
 
 /**
- * Stores Item objects in a SQLite table.
- * Pass the type of the item it stores and the config so it can determine the columns
+ * Stores Item objects in a SQLite table. Pass the type of the item it stores
+ * and the config so it can determine the columns
  */
 interface JsonModel<
 	RealItem extends {[x: string]: any} = {id: string},
@@ -460,8 +485,8 @@ interface JsonModel<
 	/**
 	 * Search the all matching objects.
 	 *
-	 * @returns - `{items[], cursor}`. If no cursor, you got all the results.
-	 *          If `options.itemsOnly`, returns only the items array.
+	 * @returns - `{items[], cursor}`. If no cursor, you got all the results. If
+	 *   `options.itemsOnly`, returns only the items array.
 	 */
 	search(
 		/** Simple value attributes. */
@@ -481,9 +506,9 @@ interface JsonModel<
 	/**
 	 * A shortcut for setting `itemsOnly: true` on {@link search}.
 	 *
-	 * @param attrs      - simple value attributes.
-	 * @param [options]  - search options.
-	 * @returns - the search results.
+	 * @param attrs - Simple value attributes.
+	 * @param [options] - Search options.
+	 * @returns - The search results.
 	 */
 	searchAll(attrs: SearchAttrs, options?: SearchOptions): Promise<Item[]>
 	/**
@@ -497,12 +522,10 @@ interface JsonModel<
 	/**
 	 * Count of search results.
 	 *
-	 * @returns - the count.
+	 * @returns - The count.
 	 */
 	count(attrs?: SearchAttrs, options?: SearchOptions): Promise<number>
-	/**
-	 * Numeric Aggregate Operation.
-	 */
+	/** Numeric Aggregate Operation. */
 	numAggOp(
 		/** The SQL function, e.g. MAX. */
 		op: string,
@@ -511,33 +534,25 @@ interface JsonModel<
 		attrs?: SearchAttrs,
 		options?: SearchOptions
 	): Promise<number>
-	/**
-	 * Maximum value.
-	 */
+	/** Maximum value. */
 	max(
 		colName: JMColName,
 		attrs?: SearchAttrs,
 		options?: SearchOptions
 	): Promise<number>
-	/**
-	 * Minimum value.
-	 */
+	/** Minimum value. */
 	min(
 		colName: JMColName,
 		attrs?: SearchAttrs,
 		options?: SearchOptions
 	): Promise<number>
-	/**
-	 * Sum values.
-	 */
+	/** Sum values. */
 	sum(
 		colName: JMColName,
 		attrs?: SearchAttrs,
 		options?: SearchOptions
 	): Promise<number>
-	/**
-	 * Average value.
-	 */
+	/** Average value. */
 	avg(
 		colName: JMColName,
 		attrs?: SearchAttrs,
@@ -546,13 +561,13 @@ interface JsonModel<
 	/**
 	 * Get all objects. This can result in out-of-memory errors.
 	 *
-	 * @returns - the table contents.
+	 * @returns - The table contents.
 	 */
 	all(): Promise<Item[]>
 	/**
 	 * Get an object by a unique value, like its ID.
 	 *
-	 * @returns - the object if it exists.
+	 * @returns - The object if it exists.
 	 */
 	get(
 		/** The value for the column */
@@ -563,8 +578,8 @@ interface JsonModel<
 	/**
 	 * Get several objects by their unique value, like their ID.
 	 *
-	 * @returns - the objects, or undefined where they don't exist, in order
-	 *          of their requested ID.
+	 * @returns - The objects, or undefined where they don't exist, in order of
+	 *   their requested ID.
 	 */
 	getAll(
 		/** The values for the column */
@@ -573,11 +588,11 @@ interface JsonModel<
 		colName?: JMColName
 	): Promise<(Item | undefined)[]>
 	/**
-	 * Get an object by a unique value, like its ID, using a cache.
-	 * This also coalesces multiple calls in the same tick into a single query,
-	 * courtesy of DataLoader.
+	 * Get an object by a unique value, like its ID, using a cache. This also
+	 * coalesces multiple calls in the same tick into a single query, courtesy of
+	 * DataLoader.
 	 *
-	 * @returns - the object if it exists. It will be cached.
+	 * @returns - The object if it exists. It will be cached.
 	 */
 	getCached(
 		/** The lookup cache. It is managed with DataLoader. */
@@ -592,8 +607,8 @@ interface JsonModel<
 	 * Lets you clear all the cache or just a key. Useful for when you change only
 	 * some items.
 	 *
-	 * @returns - the column cache, you can call `.prime(key, value)` on it to
-	 *          insert a value.
+	 * @returns - The column cache, you can call `.prime(key, value)` on it to
+	 *   insert a value.
 	 */
 	clearCache(
 		/** The lookup cache. It is managed with DataLoader. */
@@ -602,11 +617,10 @@ interface JsonModel<
 		colName?: string
 	): Loader<Item, Item[IDCol]>
 	/**
-	 * Iterate through search results. Calls `fn` on every result.
-	 * The iteration uses a cursored search, so changes to the model during the
-	 * iteration can influence the iteration.
-	 * If you pass `concurrent` it will limit the concurrently called functions
-	 * `batchSize` sets the paging size.
+	 * Iterate through search results. Calls `fn` on every result. The iteration
+	 * uses a cursored search, so changes to the model during the iteration can
+	 * influence the iteration. If you pass `concurrent` it will limit the
+	 * concurrently called functions `batchSize` sets the paging size.
 	 *
 	 * @returns Table iteration completed.
 	 */
@@ -620,13 +634,12 @@ interface JsonModel<
 	/**
 	 * Insert or replace the given object into the database.
 	 *
-	 * @param obj           - the object to store. If there is no `id` value (or
-	 *                      whatever the `id` column is named), one is assigned
-	 *                      automatically.
-	 * @param [insertOnly]  - don't allow replacing existing objects.
-	 * @param [noReturn]    - do not return the stored object; an optimization.
-	 * @returns - if `noReturn` is false, the stored object is fetched from
-	 *          the DB.
+	 * @param obj - The object to store. If there is no `id` value (or whatever
+	 *   the `id` column is named), one is assigned automatically.
+	 * @param [insertOnly] - Don't allow replacing existing objects.
+	 * @param [noReturn] - Do not return the stored object; an optimization.
+	 * @returns - If `noReturn` is false, the stored object is fetched from the
+	 *   DB.
 	 */
 	set(
 		obj: Partial<Item>,
@@ -636,9 +649,9 @@ interface JsonModel<
 	/**
 	 * Update or upsert an object. This uses a transaction if one is not active.
 	 *
-	 * @param obj         - The changes to store, including the id field.
-	 * @param [upsert]    - Insert the object if it doesn't exist.
-	 * @param [noReturn]  - Do not return the stored object, preventing a query.
+	 * @param obj - The changes to store, including the id field.
+	 * @param [upsert] - Insert the object if it doesn't exist.
+	 * @param [noReturn] - Do not return the stored object, preventing a query.
 	 * @returns A copy of the stored object.
 	 */
 	update(
@@ -650,9 +663,9 @@ interface JsonModel<
 	 * Update or upsert an object. This does not use a transaction so is open to
 	 * race conditions if you don't run it in a transaction.
 	 *
-	 * @param obj         - The changes to store, including the id field.
-	 * @param [upsert]    - Insert the object if it doesn't exist.
-	 * @param [noReturn]  - Do not return the stored object, preventing a query.
+	 * @param obj - The changes to store, including the id field.
+	 * @param [upsert] - Insert the object if it doesn't exist.
+	 * @param [noReturn] - Do not return the stored object, preventing a query.
 	 * @returns A copy of the stored object.
 	 */
 	updateNoTrans(
@@ -664,43 +677,41 @@ interface JsonModel<
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
-	 * @param idOrObj  - The id or the object itself.
+	 * @param idOrObj - The id or the object itself.
 	 * @returns A promise for the deletion.
 	 */
 	remove(idOrObj: Item[IDCol] | Item): Promise<void>
 	/**
 	 * "Rename" an object.
 	 *
-	 * @param oldId  - The current ID. If it doesn't exist this will throw.
-	 * @param newId  - The new ID. If this ID is already in use this will throw.
+	 * @param oldId - The current ID. If it doesn't exist this will throw.
+	 * @param newId - The new ID. If this ID is already in use this will throw.
 	 * @returns A promise for the rename.
 	 */
 	changeId(oldId: Item[IDCol], newId: Item[IDCol]): Promise<void>
 }
 
 type ESEvent = {
-	/** the version */
+	/** The version */
 	v: number
-	/** event type */
+	/** Event type */
 	type: string
-	/** ms since epoch of event */
+	/** Ms since epoch of event */
 	ts: number
-	/** event data */
+	/** Event data */
 	data?: any
-	/** event processing result */
+	/** Event processing result */
 	result?: Record<string, ReduceResult>
 }
 type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
-	/** the table name, defaults to `"history"` */
+	/** The table name, defaults to `"history"` */
 	name?: string
-	/** should getNext poll forever? */
+	/** Should getNext poll forever? */
 	forever?: boolean
-	/** add views to the database to assist with inspecting the data */
+	/** Add views to the database to assist with inspecting the data */
 	withViews?: boolean
 }
-/**
- * Creates a new EventQueue model, called by DB.
- */
+/** Creates a new EventQueue model, called by DB. */
 interface EventQueue<
 	T extends ESEvent = ESEvent,
 	Config extends Partial<EQOptions<T>> = object,
@@ -712,36 +723,34 @@ interface EventQueue<
 	/**
 	 * Get the highest version stored in the queue.
 	 *
-	 * @returns - the version.
+	 * @returns - The version.
 	 */
 	getMaxV(): Promise<number>
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param type             - event type.
-	 * @param [data]           - event data.
-	 * @param [ts=Date.now()]  - event timestamp, ms since epoch.
+	 * @param type - Event type.
+	 * @param [data] - Event data.
+	 * @param [ts=Date.now()] - Event timestamp, ms since epoch. Default is
+	 *   `Date.now()`
 	 * @returns - Promise for the added event.
 	 */
 	add(type: string, data?: any, ts?: number): Promise<T>
 	/**
-	 * Get the next event after v (gaps are ok).
-	 * The wait can be cancelled by `.cancelNext()`.
+	 * Get the next event after v (gaps are ok). The wait can be cancelled by
+	 * `.cancelNext()`.
 	 *
-	 * @param [v=0]           - the version.
-	 * @param [noWait=false]  - do not wait for the next event.
+	 * @param [v=0] - The version. Default is `0`
+	 * @param [noWait=false] - Do not wait for the next event. Default is `false`
 	 * @returns The event if found.
 	 */
 	getNext(v?: number, noWait?: boolean): Promise<T>
-	/**
-	 * Cancel any pending `.getNext()` calls
-	 */
+	/** Cancel any pending `.getNext()` calls */
 	cancelNext(): void
 	/**
-	 * Set the latest known version.
-	 * New events will have higher versions.
+	 * Set the latest known version. New events will have higher versions.
 	 *
-	 * @param v  - the last known version.
+	 * @param v - The last known version.
 	 */
 	setKnownV(v: number): Promise<void>
 }
@@ -849,9 +858,12 @@ type EMOptions<T extends {[x: string]: any}, IDCol extends string> = JMOptions<
 	T,
 	IDCol
 > & {
-	/** the ESDB dispatch function */
+	/** The ESDB dispatch function */
 	dispatch: DispatchFn
-	/** emit an event with type `es/INIT:${modelname}` at table creation time, to be used by custom reducers.*/
+	/**
+	 * Emit an event with type `es/INIT:${modelname}` at table creation time, to
+	 * be used by custom reducers.
+	 */
 	init?: boolean
 }
 /**
@@ -859,15 +871,14 @@ type EMOptions<T extends {[x: string]: any}, IDCol extends string> = JMOptions<
  *
  * Use it to convert your database to be event sourcing.
  *
- * Event data is encoded as an array: `[subtype, id, data, meta]`
- * Subtype is one of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`.
- * `id` is filled in by the preprocessor at the time of the event.
- * `meta` is free-form data about the event. It is just stored in the history
- * table.
+ * Event data is encoded as an array: `[subtype, id, data, meta]` Subtype is one
+ * of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`. `id` is filled in by the
+ * preprocessor at the time of the event. `meta` is free-form data about the
+ * event. It is just stored in the history table.
  *
  * For example: `model.set({foo: true})` would result in the event `[1, 1, {foo:
- * true}]`
- * Pass the type of the item it stores and the config so it can determine the columns
+ * true}]` Pass the type of the item it stores and the config so it can
+ * determine the columns
  */
 // TODO fix Item vs Item type incompatibility
 interface ESModel<
@@ -894,49 +905,48 @@ interface ESModel<
 	INIT: string
 
 	/**
-	 * Assigns the object id to the event at the start of the cycle.
-	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+	 * Assigns the object id to the event at the start of the cycle. When
+	 * subclassing ESModel, be sure to call this too
+	 * (`ESModel.preprocessor(arg)`)
 	 */
 	preprocessor?: PreprocessorFn<this>
 	/**
-	 * Calculates the desired change.
-	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+	 * Calculates the desired change. ESModel will only emit `rm`, `ins`, `upd`
+	 * and `esFail`.
 	 */
 	reducer?: ReducerFn<this>
 	/**
 	 * Applies the result from the reducer.
 	 *
-	 * @param result  - free-form change descriptor.
+	 * @param result - Free-form change descriptor.
 	 * @returns - Promise for completion.
 	 */
 	applyResult?: ApplyResultFn
 	/**
-	 * Calculates the desired change.
-	 * ESModel will only emit `rm`, `ins`, `upd` and `esFail`.
+	 * Calculates the desired change. ESModel will only emit `rm`, `ins`, `upd`
+	 * and `esFail`.
 	 */
 	deriver?: DeriverFn<this>
 
 	dispatch: DispatchFn
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
-	 * This makes deriver and migrations work without changes.
-	 * Note: while writable, no events are created. Be careful.
+	 * This makes deriver and migrations work without changes. Note: while
+	 * writable, no events are created. Be careful.
 	 *
-	 * @param state  - writeable or not.
+	 * @param state - Writeable or not.
 	 */
 	setWritable(state: boolean): void
 	/**
 	 * Insert or replace the given object into the database.
 	 *
-	 * @param obj           - the object to store. If there is no `id` value (or
-	 *                      whatever the `id` column is named), one is assigned
-	 *                      automatically.
-	 * @param [insertOnly]  - don't allow replacing existing objects.
-	 * @param [noReturn]    - do not return the stored object; an optimization.
-	 * @param [meta]        - extra metadata to store in the event but not in
-	 *                      the object.
-	 * @returns - if `noReturn` is false, the stored object is fetched from
-	 *          the DB.
+	 * @param obj - The object to store. If there is no `id` value (or whatever
+	 *   the `id` column is named), one is assigned automatically.
+	 * @param [insertOnly] - Don't allow replacing existing objects.
+	 * @param [noReturn] - Do not return the stored object; an optimization.
+	 * @param [meta] - Extra metadata to store in the event but not in the object.
+	 * @returns - If `noReturn` is false, the stored object is fetched from the
+	 *   DB.
 	 */
 	set(
 		obj: Partial<Item>,
@@ -947,14 +957,13 @@ interface ESModel<
 	/**
 	 * Update an existing object. Returns the current object.
 	 *
-	 * @param o           - the data to store.
-	 * @param [upsert]    - if `true`, allow inserting if the object doesn't
-	 *                    exist.
-	 * @param [noReturn]  - do not return the stored object; an optimization.
-	 * @param [meta]      - extra metadata to store in the event at `data[3]`
-	 *                    but not in the object.
-	 * @returns - if `noReturn` is false, the stored object is fetched from
-	 *          the DB.
+	 * @param o - The data to store.
+	 * @param [upsert] - If `true`, allow inserting if the object doesn't exist.
+	 * @param [noReturn] - Do not return the stored object; an optimization.
+	 * @param [meta] - Extra metadata to store in the event at `data[3]` but not
+	 *   in the object.
+	 * @returns - If `noReturn` is false, the stored object is fetched from the
+	 *   DB.
 	 */
 	update(
 		o: Partial<Item>,
@@ -965,22 +974,19 @@ interface ESModel<
 	/**
 	 * Remove an object.
 	 *
-	 * @param idOrObj  - the id or the object itself.
-	 * @param meta     - metadata, attached to the event only, at `data[3]`.
+	 * @param idOrObj - The id or the object itself.
+	 * @param meta - Metadata, attached to the event only, at `data[3]`.
 	 */
 	remove(idOrObj: Item | Item[IDCol], meta?: any): Promise<void>
-	/**
-	 * changeId: not implemented yet, had no need so far
-	 */
+	/** ChangeId: not implemented yet, had no need so far */
 	changeId(): Promise<void>
 	/**
-	 * Returns the next available integer ID for the model.
-	 * Calling this multiple times during a redux cycle will give increasing
-	 * numbers even though the database table doesn't change.
-	 * Use this from the redux functions to assign unique ids to new objects.
-	 * **Only works if the ID type is number.**
+	 * Returns the next available integer ID for the model. Calling this multiple
+	 * times during a redux cycle will give increasing numbers even though the
+	 * database table doesn't change. Use this from the redux functions to assign
+	 * unique ids to new objects. **Only works if the ID type is number.**
 	 *
-	 * @returns - the next usable ID.
+	 * @returns - The next usable ID.
 	 */
 	getNextId(): Promise<number>
 }

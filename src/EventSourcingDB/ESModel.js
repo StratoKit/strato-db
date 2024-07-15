@@ -66,11 +66,10 @@ const calcUpd = (idCol, prev, obj, complete) => {
  *
  * Use it to convert your database to be event sourcing
  *
- * Event data is encoded as an array: `[subtype, id, data, meta]`
- * Subtype is one of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`.
- * `id` is filled in by the preprocessor at the time of the event.
- * `meta` is free-form data about the event. It is just stored in the history
- * table.
+ * Event data is encoded as an array: `[subtype, id, data, meta]` Subtype is one
+ * of `ESModel.(REMOVE|SET|INSERT|UPDATE|SAVE)`. `id` is filled in by the
+ * preprocessor at the time of the event. `meta` is free-form data about the
+ * event. It is just stored in the history table.
  *
  * For example: `model.set({foo: true})` would result in the event `[1, 1, {foo:
  * true}]`
@@ -88,11 +87,10 @@ class ESModel extends JsonModel {
 	 * Creates a new ESModel model, called by DB.
 	 *
 	 * @class
-	 * @param {function} dispatch      - the {@link ESDB} dispatch function.
-	 * @param {boolean}  [init]        - emit an event with type
-	 *                                 `es/INIT:${modelname}` at table creation
-	 *                                 time, to be used by custom reducers.
-	 * @param {Object}   [...options]  - other params are passed to JsonModel.
+	 * @param {function} dispatch - The {@link ESDB} dispatch function.
+	 * @param {boolean} [init] - Emit an event with type `es/INIT:${modelname}` at
+	 *   table creation time, to be used by custom reducers.
+	 * @param {Object} [...options] - Other params are passed to JsonModel.
 	 */
 	constructor({dispatch, init, emitter, ...options}) {
 		super({
@@ -126,10 +124,10 @@ class ESModel extends JsonModel {
 
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
-	 * This makes deriver and migrations work without changes.
-	 * Note: while writable, no events are created. Be careful.
+	 * This makes deriver and migrations work without changes. Note: while
+	 * writable, no events are created. Be careful.
 	 *
-	 * @param {boolean} state  - writeable or not.
+	 * @param {boolean} state - Writeable or not.
 	 */
 	setWritable(state) {
 		this.writable = state
@@ -141,15 +139,21 @@ class ESModel extends JsonModel {
 		 * database.
 		 *
 		 * @param {Object} obj
-		 * - the object to store. If there is no `id`
-		 * value (or whatever the `id` column is named), one is assigned
-		 * automatically.
+		 *
+		 *   - The object to store. If there is no `id` value (or whatever the `id`
+		 *       column is named), one is assigned automatically.
+		 *
 		 * @param {boolean} [insertOnly]
-		 * - don't allow replacing existing objects.
-		 * @param {*} [meta]
-		 * - extra metadata to store in the event but not in the object.
+		 *
+		 *   - Don't allow replacing existing objects.
+		 *
+		 * @param {any} [meta]
+		 *
+		 *   - Extra metadata to store in the event but not in the object.
+		 *
 		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 * - args to pass to addEvent/dispatch.
+		 *
+		 *   - Args to pass to addEvent/dispatch.
 		 */
 		set: (obj, insertOnly, meta) => {
 			const data = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
@@ -160,13 +164,20 @@ class ESModel extends JsonModel {
 		 * Create an event that will update an existing object.
 		 *
 		 * @param {Object} obj
-		 * - the data to store.
+		 *
+		 *   - The data to store.
+		 *
 		 * @param {boolean} [upsert]
-		 * - if `true`, allow inserting if the object doesn't exist.
-		 * @param {*} [meta]
-		 * - extra metadata to store in the event at `data[3]` but not in the object.
+		 *
+		 *   - If `true`, allow inserting if the object doesn't exist.
+		 *
+		 * @param {any} [meta]
+		 *
+		 *   - Extra metadata to store in the event at `data[3]` but not in the object.
+		 *
 		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 * - args to pass to addEvent/dispatch.
+		 *
+		 *   - Args to pass to addEvent/dispatch.
 		 */
 		update: (obj, upsert, meta) => {
 			const id = obj[this.idCol]
@@ -185,11 +196,16 @@ class ESModel extends JsonModel {
 		 * Create an event that will emove an object.
 		 *
 		 * @param {Object | string | integer} idOrObj
-		 * - the id or the object itself.
-		 * @param {*} meta
-		 * - metadata, attached to the event only, at `data[3]`
+		 *
+		 *   - The id or the object itself.
+		 *
+		 * @param {any} meta
+		 *
+		 *   - Metadata, attached to the event only, at `data[3]`
+		 *
 		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 * - args to pass to addEvent/dispatch.
+		 *
+		 *   - Args to pass to addEvent/dispatch.
 		 */
 		remove: (idOrObj, meta) => {
 			const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
@@ -205,16 +221,15 @@ class ESModel extends JsonModel {
 	/**
 	 * Insert or replace the given object into the database.
 	 *
-	 * @param {Object}  obj           - the object to store. If there is no `id`
-	 *                                value (or whatever the `id` column is named),
-	 *                                one is assigned automatically.
-	 * @param {boolean} [insertOnly]  - don't allow replacing existing objects.
-	 * @param {boolean} [noReturn]    - do not return the stored object; an
-	 *                                optimization.
-	 * @param {*}       [meta]        - extra metadata to store in the event but
-	 *                                not in the object.
-	 * @returns {Promise<Object>} - if `noReturn` is false, the stored object is
-	 *                            fetched from the DB.
+	 * @param {Object} obj - The object to store. If there is no `id` value (or
+	 *   whatever the `id` column is named), one is assigned automatically.
+	 * @param {boolean} [insertOnly] - Don't allow replacing existing objects.
+	 * @param {boolean} [noReturn] - Do not return the stored object; an
+	 *   optimization.
+	 * @param {any} [meta] - Extra metadata to store in the event but not in the
+	 *   object.
+	 * @returns {Promise<Object>} - If `noReturn` is false, the stored object is
+	 *   fetched from the DB.
 	 */
 	async set(obj, insertOnly, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
@@ -241,15 +256,15 @@ class ESModel extends JsonModel {
 	/**
 	 * Update an existing object.
 	 *
-	 * @param {Object}  o           - the data to store.
-	 * @param {boolean} [upsert]    - if `true`, allow inserting if the object
-	 *                              doesn't exist.
-	 * @param {boolean} [noReturn]  - do not return the stored object; an
-	 *                              optimization.
-	 * @param {*}       [meta]      - extra metadata to store in the event at
-	 *                              `data[3]` but not in the object.
-	 * @returns {Promise<Object>} - if `noReturn` is false, the stored object is
-	 *                            fetched from the DB.
+	 * @param {Object} o - The data to store.
+	 * @param {boolean} [upsert] - If `true`, allow inserting if the object
+	 *   doesn't exist.
+	 * @param {boolean} [noReturn] - Do not return the stored object; an
+	 *   optimization.
+	 * @param {any} [meta] - Extra metadata to store in the event at `data[3]` but
+	 *   not in the object.
+	 * @returns {Promise<Object>} - If `noReturn` is false, the stored object is
+	 *   fetched from the DB.
 	 */
 	async update(obj, upsert, noReturn, meta) {
 		if (DEV && noReturn != null && typeof noReturn !== 'boolean')
@@ -282,11 +297,16 @@ class ESModel extends JsonModel {
 	 * Remove an object.
 	 *
 	 * @param {Object | string | integer} idOrObj
-	 * - the id or the object itself.
-	 * @param {*} meta
-	 * - metadata, attached to the event only, at `data[3]`
+	 *
+	 *   - The id or the object itself.
+	 *
+	 * @param {any} meta
+	 *
+	 *   - Metadata, attached to the event only, at `data[3]`
+	 *
 	 * @returns {Promise<boolean>}
-	 * - always returns true.
+	 *
+	 *   - Always returns true.
 	 */
 	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
@@ -295,7 +315,7 @@ class ESModel extends JsonModel {
 		return true
 	}
 
-	/** changeId: not implemented yet, had no need so far */
+	/** ChangeId: not implemented yet, had no need so far */
 	changeId(oldId, newId) {
 		if (this.writable) return super.changeId(oldId, newId)
 		throw new Error(`ESModel doesn't support changeId yet`)
@@ -306,12 +326,12 @@ class ESModel extends JsonModel {
 	_lastUV = 0
 
 	/**
-	 * Returns the next available integer ID for the model.
-	 * Calling this multiple times during a redux cycle will give increasing
-	 * numbers even though the database table doesn't change.
-	 * Use this from the redux functions to assign unique ids to new objects.
+	 * Returns the next available integer ID for the model. Calling this multiple
+	 * times during a redux cycle will give increasing numbers even though the
+	 * database table doesn't change. Use this from the redux functions to assign
+	 * unique ids to new objects.
 	 *
-	 * @returns {Promise<number>} - the next usable ID.
+	 * @returns {Promise<number>} - The next usable ID.
 	 */
 	async getNextId() {
 		if (!this._maxId) {
@@ -329,7 +349,7 @@ class ESModel extends JsonModel {
 	/**
 	 * Applies the result from the reducer.
 	 *
-	 * @param {Object} result  - free-form change descriptor.
+	 * @param {Object} result - Free-form change descriptor.
 	 * @returns {Promise<void>} - Promise for completion.
 	 */
 	async applyResult(result) {
@@ -338,8 +358,9 @@ class ESModel extends JsonModel {
 	}
 
 	/**
-	 * Assigns the object id to the event at the start of the cycle.
-	 * When subclassing ESModel, be sure to call this too (`ESModel.preprocessor(arg)`)
+	 * Assigns the object id to the event at the start of the cycle. When
+	 * subclassing ESModel, be sure to call this too
+	 * (`ESModel.preprocessor(arg)`)
 	 */
 	static async preprocessor({model, event, isMainEvent}) {
 		if (isMainEvent) model._maxId = 0
@@ -356,11 +377,11 @@ class ESModel extends JsonModel {
 	 * Calculates the desired change ESModel will only emit `rm`, `ins`, `upd` and
 	 * `esFail`
 	 *
-	 * @param {Object}  params
-	 * @param {ESModel} params.model  - the model.
-	 * @param {Event}   params.event  - the event.
-	 * @returns {Promise<Object>} - the result object in the format JsonModel
-	 *                            likes.
+	 * @param {Object} params
+	 * @param {ESModel} params.model - The model.
+	 * @param {Event} params.event - The event.
+	 * @returns {Promise<Object>} - The result object in the format JsonModel
+	 *   likes.
 	 */
 	static async reducer({model, event: {type, data}}) {
 		if (!model || type !== model.TYPE) return false

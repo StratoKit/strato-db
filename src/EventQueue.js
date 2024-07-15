@@ -101,7 +101,7 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event  - the new event.
+	 * @param {Event} event - The new event.
 	 * @returns {Promise<void>} - Promise for set completion.
 	 */
 	set(event) {
@@ -127,7 +127,7 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Get the highest version stored in the queue.
 	 *
-	 * @returns {Promise<number>} - the version.
+	 * @returns {Promise<number>} - The version.
 	 */
 	async getMaxV() {
 		if (this._addP) await this._addP
@@ -153,9 +153,10 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param {string} type             - event type.
-	 * @param {*}      [data]           - event data.
-	 * @param {number} [ts=Date.now()]  - event timestamp, ms since epoch.
+	 * @param {string} type - Event type.
+	 * @param {any} [data] - Event data.
+	 * @param {number} [ts=Date.now()] - Event timestamp, ms since epoch. Default
+	 *   is `Date.now()`
 	 * @returns {Promise<Event>} - Promise for the added event.
 	 */
 	add(type, data, ts) {
@@ -216,11 +217,11 @@ class EventQueueImpl extends JsonModel {
 	}
 
 	/**
-	 * Get the next event after v (gaps are ok).
-	 * The wait can be cancelled by `.cancelNext()`.
+	 * Get the next event after v (gaps are ok). The wait can be cancelled by
+	 * `.cancelNext()`.
 	 *
-	 * @param {number}  [v=0]     The version.
-	 * @param {boolean} [noWait]  Do not wait for the next event.
+	 * @param {number} [v=0] The version. Default is `0`
+	 * @param {boolean} [noWait] Do not wait for the next event.
 	 * @returns {Promise<Event>} The event if found.
 	 */
 	async getNext(v = 0, noWait = false) {
@@ -246,19 +247,16 @@ class EventQueueImpl extends JsonModel {
 		return event
 	}
 
-	/**
-	 * Cancel any pending `.getNext()` calls
-	 */
+	/** Cancel any pending `.getNext()` calls */
 	cancelNext() {
 		if (!this._resolveNAP) return
 		this._resolveNAP('CANCEL')
 	}
 
 	/**
-	 * Set the latest known version.
-	 * New events will have higher versions.
+	 * Set the latest known version. New events will have higher versions.
 	 *
-	 * @param {number} v  - the last known version.
+	 * @param {number} v - The last known version.
 	 */
 	setKnownV(v) {
 		// set the sqlite autoincrement value

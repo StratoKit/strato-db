@@ -40,8 +40,8 @@ const _markMigration = async (db, runKey, up) => {
 }
 
 /**
- * DB adds model management and migrations to Wrapper.
- * The migration state is kept in the table ""{sdb} migrations"".
+ * DB adds model management and migrations to Wrapper. The migration state is
+ * kept in the table ""{sdb} migrations"".
  *
  * @implements {DB}
  */
@@ -68,12 +68,11 @@ class DBImpl extends SQLite {
 
 	/**
 	 * Add a model to the DB, which will manage one or more tables in the SQLite
-	 * database.
-	 * The model should use the given `db` instance at creation time.
+	 * database. The model should use the given `db` instance at creation time.
 	 *
-	 * @param {Object} Model    - a class.
-	 * @param {Object} options  - options passed during Model creation.
-	 * @returns {Object} - the created Model instance.
+	 * @param {Object} Model - A class.
+	 * @param {Object} options - Options passed during Model creation.
+	 * @returns {Object} - The created Model instance.
 	 */
 	addModel(Model, options) {
 		const model = new Model({
@@ -90,9 +89,13 @@ class DBImpl extends SQLite {
 	 * Register an object with migrations.
 	 *
 	 * @param {string} name
-	 * - the name under which to register these migrations.
+	 *
+	 *   - The name under which to register these migrations.
+	 *
 	 * @param {Record<string, function | Record<string, function>>} migrations
-	 * - the migrations object.
+	 *
+	 *   - The migrations object.
+	 *
 	 * @returns {void}
 	 */
 	registerMigrations(name, migrations) {
@@ -120,8 +123,8 @@ class DBImpl extends SQLite {
 	/**
 	 * Runs the migrations in a transaction and waits for completion.
 	 *
-	 * @param {SQLite} db  - an opened SQLite instance.
-	 * @returns {Promise<void>} - promise for completed migrations.
+	 * @param {SQLite} db - An opened SQLite instance.
+	 * @returns {Promise<void>} - Promise for completed migrations.
 	 */
 	async runMigrations(db) {
 		const {store, options} = this
