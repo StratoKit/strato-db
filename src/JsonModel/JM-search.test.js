@@ -264,42 +264,42 @@ describe('search cursor', () => {
 
 		const searchOptions = {
 			// true first
-			sort: {x2: -1}, 
-			limit: pageCount, cols: ['id', 'x2']}
-		const page1 = await m.search({}, searchOptions) 
+			sort: {x2: -1},
+			limit: pageCount,
+			cols: ['id', 'x2'],
+		}
+		const page1 = await m.search({}, searchOptions)
 
 		expect(page1).toEqual({
-			"cursor": "!_N~1",
-			"items": [
-				{"id": 2, "x2": 1},
-				{"id": 4, "x2": 1},
-				{"id": 6,	"x2": 1},
-				{"id": 8, "x2": 1},
-				{"id": 10, "x2": 1},
-				{"id": 12, "x2": 1},
-				{"id": 14, "x2": 1},
-				{"id": 1},
+			cursor: '!_N~1',
+			items: [
+				{id: 2, x2: 1},
+				{id: 4, x2: 1},
+				{id: 6, x2: 1},
+				{id: 8, x2: 1},
+				{id: 10, x2: 1},
+				{id: 12, x2: 1},
+				{id: 14, x2: 1},
+				{id: 1},
 			],
-			"prevCursor": "!!1~2",
-			"total": 14,
+			prevCursor: '!!1~2',
+			total: 14,
 		})
 
-		const page2Count = await m.count({}, {...searchOptions, cursor: page1.cursor})
+		const page2Count = await m.count(
+			{},
+			{...searchOptions, cursor: page1.cursor}
+		)
 		const remainingAfterPage1 = totalCount - pageCount
-		expect(page2Count).toEqual(remainingAfterPage1 < pageCount ? remainingAfterPage1 : pageCount)
+		expect(page2Count).toEqual(
+			remainingAfterPage1 < pageCount ? remainingAfterPage1 : pageCount
+		)
 		const page2 = await m.search({}, {...searchOptions, cursor: page1.cursor})
 		expect(page2).toEqual({
-			"cursor": undefined,
-			"items": [
-				{"id": 3},
-				{"id": 5},
-				{"id": 7},
-				{"id": 9},
-				{"id": 11},
-				{"id": 13},
-			],
-			"prevCursor": "!!_N~3",
-			"total": 14,
+			cursor: undefined,
+			items: [{id: 3}, {id: 5}, {id: 7}, {id: 9}, {id: 11}, {id: 13}],
+			prevCursor: '!!_N~3',
+			total: 14,
 		})
 	})
 })
