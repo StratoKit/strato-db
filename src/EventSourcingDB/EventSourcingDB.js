@@ -697,7 +697,6 @@ class EventSourcingDB extends EventEmitter {
 			}
 		}
 		return lastV
-		/* eslint-enable no-await-in-loop */
 	}
 
 	async _preprocessor(cache, event, isMainEvent) {

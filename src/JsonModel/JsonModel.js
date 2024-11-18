@@ -394,9 +394,15 @@ class JsonModelImpl {
 			cursorQ = `${cursorColAliases[len]}${getDir(len)}?`
 			cursorArgs = [cursorVals[len]] // ID added at first
 			for (let i = len - 1; i >= 0; i--) {
-				cursorQ =
-					`(${cursorColAliases[i]}${getDir(i)}=?` +
-					` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
+				const colAlias = cursorColAliases[i]
+				const isFalsyBool = Object.values(this.columns).find(
+					c => c.alias === colAlias
+				).falsyBool
+				cursorQ = isFalsyBool
+					? `(COALESCE(${colAlias}, 0)${getDir(i)}=COALESCE(?, 0)` +
+						` AND (COALESCE(${colAlias},0)!=COALESCE(?, 0) OR ${cursorQ}))`
+					: `(${cursorColAliases[i]}${getDir(i)}=?` +
+						` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
 				const val = cursorVals[i]
 				cursorArgs.unshift(val, val)
 			}
