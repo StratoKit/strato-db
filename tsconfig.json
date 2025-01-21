@@ -10,7 +10,7 @@
 
 		// Available types
 		"lib": ["ES2021"],
-		"types": ["vite/client", "vitest/globals"],
+		"types": ["vite/client", "vitest/globals", "node"],
 
 		// Module resolution
 		"forceConsistentCasingInFileNames": true,

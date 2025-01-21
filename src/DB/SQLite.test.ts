@@ -1,4 +1,4 @@
-import sysPath from 'path'
+import sysPath from 'node:path'
 import tmp from 'tmp-promise'
 import SQLite, {sql, valToSql} from './SQLite'
 
@@ -108,7 +108,7 @@ describe('SQLite', () => {
 					await extraDb.exec('UPDATE t SET v=v+1 WHERE id=1')
 					await extraDb.close()
 				}
-				const Ps = []
+				const Ps: Promise<void>[] = []
 				for (let i = 0; i < 10; i++) {
 					Ps.push(openClose())
 				}
@@ -319,13 +319,51 @@ describe('SQLite', () => {
 		await expect(db.userVersion()).resolves.toBe(5)
 	})
 
+	test.only('concurrent userVersion()', async () => {
+		const dir = await tmp.dir({unsafeCleanup: true, prefix: 'sqlite-test-'})
+		const {path} = dir
+		const file = sysPath.join(path, 'db')
+		const db1 = new SQLite({file})
+		const db2 = new SQLite({file})
+		try {
+			const p1 = db1.userVersion()
+			const p2 = db2.userVersion()
+			expect(await Promise.all([p1, p2])).toEqual([0, 0])
+			await db1.userVersion(5)
+			expect(await Promise.all([db1.userVersion(), db2.userVersion()])).toEqual(
+				[5, 5]
+			)
+
+			let writer, waiter
+			const writerP = new Promise(r => (writer = r))
+			const waiterP = new Promise(r => (waiter = r))
+
+			const db1Done = db1.__withTransaction(async () => {
+				await db1.userVersion(10)
+				writer()
+				await waiterP
+			})
+
+			await writerP
+			expect(await db1.userVersion()).toBe(10)
+			expect(await db2.userVersion()).toBe(5)
+			waiter!()
+			await db1Done
+			expect(await db2.userVersion()).toBe(10)
+		} finally {
+			await db1.close()
+			await db2.close()
+			await dir.cleanup()
+		}
+	})
+
 	test('.each()', async () => {
 		const db = new SQLite()
 		await db.exec(
 			`CREATE TABLE foo(hi NUMBER); INSERT INTO foo VALUES (42),(43);`
 		)
 		for (let i = 0; i < 100; i++) await db.run('INSERT INTO FOO VALUES(?)', i)
-		const arr = []
+		const arr: number[] = []
 		let flag = false
 		await db.each(`SELECT * FROM foo`, ({hi}) => {
 			// it should wait until db.each is done
