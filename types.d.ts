@@ -269,6 +269,8 @@ type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 	[name: string]: Loader<Item, Item[IDCol]>
 }
 
+type JMIndexOpions = boolean | 'ALL' | 'PARTIAL'
+
 /** A real or virtual column definition in the created sqlite table */
 type JMColumnDef = {
 	/** The column key, used for the column name if it's a real column. */
@@ -314,7 +316,7 @@ type JMColumnDef = {
 	 */
 	falsyBool?: boolean
 	/** Should it be indexed? If `unique` is false, NULLs are never indexed. */
-	index?: boolean
+	index?: JMIndexOpions
 	/** Are null values ignored in the index?. */
 	ignoreNull?: boolean
 	/** Should the index enforce uniqueness?. */
