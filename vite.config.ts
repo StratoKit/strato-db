@@ -1,4 +1,4 @@
-import {defineConfig} from 'vite'
+import {defineConfig, type UserConfig} from 'vite'
 import {configDefaults} from 'vitest/config'
 import pkg from './package.json'
 
@@ -31,6 +31,9 @@ export default defineConfig(() => {
 			globals: true,
 			testTimeout: 20_000,
 			exclude: [...configDefaults.exclude, 'dist/**', 'dist-types/**'],
+			coverage: {
+				exclude: [...configDefaults.coverage!.exclude!, 'package-scripts.cjs'],
+			},
 		},
-	}
+	} as UserConfig
 })
