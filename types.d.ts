@@ -269,7 +269,7 @@ type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 	[name: string]: Loader<Item, Item[IDCol]>
 }
 
-type JMIndexOpions = boolean | 'ALL' | 'PARTIAL'
+type JMIndexOpions = boolean | 'ALL' | 'SPARSE'
 
 /** A real or virtual column definition in the created sqlite table */
 type JMColumnDef = {
