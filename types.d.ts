@@ -24,12 +24,13 @@ type SqlTag = (
 interface Statement {
 	isStatement: true
 	sql: string
+	db: SQLite
 	/** Closes the statement, removing it from the SQLite instance */
 	finalize(): Promise<void>
 	/** Run the statement and return the metadata. */
 	run(vars: SQLiteParam[]): Promise<SQLiteMeta>
 	/** Return the first row for the statement result. */
-	get(vars: SQLiteParam[]): Promise<SQLiteRow | null>
+	get(vars: SQLiteParam[]): Promise<SQLiteRow | undefined>
 	/** Return all result rows for the statement. */
 	all(vars: SQLiteParam[]): Promise<SQLiteRow[]>
 	/** Run the callback on each row of the result */
@@ -71,6 +72,9 @@ type SQLiteOptions = {
  */
 interface SQLite extends EventEmitter {
 	new (options?: SQLiteOptions)
+
+	/** Holding space for models */
+	store: object
 
 	/**
 	 * Template Tag for SQL statements.
@@ -122,11 +126,11 @@ interface SQLite extends EventEmitter {
 	 * @param sql - The SQL statement to be executed.
 	 * @param [vars] - The variables to be bound to the statement.
 	 */
-	get(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow | null>
+	get(sql: string, vars?: SQLiteParam[]): Promise<SQLiteRow | undefined>
 	get(
 		sql: TemplateStringsArray,
 		...vars: SQLiteParam[]
-	): Promise<SQLiteRow | null>
+	): Promise<SQLiteRow | undefined>
 	/**
 	 * Run the given query and return the metadata.
 	 *
@@ -163,8 +167,11 @@ interface SQLite extends EventEmitter {
 	 * @param cb - The function to call on each row.
 	 * @returns - A promise for execution completion.
 	 */
-	each(sql: string, cb: (row: SQLiteRow) => any): Promise<void>
-	each(sql: string, vars: SQLiteParam[], cb: DBEachCallback): Promise<void>
+	each(
+		...args:
+			| [sql: string, cb: DBEachCallback]
+			| [sql: string, vars: SQLiteParam[], cb: DBEachCallback]
+	): Promise<void>
 	/**
 	 * Returns the data_version, which increases when other connections write to
 	 * the database.
@@ -212,8 +219,9 @@ type DBOptions = {
  * DB adds model management and migrations to Wrapper. The migration state is
  * kept in the table ""{sdb} migrations"".
  */
-interface DBI extends SQLite {
-	new (options: DBOptions): DB
+declare class DB extends SQLite {
+	/** @param {DBOptions} options */
+	constructor(options: DBOptions)
 
 	/** The models. */
 	store: Record<string, InstanceType<DBModel>>
@@ -244,26 +252,44 @@ interface DBI extends SQLite {
 	 */
 	runMigrations(db: SQLite): Promise<void>
 }
-declare class DB implements DBI {}
 
 /** A callback receiving an item */
-type ItemCallback<Item> = (obj: Item) => Promise<void>
+type ItemCallback<Item> = (obj: Item) => Promise<unknown> | unknown
 
 /** The value of the stored objects' id */
 type IDValue = string | number
+
+type ColumnKeyToType<
+	Column,
+	Type = NonNullable<Column extends {type: any} ? Column['type'] : Column>,
+> = Type extends string
+	? string
+	: Type extends 'INTEGER'
+		? number
+		: Type extends 'TEXT'
+			? string
+			: Type extends 'REAL'
+				? number
+				: Type extends 'BLOB'
+					? Buffer
+					: Type extends 'BOOLEAN'
+						? boolean
+						: Type extends boolean | number | string | Date
+							? Type
+							: never
 
 /**
  * Search for simple values. Keys are column names, values are what they should
  * equal
  */
 type JMSearchAttrs<Columns> = {
-	[attr in keyof Columns]?: any
+	[attr in keyof Columns]?: ColumnKeyToType<Columns[attr]>
 }
 
 /** The key for the column definition */
 type JMColName = string
 
-type Loader<T, U> = import('dataloader')<U, T | null>
+type Loader<T, U> = import('dataloader')<U, T | undefined>
 /** A lookup cache, managed by DataLoader */
 type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 	[name: string]: Loader<Item, Item[IDCol]>
@@ -272,7 +298,7 @@ type JMCache<Item extends Record<string, any>, IDCol extends string> = {
 type JMIndexOpions = boolean | 'ALL' | 'SPARSE'
 
 /** A real or virtual column definition in the created sqlite table */
-type JMColumnDef = {
+type JMColumnDef<Item = Record<string, any>> = {
 	/** The column key, used for the column name if it's a real column. */
 	name?: JMColName
 	/** Is this a real table column. */
@@ -288,9 +314,9 @@ type JMColumnDef = {
 	/** Should the column be included in search results. */
 	get?: boolean
 	/** Process the value after getting from DB. */
-	parse?: (val: SQLiteValue) => any
+	parse?: (colVal: SQLiteValue) => any
 	/** Process the value before putting into DB. */
-	stringify?: (any) => SQLiteParam
+	stringify?: (val: any) => SQLiteParam
 	/**
 	 * The value is an object and must always be there. If this is a real column,
 	 * a NULL column value will be replaced by `{}` and vice versa.
@@ -301,9 +327,9 @@ type JMColumnDef = {
 	 * creates a real column. Right now the column value is not regenerated for
 	 * existing rows.
 	 */
-	value?: (object: Record<string, any>) => any
+	value?: (object: Item) => any
 	/** Same as value, but the result is used to generate a unique slug. */
-	slugValue?: (object: Record<string, any>) => any
+	slugValue?: (object: Item) => any
 	/** Any sql expression to use in SELECT statements. */
 	sql?: string
 	/** If the value is nullish, this will be stored instead. */
@@ -322,15 +348,21 @@ type JMColumnDef = {
 	/** Should the index enforce uniqueness?. */
 	unique?: boolean
 	/**
-	 * A function receiving `origVals` and returning the `vals` given to `where`.
-	 * It should return falsy or an array of values.
+	 * A function receiving the search value and returning an array of values to
+	 * be used in the `where` clause. The function should return falsy to skip the
+	 * search, or an array of 0 or more values corresponding to the `?` in the
+	 * `where` clause.
 	 */
-	whereVal?: (vals: any[]) => any
+	whereVal?: (
+		val: unknown
+	) => SQLiteParam[] | false | undefined | null | unknown
 	/**
-	 * The where clause for querying, or a function returning one given `(vals,
-	 * origVals)`.
+	 * The where clause for querying, or a function returning one given `(value,
+	 * origValue)`. The `value` is the search value (anything) or the result of
+	 * `whereVal` (an array of sqlite params). The `origValue` is the search
+	 * value.
 	 */
-	where?: string | ((vals: any[], origVals: any[]) => any)
+	where?: string | ((value: unknown, origValue: unknown) => unknown[])
 	/** This column contains an array of values. */
 	isArray?: boolean
 	/** To query, this column value must match one of the given array items. */
@@ -345,19 +377,22 @@ type JMColumnDef = {
 	/** Alias for isArray+inAll. */
 	isAnyOfArray?: boolean
 }
-type JMColumnDefOrFn = (({name: string}) => JMColumnDef) | JMColumnDef
+type JMColumnDefOrFn<Item> =
+	| (({name: string}) => JMColumnDef<Item>)
+	| JMColumnDef<Item>
 
 /** A function that performs a migration before the DB is opened */
 type JMMigration<T extends {[x: string]: any}, IDCol extends string> = (
 	args: Record<string, any> & {db: DB; model: JsonModel<T, IDCol>}
 ) => Promise<void>
 
-type JMColums<IDCol extends string = 'id'> = {
-	[colName: string]: JMColumnDefOrFn | undefined
+type JMColumns<Item = Record<string, any>, IDCol extends string = 'id'> = {
+	[colName: string]: JMColumnDefOrFn<Item> | undefined
 } & {
-	[id in IDCol]?: JMColumnDef
+	[id in IDCol]?: JMColumnDef<Item>
 }
-
+/** @deprecated Use JMColumns instead - typo */
+type JMColums = JMColumns
 type JMOptions<
 	T extends {[x: string]: any},
 	IDCol extends string = 'id',
@@ -402,7 +437,7 @@ type JMSearchOptions<Columns> = {
 	/** Arbitrary join clause. Not processed at all. */
 	join?: string
 	/** Values needed by the join clause. */
-	joinVals?: any[]
+	joinVals?: unknown[]
 	/**
 	 * Object with sql expressions as keys and +/- for direction and precedence.
 	 * Lower number sort the column first.
@@ -426,7 +461,7 @@ type JMSearchOptions<Columns> = {
  * Stores Item objects in a SQLite table. Pass the type of the item it stores
  * and the config so it can determine the columns
  */
-interface JsonModel<
+declare class JsonModel<
 	RealItem extends {[x: string]: any} = {id: string},
 	// Allow the id column name as well for backwards compatibility
 	ConfigOrID = 'id',
@@ -442,14 +477,14 @@ interface JsonModel<
 	Columns extends JMColums<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
-			{[colName in keyof Item]: object},
+			Item,
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>,
 > {
 	// TODO have it infer the columns from the call to super
-	new (options: JMOptions<Item, IDCol, Columns>): this
+	constructor(options: JMOptions<Item, IDCol, Columns>)
 	/** The DB instance storing this model */
-	db: DB
+	db: SQLite
 	/** The table name */
 	name: string
 	/** The SQL-quoted table name */
@@ -519,8 +554,9 @@ interface JsonModel<
 	 *
 	 * @returns The search results exist.
 	 */
-	exists(id: Item[IDCol]): Promise<boolean>
-	exists(attrs: SearchAttrs, options?: SearchOptions): Promise<boolean>
+	exists(
+		...args: [id: Item[IDCol]] | [attrs: SearchAttrs, options?: SearchOptions]
+	): Promise<boolean>
 	/**
 	 * Count of search results.
 	 *
@@ -626,12 +662,15 @@ interface JsonModel<
 	 *
 	 * @returns Table iteration completed.
 	 */
-	each(cb: ItemCallback<Item>): Promise<void>
-	each(attrs: SearchAttrs, cb: ItemCallback<Item>): Promise<void>
 	each(
-		attrs: SearchAttrs,
-		opts: SearchOptions & {concurrent?: number; batchSize?: number},
-		cb: ItemCallback<Item>
+		...args:
+			| [cb: ItemCallback<Item>]
+			| [attrs: SearchAttrs, cb: ItemCallback<Item>]
+			| [
+					attrs: SearchAttrs,
+					opts: SearchOptions & {concurrent?: number; batchSize?: number},
+					cb: ItemCallback<Item>,
+			  ]
 	): Promise<void>
 	/**
 	 * Insert or replace the given object into the database.
@@ -693,18 +732,21 @@ interface JsonModel<
 	changeId(oldId: Item[IDCol], newId: Item[IDCol]): Promise<void>
 }
 
-type ESEvent = {
-	/** The version */
-	v: number
-	/** Event type */
-	type: string
-	/** Ms since epoch of event */
-	ts: number
-	/** Event data */
-	data?: any
-	/** Event processing result */
-	result?: Record<string, ReduceResult>
-}
+type ESEvent<T extends keyof EventTypes = keyof EventTypes> = {
+	[E in T]: {
+		/** The version */
+		v: number
+		/** Event type */
+		type: E
+		/** Ms since epoch of event */
+		ts: number
+		/** Event data */
+		data: EventTypes[E]
+		/** Event processing result */
+		result?: Record<string, ReduceResult>
+	}
+}[T]
+
 type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** The table name, defaults to `"history"` */
 	name?: string
@@ -715,13 +757,34 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 }
 /** Creates a new EventQueue model, called by DB. */
 interface EventQueue<
-	T extends ESEvent = ESEvent,
-	Config extends Partial<EQOptions<T>> = object,
+	RealItem extends ESEvent = ESEvent,
+	Config extends Partial<EQOptions<RealItem>> = object,
+	IDCol extends string = Config extends {idCol: string} ? Config['idCol'] : 'v',
+	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
+		? RealItem
+		: RealItem & {[id in IDCol]: IDValue},
+	Columns extends JMColums<IDCol> = Config extends {columns: object}
+		? Config['columns']
+		: // If we didn't get a config, assume all keys are columns
+			{[colName in keyof Item]: object},
 > extends JsonModel<
-		T,
-		{idCol: 'v'; columns: import('./dist/EventQueue').Columns} & Config
+		RealItem,
+		{
+			idCol: 'v'
+			columns: {
+				v: true
+				type: true
+				ts: true
+				data: true
+				result: true
+				size: true
+			}
+		} & Config,
+		IDCol,
+		Item,
+		Columns
 	> {
-	new (options: EQOptions<T>): this
+	new (options: EQOptions<RealItem>): this
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -737,7 +800,11 @@ interface EventQueue<
 	 *   `Date.now()`
 	 * @returns - Promise for the added event.
 	 */
-	add(type: string, data?: any, ts?: number): Promise<T>
+	add<T extends keyof EventTypes>(
+		type: T,
+		data?: EventTypes[T],
+		ts?: number
+	): Promise<T>
 	/**
 	 * Get the next event after v (gaps are ok). The wait can be cancelled by
 	 * `.cancelNext()`.
@@ -757,41 +824,59 @@ interface EventQueue<
 	setKnownV(v: number): Promise<void>
 }
 
-type ReduceResult = {[applyType: string]: any}
-type ReduxArgs<M extends ESDBModel> = {
+type ReduceResult<T extends object = object> = Record<
+	string,
+	T[] | undefined
+> & {error?: unknown}
+type ReduxArgs<M, Store = unknown> = {
 	cache: object
 	model: InstanceType<M>
 	event: ESEvent
-	store: EventSourcingDB['store']
+	store: Store
 	addEvent: AddEventFn
 	isMainEvent: boolean
 }
-type PreprocessorFn<M extends ESDBModel = ESModel> = (
-	args: ReduxArgs<M>
-) => Promise<ESEvent | undefined> | ESEvent | undefined
-type ReducerFn<M extends ESDBModel = ESModel> = (
-	args: ReduxArgs<M>
-) =>
-	| Promise<ReduceResult | undefined | false>
-	| ReduceResult
-	| undefined
-	| false
-type ApplyResultFn = (result: ReduceResult) => Promise<void>
-type DeriverFn<M extends ESDBModel = ESModel> = (
-	args: ReduxArgs<M> & {result: ReduceResult}
-) => Promise<void>
-type TransactFn<M extends ESDBModel = ESModel> = (
-	args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
-) => Promise<void>
 
-type DispatchFn = (
+// 'fn' deref is used to make the definitions bivariant
+type PreprocessorFn<M extends ESDBModel = ESModel> = {
+	fn: (args: ReduxArgs<M>) => Promise<ESEvent | void> | ESEvent | void
+}['fn']
+type ReducerFn<M extends ESDBModel = ESModel> = {
+	fn: (
+		args: ReduxArgs<M>
+	) => Promise<ReduceResult | void | false> | ReduceResult | void | false
+}['fn']
+type ApplyResultFn = {
+	fn: (result: ReduceResult) => Promise<void>
+}['fn']
+type DeriverFn<M extends ESDBModel = ESModel> = {
+	fn: (args: ReduxArgs<M> & {result?: ReduceResult}) => Promise<void>
+}['fn']
+type TransactFn<M extends ESDBModel = ESModel> = {
+	fn: (
+		args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
+	) => Promise<void>
+}['fn']
+
+interface EventTypes {}
+type DispatchFn = <T extends keyof EventTypes>(
 	...args:
-		| [type: string, data?: any, ts?: number]
-		| [arg: {type: string; data?: any; ts?: number}]
+		| [type: T, data: EventTypes[T], ts?: number]
+		| [
+				arg: EventTypes[T] extends undefined
+					? {type: T; data?: EventTypes[T]; ts?: number}
+					: {type: T; data?: EventTypes[T]; ts?: number},
+		  ]
 ) => Promise<ESEvent>
 
 type AddEventFn = (
-	...args: [type: string, data?: any] | [arg: {type: string; data?: any}]
+	...args:
+		| [type: T, data: EventTypes[T]]
+		| [
+				arg: EventTypes[T] extends undefined
+					? {type: T; data?: EventTypes[T]}
+					: {type: T; data?: EventTypes[T]},
+		  ]
 ) => void
 
 // TODO get from models config
@@ -805,11 +890,15 @@ type ESDBModelArgs = {
 interface ESDBModel {
 	new (args: ESDBModelArgs): this
 	name: string
-	preprocessor?: PreprocessorFn<this>
-	reducer?: ReducerFn<this>
-	applyResult?: ApplyResultFn
-	deriver?: DeriverFn<this>
-	transact?: TransactFn<this>
+	preprocessor(args: ReduxArgs<this>): Promise<ESEvent | void> | ESEvent | void
+	reducer(
+		args: ReduxArgs<this>
+	): Promise<ReduceResult | void | false> | ReduceResult | void | false
+	applyResult(result: ReduceResult): Promise<void>
+	deriver(args: ReduxArgs<this> & {result?: ReduceResult}): Promise<void>
+	transact(
+		args: Omit<ReduxArgs<this>, 'addEvent'> & {dispatch: DispatchFn}
+	): Promise<void>
 }
 
 type ESDBOptions = DBOptions & {
@@ -825,9 +914,9 @@ interface EventSourcingDB extends EventEmitter {
 	new (options: ESDBOptions): this
 
 	/** The read-only models. Use these freely, they don't "see" transactions */
-	store: Record<string, InstanceType<ESDBModel>>
+	store: object
 	/** The writable models. Do not use. */
-	rwStore: Record<string, InstanceType<ESDBModel>>
+	rwStore: object
 	/** DB instance for the read-only models */
 	db: DB
 	/** DB instance for the writable models */
@@ -868,6 +957,7 @@ type EMOptions<T extends {[x: string]: any}, IDCol extends string> = JMOptions<
 	 */
 	init?: boolean
 }
+
 /**
  * ESModel is a drop-in wrapper around JsonModel to turn changes into events.
  *
@@ -892,10 +982,26 @@ interface ESModel<
 		: ConfigOrID extends string
 			? ConfigOrID
 			: 'id',
-	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]: unknown}
+	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
-> extends JsonModel<RealItem, ConfigOrID, IDCol, Item>,
+	Config = ConfigOrID extends string ? object : ConfigOrID,
+	Columns extends JMColums<IDCol> = Config extends {columns: object}
+		? Config['columns']
+		: // If we didn't get a config, assume all keys are columns
+			Item,
+	SearchAttrs = JMSearchAttrs<Columns>,
+	SearchOptions = JMSearchOptions<Columns>,
+> extends JsonModel<
+			RealItem,
+			ConfigOrID,
+			IDCol,
+			Item,
+			Config,
+			Columns,
+			SearchAttrs,
+			SearchOptions
+		>,
 		ESDBModel {
 	new (options: EMOptions<Item, IDCol>): this
 	REMOVE: 0
@@ -905,32 +1011,51 @@ interface ESModel<
 	SAVE: 4
 	TYPE: string
 	INIT: string
+	event: {
+		set: (
+			obj: Partial<Item>,
+			insertOnly?: boolean,
+			meta?: unknown
+		) => Pick<ESEvent, 'type' | 'data'>
+		update: (
+			obj: Partial<Item>,
+			upsert?: boolean,
+			meta?: unknown
+		) => Pick<ESEvent, 'type' | 'data'>
+		remove: (
+			idOrObj: Item | Item[IDCol],
+			meta?: unknown
+		) => Pick<ESEvent, 'type' | 'data'>
+	}
 
 	/**
 	 * Assigns the object id to the event at the start of the cycle. When
 	 * subclassing ESModel, be sure to call this too
 	 * (`ESModel.preprocessor(arg)`)
 	 */
-	preprocessor?: PreprocessorFn<this>
+	preprocessor(args: ReduxArgs<this>): Promise<ESEvent | void> | ESEvent | void
 	/**
 	 * Calculates the desired change. ESModel will only emit `rm`, `ins`, `upd`
 	 * and `esFail`.
 	 */
-	reducer?: ReducerFn<this>
+	reducer(
+		args: ReduxArgs<this>
+	): Promise<ReduceResult | void | false> | ReduceResult | void | false
 	/**
 	 * Applies the result from the reducer.
 	 *
 	 * @param result - Free-form change descriptor.
 	 * @returns - Promise for completion.
 	 */
-	applyResult?: ApplyResultFn
+	applyResult(result: ReduceResult): Promise<void>
+
 	/**
 	 * Calculates the desired change. ESModel will only emit `rm`, `ins`, `upd`
 	 * and `esFail`.
 	 */
-	deriver?: DeriverFn<this>
+	deriver(args: ReduxArgs<this> & {result?: ReduceResult}): Promise<void>
 
-	dispatch: DispatchFn
+	dispatch(...args: Parameters<DispatchFn>): Promise<ESEvent>
 	/**
 	 * Slight hack: use the writable state to fall back to JsonModel behavior.
 	 * This makes deriver and migrations work without changes. Note: while
@@ -954,7 +1079,7 @@ interface ESModel<
 		obj: Partial<Item>,
 		insertOnly?: boolean,
 		noReturn?: boolean,
-		meta?: any
+		meta?: unknown
 	): Promise<Item>
 	/**
 	 * Update an existing object. Returns the current object.
@@ -971,7 +1096,7 @@ interface ESModel<
 		o: Partial<Item>,
 		upsert?: boolean,
 		noReturn?: boolean,
-		meta?: any
+		meta?: unknown
 	): Promise<Item>
 	/**
 	 * Remove an object.
@@ -979,7 +1104,7 @@ interface ESModel<
 	 * @param idOrObj - The id or the object itself.
 	 * @param meta - Metadata, attached to the event only, at `data[3]`.
 	 */
-	remove(idOrObj: Item | Item[IDCol], meta?: any): Promise<void>
+	remove(idOrObj: Item | Item[IDCol], meta?: unknown): Promise<void>
 	/** ChangeId: not implemented yet, had no need so far */
 	changeId(): Promise<void>
 	/**

@@ -94,11 +94,11 @@ class SQLiteImpl extends EventEmitter {
 		vacuumInterval = 30, // seconds while vacuuming
 		vacuumPageCount = 1024 / 4, // 1MB in 4k pages
 		name,
-		// @ts-ignore
+		// @ts-expect-error internal
 		_sqlite,
-		// @ts-ignore
+		// @ts-expect-error internal
 		_store = {},
-		// @ts-ignore
+		// @ts-expect-error internal
 		_statements = {},
 		...rest
 	} = {}) {
