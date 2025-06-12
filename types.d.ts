@@ -1,12 +1,15 @@
 declare module 'strato-db'
 
-type DBCallback = (db: DB) => Promise<unknown> | unknown
+// mark this non-ambient
+export {}
+
+export type DBCallback = (db: SQLite) => Promise<unknown> | unknown
 /** The types that SQLite can handle as parameter values */
-type SQLiteValue = string | number | null
-type SQLiteParam = SQLiteValue | boolean
-type SQLiteMeta = {lastID: number; changes: number}
-type SQLiteRow = Record<string, null | string | number>
-type SQLiteColumnType =
+export type SQLiteValue = string | number | null
+export type SQLiteParam = SQLiteValue | boolean
+export type SQLiteMeta = {lastID: number; changes: number}
+export type SQLiteRow = Record<string, null | string | number>
+export type SQLiteColumnType =
 	| 'TEXT'
 	| 'NUMERIC'
 	| 'INTEGER'
@@ -14,16 +17,16 @@ type SQLiteColumnType =
 	| 'BLOB'
 	| 'JSON'
 
-type DBEachCallback = (row: SQLiteRow) => Promise<unknown> | unknown
+export type DBEachCallback = (row: SQLiteRow) => Promise<unknown> | unknown
 
-type SqlTag = (
+export type SqlTag = (
 	tpl: TemplateStringsArray,
 	...interpolations: SQLiteParam[]
 ) => [string, string[]]
 
-interface Statement {
+export interface Statement {
 	isStatement: true
-	sql: string
+	_sql: string
 	db: SQLite
 	/** Closes the statement, removing it from the SQLite instance */
 	finalize(): Promise<void>
@@ -35,9 +38,10 @@ interface Statement {
 	all(vars: SQLiteParam[]): Promise<SQLiteRow[]>
 	/** Run the callback on each row of the result */
 	each(vars: SQLiteParam[], onRow: DBEachCallback): Promise<void>
+	each(onRow: DBEachCallback): Promise<void>
 }
 
-type SQLiteOptions = {
+export type SQLiteOptions = {
 	/** Path to db file. */
 	file?: string
 	/** Open read-only. */
@@ -70,11 +74,14 @@ type SQLiteOptions = {
  * - 'finally': transaction finished
  * - 'call': call to SQLite completed, includes data and duration
  */
-interface SQLite extends EventEmitter {
-	new (options?: SQLiteOptions)
+export interface SQLite extends EventEmitter {
+	name: string
 
 	/** Holding space for models */
 	store: object
+
+	/** Holding space for statements */
+	_statements: Map<string, Statement>
 
 	/**
 	 * Template Tag for SQL statements.
@@ -196,33 +203,30 @@ interface SQLite extends EventEmitter {
 	withTransaction(fn: () => Promise<void>): Promise<void>
 }
 
-type DBMigration = {up: DBCallback} | DBCallback
 /** Migrations are marked completed by their name in the `{sdb} migrations` table */
-type DBMigrations = Record<string, DBMigration>
-interface DBModel<Options extends {db: DB} = {db: DB}> {
+export type DBMigrations = Record<string, {up: DBCallback} | DBCallback>
+export interface DBModel<Options extends {db: DB} = {db: DB}> {
 	new (options: Options): any
 }
-type DBOptions = {
+
+export type DBOptions = {
 	/** Open the DB read-only */
 	readOnly?: boolean
-	migrations?: DBMigrations
+	migrations?: {runKey: string; up: DBCallback}[]
 	/** Called before migrations run. Not called for read-only */
 	onBeforeMigrations?: (...params: any[]) => any
 	/**
 	 * Called after migrations ran. If readOnly is set, it runs after opening DB.
 	 * The DB is open after this function resolves.
 	 */
-	onDidOpen?: (...params: any[]) => any
+	onDidOpen?: DBCallback
 } & SQLiteOptions
 
 /**
  * DB adds model management and migrations to Wrapper. The migration state is
  * kept in the table ""{sdb} migrations"".
  */
-declare class DB extends SQLite {
-	/** @param {DBOptions} options */
-	constructor(options: DBOptions)
-
+export interface DB extends SQLite {
 	/** The models. */
 	store: Record<string, InstanceType<DBModel>>
 
@@ -732,22 +736,31 @@ declare class JsonModel<
 	changeId(oldId: Item[IDCol], newId: Item[IDCol]): Promise<void>
 }
 
-type ESEvent<T extends keyof EventTypes = keyof EventTypes> = {
-	[E in T]: {
-		/** The version */
-		v: number
-		/** Event type */
-		type: E
-		/** Ms since epoch of event */
-		ts: number
-		/** Event data */
-		data: EventTypes[E]
-		/** Event processing result */
-		result?: Record<string, ReduceResult>
-	}
-}[T]
+/** The known ESEvent type strings and their data type. */
+export interface EventTypes {}
 
-type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
+type ESEventBase<T extends string, D> = {
+	/** The version */
+	v: number
+	/** Event type */
+	type: T
+	/** Ms since epoch of event */
+	ts: number
+	/** Event data */
+	data: D
+	/** Event processing result */
+	result?: Record<string, ReduceResult>
+}
+
+/** An event in the event queue. */
+export type ESEvent<T extends keyof EventTypes = keyof EventTypes> =
+	// When no EventTypes are provided, we use the base type
+	// [] is a trick to prevent type distribution
+	[T] extends [never]
+		? ESEventBase<string, any>
+		: {[E in T]: ESEventBase<E, EventTypes[E]>}[T]
+
+export type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** The table name, defaults to `"history"` */
 	name?: string
 	/** Should getNext poll forever? */
@@ -858,7 +871,6 @@ type TransactFn<M extends ESDBModel = ESModel> = {
 	) => Promise<void>
 }['fn']
 
-interface EventTypes {}
 type DispatchFn = <T extends keyof EventTypes>(
 	...args:
 		| [type: T, data: EventTypes[T], ts?: number]

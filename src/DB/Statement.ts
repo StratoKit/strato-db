@@ -4,20 +4,35 @@
 // Somewhat based on node-sqlite3 by Kriasoft, LLC
 
 import debug from 'debug'
+import type {
+	DBEachCallback,
+	SQLiteMeta,
+	SQLiteParam,
+	SQLiteRow,
+	Statement,
+} from '../../types'
+import type {default as SQLiteInternal} from './SQLite'
 const dbg = debug('strato-db/DB:stmt')
 
 let id = 0
-/** @implements {Statement} */
-class StatementImpl {
-	constructor(db, sql, name) {
-		db.statements[sql] = this
+class StatementImpl implements Statement {
+	db: SQLiteInternal
+	_sql: string
+	_name: string
+	name: string
+	_stmt: any
+	_finalized: boolean = false
+
+	constructor(db: SQLiteInternal, sql: string, name?: string) {
+		// Register for closing
+		db._statements.set(sql, this)
 		this._sql = sql
 		this.db = db
 		this._name = `{${id++}${name ? ` ${name}` : ''}}`
 		this.name = `${db.name}${this._name}`
 	}
 
-	get isStatement() {
+	get isStatement(): true {
 		return true
 	}
 
@@ -25,27 +40,21 @@ class StatementImpl {
 		return this._sql
 	}
 
-	_P = Promise.resolve()
+	_P: Promise<any> = Promise.resolve()
 
-	/**
-	 * @callback voidFn
-	 * @returns {Promise<any> | any}
-	 */
-	/**
-	 * Wrap the function with a refresh call.
-	 *
-	 * @param {voidFn} fn The function to wrap.
-	 * @returns {Promise<any>} The result of the function.
-	 */
-	_wrap(fn) {
+	/** Wrap the function with a refresh call. */
+	_wrap<F extends () => any>(fn: F): Promise<ReturnType<F>> {
 		// Always verify _stmt and fail if init fails
-		const wrapped = () => this._refresh().then(fn)
+		const wrapped = async () => {
+			await this._refresh()
+			return fn()
+		}
 		// Run invocations in-order but ignore output
 		this._P = this._P.then(wrapped, wrapped)
 		return this._P
 	}
 
-	_refresh = async () => {
+	async _refresh() {
 		if (this._stmt) return
 		this._stmt = await this.db._call(
 			'prepare',
@@ -56,20 +65,20 @@ class StatementImpl {
 			true
 		)
 
-		this.db.statements[this._sql] = this
+		this.db._statements.set(this._sql, this)
 	}
 
-	finalize() {
-		delete this.db.statements[this._sql]
+	async finalize() {
+		this.db._statements.delete(this._sql)
 		const {_stmt} = this
-		if (!_stmt) return Promise.resolve()
+		if (!_stmt) return
 		return this._wrap(
 			() =>
-				new Promise((resolve, reject) => {
+				new Promise<void>((resolve, reject) => {
 					delete this._stmt
-					_stmt.finalize(err => {
+					_stmt.finalize((err: Error) => {
 						if (err) {
-							if (!this._stmt) this._stmt = _stmt
+							this._stmt = _stmt
 							return reject(err)
 						}
 						dbg(`${this.name} finalized`)
@@ -82,20 +91,20 @@ class StatementImpl {
 	/**
 	 * Run the statement and return the metadata.
 	 *
-	 * @param {any[]} [vars] - The variables to be bound to the statement.
-	 * @returns {Promise<Object>} - An object with `lastID` and `changes`
+	 * @param vars - The variables to be bound to the statement.
+	 * @returns An object with `lastID` and `changes`
 	 */
-	async run(vars) {
+	async run(vars: SQLiteParam[]): Promise<SQLiteMeta> {
 		return this._wrap(() => this.db._call('run', vars, this, this.name, true))
 	}
 
 	/**
 	 * Return the first row for the statement result.
 	 *
-	 * @param {any[]} [vars] - The variables to be bound to the statement.
-	 * @returns {Promise<Object | null>} - The result or falsy if missing.
+	 * @param vars - The variables to be bound to the statement.
+	 * @returns The result, or falsy if missing.
 	 */
-	async get(vars) {
+	async get(vars: SQLiteParam[]): Promise<SQLiteRow | undefined> {
 		return this._wrap(() =>
 			this.db._call('get', vars, this, this.name).finally(
 				() =>
@@ -112,19 +121,26 @@ class StatementImpl {
 	/**
 	 * Return all result rows for the statement.
 	 *
-	 * @param {any[]} [vars] - The variables to be bound to the statement.
-	 * @returns {Promise<Object[]>} - The results.
+	 * @param [vars] - The variables to be bound to the statement.
+	 * @returns The results.
 	 */
-	async all(vars) {
+	async all(vars: SQLiteParam[]): Promise<SQLiteRow[]> {
 		return this._wrap(() => this.db._call('all', vars, this, this.name))
 	}
 
-	async each(args, onRow) {
+	async each(args: SQLiteParam[], onRow: DBEachCallback): Promise<void>
+	async each(onRow: DBEachCallback): Promise<void>
+	async each(args: SQLiteParam[] | DBEachCallback, onRow?: DBEachCallback) {
 		if (typeof onRow !== 'function')
 			throw new Error(`signature is .each(args Array, cb Function)`)
 		// err is always null, no reason to have it
 		return this._wrap(() =>
-			this.db._call('each', [args, (_, row) => onRow(row)], this, this.name)
+			this.db._call(
+				'each',
+				[args, (_: any, row: SQLiteRow) => onRow(row)],
+				this,
+				this.name
+			)
 		)
 	}
 }
