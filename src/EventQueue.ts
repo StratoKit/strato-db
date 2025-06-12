@@ -2,6 +2,13 @@
 // Pass `forever: true` to keep Node running while waiting for events
 import debug from 'debug'
 import JsonModel from './JsonModel'
+import type {
+	EQOptions,
+	ESEvent,
+	ESEventBase,
+	EventTypes,
+	Statement,
+} from '../types'
 
 const dbg = debug('strato-db/queue')
 
@@ -24,16 +31,17 @@ const defaultColumns = {
 	size: {type: 'INTEGER', default: 0, get: false},
 }
 
-/**
- * An event queue, including history.
- *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
- */
-class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
-	constructor({name = 'history', forever, withViews, ...rest}) {
+/** An event queue, including history. */
+class EventQueueImpl<T extends ESEvent = ESEvent> extends JsonModel<T, 'v'> {
+	currentV: number
+	knownV: number
+	forever: boolean
+	_dataV = 0
+	_maxSql?: Statement
+	_addSql?: Statement
+	_NAPTimeout?: NodeJS.Timeout
+
+	constructor({name = 'history', forever, withViews, ...rest}: EQOptions<T>) {
 		const columns = {...defaultColumns}
 		if (rest.columns)
 			for (const [key, value] of Object.entries(rest.columns)) {
@@ -101,10 +109,11 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event - The new event.
-	 * @returns {Promise<void>} - Promise for set completion.
+	 * @param event - The new event.
+	 * @returns Promise for set completion.
 	 */
-	set(event) {
+	set(event: ESEvent): Promise<void> {
+		event.data
 		if (!event.v) {
 			throw new Error('cannot use set without v')
 		}
@@ -129,7 +138,7 @@ class EventQueueImpl extends JsonModel {
 	 *
 	 * @returns {Promise<number>} - The version.
 	 */
-	async getMaxV() {
+	async getMaxV(): Promise<number> {
 		if (this._addP) await this._addP
 
 		const dataV = await this.db.dataVersion()
@@ -143,23 +152,27 @@ class EventQueueImpl extends JsonModel {
 				`SELECT MAX(v) AS v from ${this.quoted}`,
 				'maxV'
 			)
-		const lastRow = await this._maxSql.get()
-		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		const lastRow = await this._maxSql!.get([])
+		this.currentV = Math.max(this.knownV, Number(lastRow!.v || 0))
 		return this.currentV
 	}
 
-	_addP = null
+	_addP: Promise<ESEvent> | null = null
 
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param {string} type - Event type.
-	 * @param {any} [data] - Event data.
-	 * @param {number} [ts=Date.now()] - Event timestamp, ms since epoch. Default
-	 *   is `Date.now()`
-	 * @returns {Promise<Event>} - Promise for the added event.
+	 * @param type - Event type.
+	 * @param [data] - Event data.
+	 * @param [ts=Date.now()] - Event timestamp, ms since epoch. Default is
+	 *   `Date.now()`
+	 * @returns Promise for the added event.
 	 */
-	add(type, data, ts) {
+	add(
+		type: ESEvent['type'],
+		data: ESEvent['data'],
+		ts: number
+	): Promise<ESEvent> {
 		if (!type || typeof type !== 'string')
 			return Promise.reject(new Error('type should be a non-empty string'))
 		ts = Number(ts) || Date.now()
@@ -174,7 +187,7 @@ class EventQueueImpl extends JsonModel {
 					`INSERT INTO ${this.quoted}(type,ts,data) VALUES (?,?,?)`,
 					'add'
 				)
-			const {lastID: v} = await this._addSql.run([
+			const {lastID: v} = await this._addSql!.run([
 				type,
 				ts,
 				JSON.stringify(data),
@@ -182,37 +195,37 @@ class EventQueueImpl extends JsonModel {
 
 			this.currentV = v
 
-			const event = {v, type, ts, data}
+			const event = {v, type, ts, data} as ESEvent
 			dbg(`queued`, v, type)
-			if (this._nextAddedResolve) {
-				this._nextAddedResolve(event)
-			}
+			this._nextAddedResolve(event)
 			return event
 		})
 		return this._addP
 	}
 
-	_nextAddedP = null
+	_nextAddedP: Promise<ESEvent | 'CANCEL'> | null = null
+	_resolveNAP: ((event: ESEvent | 'CANCEL') => void) | null = null
 
-	_nextAddedResolve = event => {
+	_nextAddedResolve(event: ESEvent | 'CANCEL') {
 		if (!this._resolveNAP) return
-		clearTimeout(this._addTimer)
-		this._NAPresolved = true
+		clearTimeout(this._NAPTimeout)
 		this._resolveNAP(event)
+		this._resolveNAP = null
 	}
 
 	// promise to wait for next event with timeout
-	_makeNAP() {
-		if (this._nextAddedP && !this._NAPresolved) return
-		this._nextAddedP = new Promise(resolve => {
+	_makeNextAddedPromise() {
+		if (this._resolveNAP) return
+		this._nextAddedP = new Promise<ESEvent | 'CANCEL'>(resolve => {
 			this._resolveNAP = resolve
-			this._NAPresolved = false
 			// Timeout after 10s so we can also get events from other processes
-			this._addTimer = setTimeout(this._nextAddedResolve, 10_000)
+			this._NAPTimeout = setTimeout(() => {
+				this._nextAddedResolve('CANCEL')
+			}, 10_000)
 			// if possible, mark the timer as non-blocking for process exit
 			// some mocking libraries might forget to add unref()
-			if (!this.forever && this._addTimer && this._addTimer.unref)
-				this._addTimer.unref()
+			if (!this.forever && this._NAPTimeout && this._NAPTimeout.unref)
+				this._NAPTimeout.unref()
 		})
 	}
 
@@ -220,15 +233,18 @@ class EventQueueImpl extends JsonModel {
 	 * Get the next event after v (gaps are ok). The wait can be cancelled by
 	 * `.cancelNext()`.
 	 *
-	 * @param {number} [v=0] The version. Default is `0`
-	 * @param {boolean} [noWait] Do not wait for the next event.
-	 * @returns {Promise<Event>} The event if found.
+	 * @param v - The version. Default is `0`
+	 * @param noWait - Do not wait for the next event.
+	 * @returns The event if found.
 	 */
-	async getNext(v = 0, noWait = false) {
-		let event
+	async getNext(
+		v: number = 0,
+		noWait: boolean = false
+	): Promise<ESEvent | null> {
+		let event: ESEvent | 'CANCEL' | null = null
 		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
 		do {
-			this._makeNAP()
+			this._makeNextAddedPromise()
 			const currentV = await this.getMaxV()
 			event =
 				v < currentV
@@ -240,7 +256,7 @@ class EventQueueImpl extends JsonModel {
 			if (event || noWait) break
 			// Wait for next one from this process
 			event = await this._nextAddedP
-			if (event === 'CANCEL') return
+			if (event === 'CANCEL') return null
 			// Ignore previous events
 			if (v && event && event.v < v) event = null
 		} while (!event)
@@ -249,8 +265,7 @@ class EventQueueImpl extends JsonModel {
 
 	/** Cancel any pending `.getNext()` calls */
 	cancelNext() {
-		if (!this._resolveNAP) return
-		this._resolveNAP('CANCEL')
+		this._nextAddedResolve('CANCEL')
 	}
 
 	/**
@@ -258,7 +273,7 @@ class EventQueueImpl extends JsonModel {
 	 *
 	 * @param {number} v - The last known version.
 	 */
-	setKnownV(v) {
+	setKnownV(v: number) {
 		// set the sqlite autoincrement value
 		// Try changing current value, and insert if there was no change
 		// This doesn't need a transaction, either one or the other runs and
