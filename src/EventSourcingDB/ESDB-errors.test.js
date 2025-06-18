@@ -52,21 +52,24 @@ test('event error in deriver', () =>
 		)
 	}))
 
-test('event emitter', async () => {
+test.only('event emitter', async () => {
 	return withESDB(async eSDB => {
 		let errored = 0,
 			resulted = 0
 		eSDB.on('result', event => {
+			console.log('result', event)
 			resulted++
 			expect(event.error).toBeFalsy()
 			expect(event.result).toBeTruthy()
 		})
 		eSDB.on('error', event => {
+			console.log('error', event)
 			errored++
 			expect(event.error).toBeTruthy()
 			expect(event.result).toBeUndefined()
 		})
 		await eSDB.dispatch('foo')
+		await import('debug').then(m => m.default.enable('*'))
 		await eSDB.dispatch('bar')
 		eSDB.__BE_QUIET = true
 		await expect(eSDB.dispatch('error_reduce')).rejects.toHaveProperty('error')

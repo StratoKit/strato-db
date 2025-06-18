@@ -397,11 +397,7 @@ type JMColumns<Item = Record<string, any>, IDCol extends string = 'id'> = {
 }
 /** @deprecated Use JMColumns instead - typo */
 type JMColums = JMColumns
-type JMOptions<
-	T extends {[x: string]: any},
-	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
-> = {
+type JMOptions<T extends {[x: string]: any}, IDCol extends string = 'id'> = {
 	/** A DB instance, normally passed by DB */
 	db: DB
 	/** The table name */
@@ -411,7 +407,7 @@ type JMOptions<
 	/** Free-form data passed to the migration functions */
 	migrationOptions?: Record<string, any>
 	/** The column definitions */
-	columns?: Columns
+	columns?: JMColumns<T, IDCol>
 	/**
 	 * An object class to use for results, must be able to handle
 	 * `Object.assign(item, result)`
@@ -478,7 +474,7 @@ declare class JsonModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
@@ -760,7 +756,10 @@ export type ESEvent<T extends keyof EventTypes = keyof EventTypes> =
 		? ESEventBase<string, any>
 		: {[E in T]: ESEventBase<E, EventTypes[E]>}[T]
 
-export type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
+export type EQOptions<T extends {[x: string]: any}> = Omit<
+	JMOptions<T, 'v'>,
+	'name'
+> & {
 	/** The table name, defaults to `"history"` */
 	name?: string
 	/** Should getNext poll forever? */
@@ -776,7 +775,7 @@ interface EventQueue<
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			{[colName in keyof Item]: object},
@@ -851,37 +850,33 @@ type ReduxArgs<M, Store = unknown> = {
 }
 
 // 'fn' deref is used to make the definitions bivariant
-type PreprocessorFn<M extends ESDBModel = ESModel> = {
+export type PreprocessorFn<M extends ESDBModel = ESModel> = {
 	fn: (args: ReduxArgs<M>) => Promise<ESEvent | void> | ESEvent | void
 }['fn']
-type ReducerFn<M extends ESDBModel = ESModel> = {
+export type ReducerFn<M extends ESDBModel = ESModel> = {
 	fn: (
 		args: ReduxArgs<M>
 	) => Promise<ReduceResult | void | false> | ReduceResult | void | false
 }['fn']
-type ApplyResultFn = {
+export type ApplyResultFn = {
 	fn: (result: ReduceResult) => Promise<void>
 }['fn']
-type DeriverFn<M extends ESDBModel = ESModel> = {
+export type DeriverFn<M extends ESDBModel = ESModel> = {
 	fn: (args: ReduxArgs<M> & {result?: ReduceResult}) => Promise<void>
 }['fn']
-type TransactFn<M extends ESDBModel = ESModel> = {
+export type TransactFn<M extends ESDBModel = ESModel> = {
 	fn: (
 		args: Omit<ReduxArgs<M>, 'addEvent'> & {dispatch: DispatchFn}
 	) => Promise<void>
 }['fn']
 
-type DispatchFn = <T extends keyof EventTypes>(
+export type DispatchFn = <E extends ESEventBase<any, any> = ESEvent>(
 	...args:
-		| [type: T, data: EventTypes[T], ts?: number]
-		| [
-				arg: EventTypes[T] extends undefined
-					? {type: T; data?: EventTypes[T]; ts?: number}
-					: {type: T; data?: EventTypes[T]; ts?: number},
-		  ]
+		| [type: E['type'], data: E['data'], ts?: number]
+		| [arg: Pick<E, 'type' | 'data' | 'ts'>]
 ) => Promise<ESEvent>
 
-type AddEventFn = (
+export type AddEventFn = (
 	...args:
 		| [type: T, data: EventTypes[T]]
 		| [
@@ -899,7 +894,7 @@ type ESDBModelArgs = {
 	migrationOptions: Record<string, any> & {queue: EventQueue}
 	emitter: EventEmitter
 }
-interface ESDBModel {
+export interface ESDBModel {
 	new (args: ESDBModelArgs): this
 	name: string
 	preprocessor(args: ReduxArgs<this>): Promise<ESEvent | void> | ESEvent | void
@@ -913,14 +908,13 @@ interface ESDBModel {
 	): Promise<void>
 }
 
-type ESDBOptions = DBOptions & {
-	models: {[name: string]: ESDBModel}
+export type ESDBOptions = DBOptions & {
+	models: {
+		[name: string]: Partial<ESDBModel> | {Model: ESDBModel; RWModel?: ESDBModel}
+	}
 	queue?: InstanceType<EventQueue>
 	queueFile?: string
 	withViews?: boolean
-	onWillOpen?: DBCallback
-	onBeforeMigrations?: DBCallback
-	onDidOpen?: DBCallback
 }
 interface EventSourcingDB extends EventEmitter {
 	new (options: ESDBOptions): this
@@ -998,7 +992,7 @@ interface ESModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,

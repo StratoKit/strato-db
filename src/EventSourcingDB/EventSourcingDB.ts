@@ -1,3 +1,12 @@
+/**
+ * TODO
+ *
+ * When an event fails, reject the dispatch and set the DB as errored. From then
+ * on refuse all dispatch calls. Provide a method to delete the error event and
+ * clear error state This allows the app to recover from the error and continue
+ * processing events, but deliberately.
+ */
+
 /* eslint-disable require-atomic-updates */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
@@ -46,6 +55,15 @@ import ESModel from './ESModel'
 import EventQueue from '../EventQueue'
 import {settleAll} from '../lib/settleAll'
 import {DEV, deprecated} from '../lib/warning'
+import type {
+	DispatchFn,
+	ESDBModel,
+	ESEvent,
+	PreprocessorFn,
+	DeriverFn,
+	TransactFn,
+	ESDBOptions,
+} from '../../types'
 
 const dbg = debug('strato-db/ESDB')
 
@@ -121,28 +139,39 @@ const fixupOldReducer = (name, reducer) => {
 }
 
 // In subevents ts is silently ignored
-const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
-	let type
-	if (typeof typeOrEvent === 'string') {
-		type = typeOrEvent
-	} else {
-		if (DEV) {
-			if (data)
-				throw new Error(
-					`${name}: second argument must not be defined when passing the event as an object`
-				)
-			const {type: _1, data: _2, ts: _3, ...rest} = typeOrEvent
-			if (Object.keys(rest).length)
-				throw new Error(`${name}: extra key(s) ${Object.keys(rest).join(',')}`)
+const makeDispatcher =
+	<F extends (type: ESEvent['type'], data: ESEvent['data'], ts: number) => any>(
+		name: string,
+		fn: F
+	) =>
+	(
+		typeOrEvent: ESEvent['type'] | ESEvent,
+		data?: ESEvent['data'],
+		ts?: number
+	) => {
+		let type
+		if (typeof typeOrEvent === 'string') {
+			type = typeOrEvent
+		} else {
+			if (DEV) {
+				if (data)
+					throw new Error(
+						`${name}: second argument must not be defined when passing the event as an object`
+					)
+				const {type: _1, data: _2, ts: _3, ...rest} = typeOrEvent
+				if (Object.keys(rest).length)
+					throw new Error(
+						`${name}: extra key(s) ${Object.keys(rest).join(',')}`
+					)
+			}
+			data = typeOrEvent.data
+			ts = typeOrEvent.ts
+			type = typeOrEvent.type
 		}
-		data = typeOrEvent.data
-		ts = typeOrEvent.ts
-		type = typeOrEvent.type
+		if (!type || typeof type !== 'string')
+			throw new Error(`${name}: type is a required string`)
+		return (fn as any)(type, data, ts)
 	}
-	if (!type || typeof type !== 'string')
-		throw new Error(`${name}: type is a required string`)
-	return fn(type, data, ts)
-}
 
 /**
  * EventSourcingDB maintains a DB where all data is atomically updated based on
@@ -151,9 +180,36 @@ const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
  *
  * @augments EventEmitter
  */
-// eslint-disable-next-line unicorn/prefer-event-target
-class EventSourcingDB extends EventEmitter {
+class EventSourcingDB<
+		S extends Record<string, InstanceType<ESDBModel>> = Record<
+			string,
+			InstanceType<ESDBModel>
+		>,
+	>
+	// eslint-disable-next-line unicorn/prefer-event-target
+	extends EventEmitter
+{
 	MAX_RETRY = 38 // this is an hour
+
+	rwDb: DB
+	db: DB
+	queue: EventQueue<ESEvent & {events?: ESEvent[]}>
+	store: S = {} as S
+	rwStore: S = {} as S
+	_resultQueue: EventQueue
+	// Used for transact keeping track of call stacks
+	_alsDispatch = new AsyncLocalStorage<{
+		dispatch?: DispatchFn
+	}>()
+	_preprocModels: (InstanceType<ESDBModel> & {preprocessor: PreprocessorFn})[] =
+		[]
+	_reducerNames: string[] = []
+	_deriverModels: (InstanceType<ESDBModel> & {deriver: DeriverFn})[] = []
+	/** @type {(InstanceType<ESDBModel> & {transact: TransactFn})[]} */
+	_transactModels: (InstanceType<ESDBModel> & {transact: TransactFn})[] = []
+	_readWriters: (InstanceType<ESDBModel> & {
+		setWritable: (writable: boolean) => void
+	})[] = []
 
 	constructor({
 		queue,
@@ -164,9 +220,9 @@ class EventSourcingDB extends EventEmitter {
 		onBeforeMigrations: prevOBM,
 		onDidOpen,
 		...dbOptions
-	}) {
+	}: ESDBOptions) {
 		super()
-		if (dbOptions.db)
+		if ((dbOptions as any).db)
 			throw new TypeError(
 				'db is no longer an option, pass the db options instead, e.g. file, verbose, readOnly'
 			)
@@ -241,7 +297,9 @@ class EventSourcingDB extends EventEmitter {
 				const v = vObj && Number(vObj.v)
 				if (!v) return
 				await db.userVersion(v)
-				const {count} = await db.get(`SELECT count(*) AS count from metadata`)
+				const {count} = (await db.get(
+					`SELECT count(*) AS count from metadata`
+				)) as {count: number}
 				await (count === 1
 					? db
 							.exec(
@@ -253,26 +311,15 @@ class EventSourcingDB extends EventEmitter {
 			},
 		})
 
-		/** @type {Record<string, InstanceType<ESDBModel>>} */
-		this.store = {}
-		/** @type {Record<string, InstanceType<ESDBModel>>} */
-		this.rwStore = {}
-		// Used for transact keeping track of call stacks
-		this._alsDispatch = new AsyncLocalStorage()
-
-		/** @type {(InstanceType<ESDBModel> & {preprocessor: PreprocessorFn})[]} */
-		this._preprocModels = []
-		/** @type {string[]} */
-		this._reducerNames = []
-		/** @type {(InstanceType<ESDBModel> & {deriver: DeriverFn})[]} */
-		this._deriverModels = []
-		/** @type {(InstanceType<ESDBModel> & {transact: TransactFn})[]} */
-		this._transactModels = []
-		this._readWriters = []
 		const reducers = {}
 		const migrationOptions = {queue: this.queue}
 
-		const dispatch = async (type, data, ts) => {
+		const transactDispatch = async (
+			type: string,
+			data: unknown,
+			ts: number
+			// eslint-disable-next-line unicorn/consistent-function-scoping
+		) => {
 			if (this._processing) {
 				const store = this._alsDispatch.getStore()
 				dbg({store})
@@ -280,7 +327,7 @@ class EventSourcingDB extends EventEmitter {
 					if (!store.dispatch) {
 						throw new Error(`Dispatching is only allowed in transact phase`)
 					}
-					return store.dispatch(type, data)
+					return (store.dispatch as any)(type, data)
 				}
 			}
 			return this.dispatch(type, data, ts)
@@ -289,16 +336,21 @@ class EventSourcingDB extends EventEmitter {
 		for (const [name, modelDef] of Object.entries(models)) {
 			try {
 				if (!modelDef) throw new Error('model missing')
-				let {
-					reducer,
-					preprocessor,
+				const {
+					reducer: origReducer,
+					preprocessor: origPreprocessor,
 					deriver,
 					transact,
 					Model = ESModel,
 					RWModel = Model,
 					...rest
-				} = modelDef
+				} = modelDef as Partial<ESDBModel> & {
+					Model?: ESDBModel
+					RWModel?: ESDBModel
+				}
 
+				let reducer = origReducer
+				let preprocessor = origPreprocessor
 				if (RWModel === ESModel) {
 					if (reducer) {
 						const prev = fixupOldReducer(name, reducer)
@@ -324,7 +376,7 @@ class EventSourcingDB extends EventEmitter {
 					name,
 					...rest,
 					migrationOptions,
-					dispatch,
+					dispatch: transactDispatch,
 					emitter: this,
 				})
 				rwModel.deriver = deriver || RWModel.deriver
@@ -342,7 +394,7 @@ class EventSourcingDB extends EventEmitter {
 						: this.db.addModel(Model, {
 								name,
 								...rest,
-								dispatch,
+								dispatch: transactDispatch,
 								emitter: this,
 							})
 				model.preprocessor = preprocessor || Model.preprocessor
@@ -377,8 +429,8 @@ class EventSourcingDB extends EventEmitter {
 		}
 	}
 
-	open() {
-		return this.db.open()
+	async open() {
+		await this.db.open()
 	}
 
 	async close() {
@@ -648,35 +700,37 @@ class EventSourcingDB extends EventEmitter {
 				.finally(() => {
 					this._processing = false
 				})
-			if (!resultEvent) continue // Another process handled the event
+			if (!resultEvent) continue
 
 			if (resultEvent.error) {
 				errorCount++
-				// @ts-ignore
-				if (!this.__BE_QUIET) {
-					let path, error
-					// find the deepest error
-					const walkEvents = (ev, p = ev.type) => {
-						if (ev.events) {
-							let i = 0
-							for (const sub of ev.events)
-								if (walkEvents(sub, `${p}.${i++}:${sub.type}`)) return true
-						}
-						if (ev.error) {
-							path = p
-							error = ev.error
-							return true
-						}
-						return false
+				let path, error
+				// find the deepest error
+				const walkEvents = (ev, p = ev.type) => {
+					if (ev.events) {
+						let i = 0
+						for (const sub of ev.events)
+							if (walkEvents(sub, `${p}.${i++}:${sub.type}`)) return true
 					}
-					walkEvents(resultEvent)
+					if (ev.error) {
+						path = p
+						error = ev.error
+						return true
+					}
+					return false
+				}
+				walkEvents(resultEvent)
+				// @ts-expect-error
+				if (!this.__BE_QUIET) {
 					// eslint-disable-next-line no-console
 					console.error(
 						`!!! ESDB: event ${resultEvent.v} ${path} processing failed (try #${errorCount})`,
 						error
 					)
 				}
-				lastV = resultEvent.v - 1
+				// Don't update lastV when there's an error - this ensures we retry the same event
+				// Only update lastV if we successfully process an event
+				continue
 			} else {
 				errorCount = 0
 				// Make sure the RO connection caught up with the RW connection
@@ -868,7 +922,7 @@ class EventSourcingDB extends EventEmitter {
 			events: undefined,
 			error: undefined,
 		}
-		let cache = {}
+		let cache: Record<string, unknown> = {}
 		event = await this._preprocessor(cache, event, isMainEvent)
 		if (event.error) return event
 
@@ -876,8 +930,7 @@ class EventSourcingDB extends EventEmitter {
 		if (event.error) return event
 
 		// Allow GC
-		// @ts-ignore
-		cache = null
+		cache = null!
 
 		event = await this._applyEvent(event, isMainEvent)
 		if (event.error) return event

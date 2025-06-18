@@ -1,14 +1,8 @@
 // Note that this queue doesn't use any transactions by itself, to prevent deadlocks
 // Pass `forever: true` to keep Node running while waiting for events
 import debug from 'debug'
+import type {EQOptions, ESEvent, Statement} from '../types'
 import JsonModel from './JsonModel'
-import type {
-	EQOptions,
-	ESEvent,
-	ESEventBase,
-	EventTypes,
-	Statement,
-} from '../types'
 
 const dbg = debug('strato-db/queue')
 

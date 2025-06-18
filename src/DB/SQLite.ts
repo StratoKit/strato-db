@@ -590,6 +590,8 @@ class SQLiteImpl extends EventEmitter implements SQLite {
 	 * Returns or sets the user_version, an arbitrary integer connected to the
 	 * database.
 	 */
+	async userVersion(newV: number): Promise<void>
+	async userVersion(): Promise<number>
 	async userVersion(newV?: number): Promise<number | void> {
 		if (!this._sqlite) await this._hold('userVersion')
 		// Can't prepare or use pragma with parameter
