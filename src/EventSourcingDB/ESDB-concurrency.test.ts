@@ -149,8 +149,8 @@ test(
 		const firstP = new Promise(resolve => {
 			resolveMe = resolve
 		})
-		let resolveSecond
-		waitP = new Promise(resolve => {
+		let resolveSecond: () => void
+		waitP = new Promise<void>(resolve => {
 			resolveSecond = resolve
 		})
 		const eventP = db1.dispatch('waiter', {id: 'w'})
@@ -161,7 +161,7 @@ test(
 		expect(await db1.getVersion()).toBe(v)
 		expect(await db2.rwStore.waiter.get('w')).toBeFalsy()
 		expect(await db2.getVersion()).toBe(v)
-		resolveSecond()
+		resolveSecond!()
 		const {v: v2} = await eventP
 		expect(await db2.store.waiter.get('w')).toBeTruthy()
 		await expect(v2).toBeGreaterThan(v)
@@ -194,5 +194,45 @@ test(
 )
 
 // TODO 10 simultaneous opens of existing db file
+test('10 simultaneous opens of existing db file', async () => {
+	const dir = await tmp.dir({unsafeCleanup: true, prefix: 'esdb-concurrent-'})
+	const {path} = dir
+	const file = sysPath.join(path, 'db')
+	const queueFile = sysPath.join(path, 'q')
+	// create the db
+	const db1 = new ESDB({
+		file,
+		queueFile,
+		name: 'E',
+		models: testModels,
+	})
+	await db1.dispatch('ins', {id: -1})
+	await db1.close()
+
+	// now open it 10 times simultaneously
+	const dbs: ESDB[] = []
+	for (let i = 0; i < 10; i++) {
+		const db = new ESDB({
+			file,
+			queueFile,
+			name: 'E',
+			models: testModels,
+		})
+		dbs.push(db)
+	}
+
+	// now dispatch 100 events
+	for (let i = 0; i < 100; i++) {
+		dbs[i % 10].dispatch('ins', {id: i})
+	}
+
+	// now close all the dbs
+	for (const db of dbs) {
+		await db.close()
+	}
+
+	await dir.cleanup()
+})
+
 // TODO 10 simultaneous opens of new db file/new queue file with >1 version
 // TODO 10 simultaneous worker connections on 100 events
