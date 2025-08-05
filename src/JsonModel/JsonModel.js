@@ -395,15 +395,38 @@ class JsonModelImpl {
 			cursorArgs = [cursorVals[len]] // ID added at first
 			for (let i = len - 1; i >= 0; i--) {
 				const colAlias = cursorColAliases[i]
-				const isFalsyBool = Object.values(this.columns).find(
+				const column = Object.values(this.columns).find(
 					c => c.alias === colAlias
-				).falsyBool
-				cursorQ = isFalsyBool
-					? `(COALESCE(${colAlias}, 0)${getDir(i)}=COALESCE(?, 0)` +
-						` AND (COALESCE(${colAlias},0)!=COALESCE(?, 0) OR ${cursorQ}))`
-					: `(${cursorColAliases[i]}${getDir(i)}=?` +
-						` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
+				)
 				const val = cursorVals[i]
+
+				// Handle columns that can contain NULL values with COALESCE
+				// We need COALESCE if:
+				// 1. It's a falsyBool column, OR
+				// 2. It's a real column that can potentially contain NULL values
+				const needsCoalesce =
+					column.falsyBool || (column.real !== false && !column.required)
+
+				if (needsCoalesce) {
+					// Choose appropriate default value for COALESCE based on column type
+					const defaultVal = column.falsyBool
+						? 0
+						: column.type === 'TEXT'
+							? ''
+							: column.type === 'INTEGER' ||
+								  column.type === 'REAL' ||
+								  column.type === 'NUMERIC'
+								? 0
+								: ''
+
+					cursorQ =
+						`(COALESCE(${colAlias}, ${JSON.stringify(defaultVal)})${getDir(i)}=COALESCE(?, ${JSON.stringify(defaultVal)})` +
+						` AND (COALESCE(${colAlias}, ${JSON.stringify(defaultVal)})!=COALESCE(?, ${JSON.stringify(defaultVal)}) OR ${cursorQ}))`
+				} else {
+					cursorQ =
+						`(${cursorColAliases[i]}${getDir(i)}=?` +
+						` AND (${cursorColAliases[i]}!=? OR ${cursorQ}))`
+				}
 				cursorArgs.unshift(val, val)
 			}
 		}

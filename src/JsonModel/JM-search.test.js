@@ -302,6 +302,61 @@ describe('search cursor', () => {
 			total: 14,
 		})
 	})
+
+	test('search with sort, cursor, limit - TEXT column with NULL values', async () => {
+		// Create a fresh model with archivedAt column that can be TEXT || NULL
+		const model = getModel({
+			columns: {
+				id: {type: 'INTEGER'},
+				name: {type: 'TEXT'},
+				archivedAt: {type: 'TEXT'}, // TEXT || NULL column like archivedAt
+			},
+		})
+
+		// Create test data with mix of NULL and TEXT values in archivedAt
+		await model.set({id: 1, name: 'item1', archivedAt: null})
+		await model.set({id: 2, name: 'item2', archivedAt: '2024-01-01'})
+		await model.set({id: 3, name: 'item3', archivedAt: null})
+		await model.set({id: 4, name: 'item4', archivedAt: '2024-01-02'})
+		await model.set({id: 5, name: 'item5', archivedAt: null})
+		await model.set({id: 6, name: 'item6', archivedAt: '2024-01-03'})
+
+		const totalCount = await model.count()
+		expect(totalCount).toBe(6)
+
+		const searchOptions = {
+			// Sort by archivedAt descending (non-null values first)
+			sort: {archivedAt: -1, id: 1},
+			limit: 3,
+			cols: ['id', 'name', 'archivedAt'],
+		}
+
+		// First page should contain items with archivedAt values
+		const page1 = await model.search({}, searchOptions)
+
+		expect(page1.total).toBe(6)
+		expect(page1.items).toHaveLength(3)
+		expect(page1.items).toEqual([
+			{id: 6, name: 'item6', archivedAt: '2024-01-03'},
+			{id: 4, name: 'item4', archivedAt: '2024-01-02'},
+			{id: 2, name: 'item2', archivedAt: '2024-01-01'},
+		])
+		expect(page1.cursor).toBeDefined()
+
+		// Second page should contain items with NULL archivedAt values
+		const page2 = await model.search(
+			{},
+			{...searchOptions, cursor: page1.cursor}
+		)
+
+		expect(page2.total).toBe(6)
+		expect(page2.items).toHaveLength(3)
+		expect(page2.items).toEqual([
+			{id: 1, name: 'item1'},
+			{id: 3, name: 'item3'},
+			{id: 5, name: 'item5'},
+		])
+	})
 })
 
 test('search itemsOnly', async () => {
