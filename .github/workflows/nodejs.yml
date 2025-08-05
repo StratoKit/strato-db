@@ -24,18 +24,19 @@ jobs:
           paths_ignore: '["**/*.md"]'
 
   lint:
+    needs: [verify]
     if: ${{ needs.verify.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16.x]
+        node-version: [20.x]
 
     env:
       BASE_REF: ${{ github.base_ref }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           clean: false
           # Make git diff HEAD^ work
@@ -43,13 +44,18 @@ jobs:
       # For diffing
       - run: git fetch --depth=1 origin ${{ github.base_ref }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.2.1
+
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install
 
       - name: eslint
         run: npx nps lint.ci
@@ -58,18 +64,19 @@ jobs:
           GH_EVENT: ${{ github.event_name }}
 
   test:
+    needs: [verify]
     if: ${{ needs.verify.outputs.should_skip != 'true' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [16.x]
+        node-version: [20.x]
 
     env:
       BASE_REF: ${{ github.base_ref }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           clean: false
           # Make git diff HEAD^ work
@@ -77,13 +84,41 @@ jobs:
       # For diffing
       - run: git fetch --depth=1 origin ${{ github.base_ref }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.2.1
+
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      # Configure PNPM to allow build scripts
+      - name: Configure PNPM
+        run: |
+          echo "enable-pre-post-scripts=true" >> .npmrc
+
+      # Install build tools needed for native modules
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3
+
+      - run: pnpm install
+
+      # Manually rebuild SQLite3 if needed
+      - name: Rebuild SQLite3
+        run: |
+          # Check if SQLite3 works, if not rebuild it
+          node -e "require('sqlite3')" 2>/dev/null || {
+            echo "SQLite3 failed to load, rebuilding..."
+            cd node_modules/.pnpm/sqlite3@*/node_modules/sqlite3
+            npm run install --unsafe-perm
+          }
+          # Verify it works
+          node -e "console.log('SQLite3 version:', require('sqlite3').VERSION)"
 
       # Note, these only check changed files
       - name: tests
