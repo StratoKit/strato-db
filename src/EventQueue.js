@@ -28,7 +28,10 @@ const defaultColumns = {
  * An event queue, including history.
  *
  * @template {ESEvent} [RealItem=ESEvent] Default is `ESEvent`
- * @implements {EventQueue<RealItem>}
+ * @template {Partial<EQOptions<RealItem>>} [Config=object] Default is `object`
+ * @template {string} [IDCol=Config extends {idCol: string} ? Config['idCol'] : 'v']
+ *   Default is `Config extends {idCol: string} ? Config['idCol'] : 'v'`
+ * @implements {EventQueue<RealItem, Config, IDCol>}
  */
 class EventQueueImpl extends JsonModel {
 	/** @param {EQOptions<RealItem>} args */

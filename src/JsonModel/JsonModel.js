@@ -46,6 +46,7 @@ const decodeCursor = cursor => {
  * normally at `obj.id`.
  */
 
+/* eslint-disable prettier/prettier */
 /**
  * A stored object. It will always have a value for the `id` column
  *
@@ -53,11 +54,13 @@ const decodeCursor = cursor => {
  *
  * Simple equality lookup values for searching.
  *
- * @template Item
- * @template IDCol
+ * @template {Record<string, any>} [Item={id: string}] Default is `{id: string}`
+ * @template [ConfigOrID='id'] Default is `'id'`
+ * @template {string} [IDCol=ConfigOrID extends {idCol: string} ? ConfigOrID['idCol'] : ConfigOrID extends string ? ConfigOrID : 'id']
  * @class JsonModelImpl
- * @implements {JsonModel<Item, IDCol>}
+ * @implements {JsonModel<Item, ConfigOrID, IDCol>}
  */
+/* eslint-enable prettier/prettier */
 class JsonModelImpl {
 	/** @param {JMOptions<Item, IDCol>} options - The model declaration. */
 	constructor(options) {

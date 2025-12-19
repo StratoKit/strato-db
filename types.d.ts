@@ -858,7 +858,9 @@ type TransactFn<M extends ESDBModel = ESModel> = {
 	) => Promise<void>
 }['fn']
 
-interface EventTypes {}
+interface EventTypes {
+	[key: string]: unknown
+}
 type DispatchFn = <T extends keyof EventTypes>(
 	...args:
 		| [type: T, data: EventTypes[T], ts?: number]

@@ -605,17 +605,27 @@ class EventSourcingDB extends EventEmitter {
 				)
 				continue
 			}
-			if (!event) return lastV
+			if (!event) {
+				dbg(
+					`queue.getNext(${await this.getVersion()}, ${!(this._isPolling || this._minVersion)}) returned no event -> ${lastV}`
+				)
+				return lastV
+			}
 
 			const resultEvent = await rwDb
 				.withTransaction(async () => {
 					this._processing = true
 					lastV = event.v
+					dbg(`_processing ${event.v}`)
 
 					// It could be that it was processed elsewhere due to racing
 					const nowV = await this.getVersion()
-					if (event.v <= nowV) return
+					if (event.v <= nowV) {
+						dbg(`skipping event processing ${event.v} ${nowV}`)
+						return
+					}
 
+					dbg(`SAVEPOINT handle`)
 					await rwDb.run('SAVEPOINT handle')
 					const result = await this._alsDispatch.run(
 						{},
@@ -652,6 +662,7 @@ class EventSourcingDB extends EventEmitter {
 				})
 			if (!resultEvent) continue // Another process handled the event
 
+			dbg(`resultEvent: ${event.v} ${event.type} ${event.error}`)
 			if (resultEvent.error) {
 				errorCount++
 				// @ts-ignore
@@ -691,6 +702,7 @@ class EventSourcingDB extends EventEmitter {
 				}
 			}
 
+			dbg(`_triggerEventListeners`)
 			this._triggerEventListeners(resultEvent)
 
 			if (this._reallyStop || (errorCount && process.env.NODE_ENV === 'test')) {
@@ -698,6 +710,7 @@ class EventSourcingDB extends EventEmitter {
 				return
 			}
 		}
+		dbg(`_waitForEvent success -> ${lastV}`)
 		return lastV
 	}
 
