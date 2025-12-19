@@ -821,7 +821,7 @@ interface EventQueue<
 	 *
 	 * @param v - The last known version.
 	 */
-	setKnownV(v: number): Promise<void>
+	setKnownV(v: number): void
 }
 
 type ReduceResult<T extends object = object> = Record<

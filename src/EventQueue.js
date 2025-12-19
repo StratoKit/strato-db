@@ -27,12 +27,11 @@ const defaultColumns = {
 /**
  * An event queue, including history.
  *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
+ * @template {ESEvent} [RealItem=ESEvent] Default is `ESEvent`
+ * @implements {EventQueue<RealItem>}
  */
 class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
+	/** @param {EQOptions<RealItem>} args */
 	constructor({name = 'history', forever, withViews, ...rest}) {
 		const columns = {...defaultColumns}
 		if (rest.columns)
@@ -101,7 +100,7 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event - The new event.
+	 * @param {ESEvent} event - The new event.
 	 * @returns {Promise<void>} - Promise for set completion.
 	 */
 	set(event) {
@@ -148,16 +147,18 @@ class EventQueueImpl extends JsonModel {
 		return this.currentV
 	}
 
+	/** @type {Promise | null} */
 	_addP = null
 
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param {string} type - Event type.
-	 * @param {any} [data] - Event data.
+	 * @template {keyof EventTypes} T
+	 * @param {T} type - Event type.
+	 * @param {EventTypes[T]} [data] - Event data.
 	 * @param {number} [ts=Date.now()] - Event timestamp, ms since epoch. Default
 	 *   is `Date.now()`
-	 * @returns {Promise<Event>} - Promise for the added event.
+	 * @returns {Promise<T>} - Promise for the added event.
 	 */
 	add(type, data, ts) {
 		if (!type || typeof type !== 'string')
@@ -192,6 +193,7 @@ class EventQueueImpl extends JsonModel {
 		return this._addP
 	}
 
+	/** @type {Promise | null} */
 	_nextAddedP = null
 
 	_nextAddedResolve = event => {
@@ -222,7 +224,7 @@ class EventQueueImpl extends JsonModel {
 	 *
 	 * @param {number} [v=0] The version. Default is `0`
 	 * @param {boolean} [noWait] Do not wait for the next event.
-	 * @returns {Promise<Event>} The event if found.
+	 * @returns {Promise<ESEvent | undefined>} The event if found.
 	 */
 	async getNext(v = 0, noWait = false) {
 		let event

@@ -150,11 +150,13 @@ const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
  * works in React.
  *
  * @augments EventEmitter
+ * @implements EventSourcingDB
  */
 // eslint-disable-next-line unicorn/prefer-event-target
 class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
+	/** @param {ESDBOptions} options */
 	constructor({
 		queue,
 		models,
