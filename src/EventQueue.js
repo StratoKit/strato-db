@@ -230,11 +230,15 @@ class EventQueueImpl extends JsonModel {
 	 * @returns {Promise<ESEvent | undefined>} The event if found.
 	 */
 	async getNext(v = 0, noWait = false) {
+		// eslint-disable-next-line no-console
+		console.log(`getNext(${v}, ${noWait})`)
 		let event
 		if (!noWait) dbg(`${this.name} waiting unlimited until >${v}`)
 		do {
 			this._makeNAP()
 			const currentV = await this.getMaxV()
+			// eslint-disable-next-line no-console
+			console.log(`getNext currentV: ${currentV}`)
 			event =
 				v < currentV
 					? await this.searchOne(null, {
