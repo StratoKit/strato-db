@@ -70,8 +70,9 @@ type SQLiteOptions = {
  * - 'finally': transaction finished
  * - 'call': call to SQLite completed, includes data and duration
  */
-interface SQLite extends EventEmitter {
-	new (options?: SQLiteOptions)
+// eslint-disable-next-line unicorn/prefer-event-target
+declare class SQLite extends EventEmitter {
+	constructor(options?: SQLiteOptions)
 
 	/** Holding space for models */
 	store: object
