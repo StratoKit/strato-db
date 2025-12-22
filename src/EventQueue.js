@@ -95,7 +95,19 @@ class EventQueueImpl extends JsonModel {
 					: null,
 			},
 		})
+
+		/**
+		 * The highest version currently stored in the queue
+		 *
+		 * @type {number}
+		 */
 		this.currentV = -1
+
+		/**
+		 * Latest known version
+		 *
+		 * @type {number}
+		 */
 		this.knownV = 0
 		this.forever = !!forever
 	}
@@ -111,6 +123,7 @@ class EventQueueImpl extends JsonModel {
 			throw new Error('cannot use set without v')
 		}
 		this.currentV = -1
+		dbg(`set currentV = ${this.currentV}`)
 		return super.set(event)
 	}
 
@@ -147,6 +160,7 @@ class EventQueueImpl extends JsonModel {
 			)
 		const lastRow = await this._maxSql.get()
 		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		dbg(`getMaxV currentV = ${this.currentV}`)
 		return this.currentV
 	}
 
@@ -185,6 +199,7 @@ class EventQueueImpl extends JsonModel {
 			])
 
 			this.currentV = v
+			dbg(`add currentV = ${this.currentV}`)
 
 			const event = {v, type, ts, data}
 			dbg(`queued`, v, type)
@@ -288,6 +303,7 @@ class EventQueueImpl extends JsonModel {
 				})
 		)
 		this.currentV = Math.max(this.currentV, v)
+		dbg(`setKnownV currentV = ${this.currentV}`)
 		this.knownV = v
 	}
 }
