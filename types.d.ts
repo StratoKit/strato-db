@@ -70,8 +70,9 @@ type SQLiteOptions = {
  * - 'finally': transaction finished
  * - 'call': call to SQLite completed, includes data and duration
  */
-interface SQLite extends EventEmitter {
-	new (options?: SQLiteOptions)
+// eslint-disable-next-line unicorn/prefer-event-target
+declare class SQLite extends EventEmitter {
+	constructor(options?: SQLiteOptions)
 
 	/** Holding space for models */
 	store: object
@@ -86,7 +87,7 @@ interface SQLite extends EventEmitter {
 	 * 	is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
 	 * 	JSON.stringify(obj)])`
 	 */
-	sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
+	sql: {quoteId: (id: SQLiteParam) => string} & SqlTag
 	/** `true` if an sqlite connection was set up. Mostly useful for tests. */
 	isOpen: boolean
 	/**

@@ -123,7 +123,9 @@ class SQLiteImpl extends EventEmitter {
 			vacuumInterval,
 			vacuumPageCount,
 		}
+		/** @type {Promise} */
 		this.dbP = new Promise(resolve => {
+			/** @type {((v: any) => void) | null} */
 			this._resolveDbP = resolve
 		})
 		this._sema = new Sema(1)
@@ -265,6 +267,7 @@ class SQLiteImpl extends EventEmitter {
 	open() {
 		const {_resolveDbP} = this
 		if (_resolveDbP) {
+			/** @type {Promise<this> | null} */
 			this._openingDbP = this._openDB().finally(() => {
 				this._openingDbP = null
 			})
