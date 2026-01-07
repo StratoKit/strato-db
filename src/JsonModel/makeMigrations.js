@@ -71,7 +71,9 @@ export const makeMigrations = ({
 			)
 	}
 	// Wrap the migration functions to provide their arguments
+	/** @type {DBMigrations} */
 	const wrappedMigrations = {}
+	/** @type {(fn: Function) => DBMigration} */
 	const wrap = fn =>
 		fn &&
 		(writeableDb => {
