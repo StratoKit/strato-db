@@ -195,8 +195,8 @@ interface SQLite extends EventEmitter {
 	 */
 	withTransaction(fn: () => Promise<void>): Promise<void>
 }
-
-type DBMigration = {up: DBCallback} | DBCallback
+type DBUpMigration = {up: DBCallback}
+type DBMigration = DBUpMigration | DBCallback
 /** Migrations are marked completed by their name in the `{sdb} migrations` table */
 type DBMigrations = Record<string, DBMigration>
 interface DBModel<Options extends {db: DB} = {db: DB}> {
@@ -205,7 +205,7 @@ interface DBModel<Options extends {db: DB} = {db: DB}> {
 type DBOptions = {
 	/** Open the DB read-only */
 	readOnly?: boolean
-	migrations?: DBMigrations
+	migrations?: (DBUpMigration & {runKey: string})[]
 	/** Called before migrations run. Not called for read-only */
 	onBeforeMigrations?: (...params: any[]) => any
 	/**
