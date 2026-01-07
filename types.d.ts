@@ -396,7 +396,7 @@ type JMColums = JMColumns
 type JMOptions<
 	T extends {[x: string]: any},
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
+	Columns extends JMColumns<T, IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
 > = {
 	/** A DB instance, normally passed by DB */
 	db: DB
@@ -474,7 +474,7 @@ declare class JsonModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
@@ -763,7 +763,7 @@ interface EventQueue<
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			{[colName in keyof Item]: object},
@@ -986,7 +986,7 @@ interface ESModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
