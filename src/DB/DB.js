@@ -1,6 +1,6 @@
 import {sortBy} from 'lodash'
 import debug from 'debug'
-import SQLite, {sql} from './SQLite'
+import SQLiteImpl, {sql} from './SQLite'
 import {DEV, deprecated} from '../lib/warning'
 
 const dbg = debug('strato-db/DB')
@@ -45,9 +45,9 @@ const _markMigration = async (db, runKey, up) => {
  *
  * @implements {DB}
  */
-class DBImpl extends SQLite {
+class DBImpl extends SQLiteImpl {
 	/** @param {DBOptions} options */
-	constructor({migrations = [], onBeforeMigrations, ...options} = {}) {
+	constructor({migrations = {}, onBeforeMigrations, ...options} = {}) {
 		const onDidOpen = options.readOnly
 			? options.onDidOpen
 			: async db => {
