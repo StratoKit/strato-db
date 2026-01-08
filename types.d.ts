@@ -903,8 +903,13 @@ interface ESDBModel {
 }
 
 type ESDBOptions = DBOptions & {
+	/**
+	 * @deprecated 'db' is no longer an option, pass the db options instead, e.g.
+	 *   file, verbose, readOnly
+	 */
+	db?: never
 	models: {[name: string]: ESDBModel}
-	queue?: InstanceType<EventQueue>
+	queue?: EventQueue
 	queueFile?: string
 	withViews?: boolean
 	onWillOpen?: DBCallback
