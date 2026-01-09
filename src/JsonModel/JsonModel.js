@@ -53,13 +53,22 @@ const decodeCursor = cursor => {
  *
  * Simple equality lookup values for searching.
  *
- * @template Item
- * @template IDCol
+ * @template {{[x: string]: any}} [RealItem={id: string}] Default is `{id:
+ *   string}`. Default is `{id: string}`
+ * @template [ConfigOrID='id'] Default is `'id'`
+ * @template {string} [IDCol=JsonModelIDColumn<ConfigOrID>] Default is
+ *   `JsonModelIDColumn<ConfigOrID>`
+ * @template {{[x: string]: any}} [Item=JsonModelItem<RealItem, IDCol>] Default
+ *   is `JsonModelItem<RealItem, IDCol>`
+ * @template [Config=ConfigOrID extends string ? object : ConfigOrID] Default is
+ *   `ConfigOrID extends string ? object : ConfigOrID`
+ * @template {JMColumns<Item, IDCol>} [Columns=JsonModelColumns<Config, Item>]
+ *   Default is `JsonModelColumns<Config, Item>`
  * @class JsonModelImpl
- * @implements {JsonModel<Item, IDCol>}
+ * @implements {JsonModel<RealItem, ConfigOrID, IDCol, Item, Config, Columns>}
  */
 class JsonModelImpl {
-	/** @param {JMOptions<Item, IDCol>} options - The model declaration. */
+	/** @param {JMOptions<Item, IDCol, Columns>} options - The model declaration. */
 	constructor(options) {
 		verifyOptions(options)
 		const {
@@ -69,7 +78,7 @@ class JsonModelImpl {
 			migrationOptions,
 			columns,
 			ItemClass,
-			idCol = 'id',
+			idCol = /** @type {IDCol} */ ('id'),
 			keepRowId = true,
 		} = options
 
@@ -80,24 +89,29 @@ class JsonModelImpl {
 		this.idColQ = sql.quoteId(idCol)
 		this.Item = ItemClass
 
-		const idColDef = (columns && columns[idCol]) || {}
-		const jsonColDef = (columns && columns.json) || {}
+		const idColDef = columns?.[idCol]
+		const jsonColDef =
+			columns?.json && typeof columns.json !== 'function'
+				? columns.json
+				: undefined
 		const allColumns = {
 			...columns,
+			/** @type {JMColumnDef<Item>} */
 			[idCol]: {
-				type: idColDef.type || 'TEXT',
-				alias: idColDef.alias || '_i',
+				type: idColDef?.type || 'TEXT',
+				alias: idColDef?.alias || '_i',
 				value: makeIdValue(idCol, idColDef),
 				index: 'ALL',
-				autoIncrement: idColDef.autoIncrement,
+				autoIncrement: idColDef?.autoIncrement,
 				unique: true,
 				get: true,
 			},
+			/** @type {JMColumnDef<Item>} */
 			json: {
-				alias: jsonColDef.alias || '_j',
+				alias: jsonColDef?.alias || '_j',
 				// return null if empty, makes parseRow faster
-				parse: jsonColDef.parse || parseJson,
-				stringify: jsonColDef.stringify || stringifyJsonObject,
+				parse: jsonColDef?.parse || parseJson,
+				stringify: jsonColDef?.stringify || stringifyJsonObject,
 				type: 'JSON',
 				alwaysObject: true,
 				path: '',
@@ -106,6 +120,7 @@ class JsonModelImpl {
 		}
 		// Note the order above, id and json should be calculated last
 		this.columnArr = []
+		/** @type {{[x: string]: JMColumnDef<Item>}} */
 		this.columns = {}
 		let i = 0
 		for (const colName of Object.keys(allColumns)) {
@@ -153,8 +168,9 @@ class JsonModelImpl {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
-	parseRow = (row, options) => {
-		/** @type {JMColumnDef<Item, IDCol>[]} */
+	/** @returns {Item} */
+	parseRow = (/** @type {SQLiteRow} */ row, options) => {
+		/** @type {JMColumnDef<Item>[]} */
 		const mapCols =
 			options && options.cols
 				? options.cols.map(n => this.columns[n])
@@ -285,11 +301,32 @@ class JsonModelImpl {
 		}
 	}
 
+	/** @param {string} colName */
 	_colSql(colName) {
 		return this.columns[colName] ? this.columns[colName].sql : colName
 	}
 
-	// Converts a row or array of rows to objects
+	/**
+	 * @overload
+	 * @param {SQLiteRow[] | undefined} thing
+	 * @param options
+	 * @returns {Item[] | undefined}
+	 */
+
+	/**
+	 * @overload
+	 * @param {SQLiteRow | undefined} thing
+	 * @param options
+	 * @returns {Item | undefined}
+	 */
+
+	/**
+	 * Converts a row or array of rows to objects
+	 *
+	 * @param {SQLiteRow[] | SQLiteRow | undefined} thing
+	 * @param options
+	 * @returns {Item | Item[] | undefined}
+	 */
 	toObj = (thing, options) => {
 		if (!thing) {
 			return
@@ -303,8 +340,18 @@ class JsonModelImpl {
 	/**
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
+	 *
+	 * @param {JMSearchOptions} options
+	 * @returns {[
+	 * 	string,
+	 * 	SQLiteParam[],
+	 * 	string[],
+	 * 	string,
+	 * 	SQLiteParam[],
+	 * 	boolean,
+	 * ]}
 	 */
-	makeSelect(/** @type {JMSearchOptions} */ options) {
+	makeSelect(options) {
 		if (process.env.NODE_ENV !== 'production') {
 			const extras = Object.keys(options).filter(
 				k =>
@@ -538,8 +585,8 @@ class JsonModelImpl {
 	 * Search the first matching object.
 	 *
 	 * @param {JMSearchAttrs} attrs - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
-	 * @returns {Promise<Item | null>} - The result or null if no match.
+	 * @param {JMSearchOptions} options - Search options.
+	 * @returns {Promise<Item | undefined>} - The result or null if no match.
 	 */
 	async searchOne(attrs, options) {
 		const [q, vals] = this.makeSelect({
@@ -552,6 +599,10 @@ class JsonModelImpl {
 		return this.toObj(row, options)
 	}
 
+	/**
+	 * @param {JMSearchOptions} [attrs] - Simple value attributes.
+	 * @param options - Search options.
+	 */
 	async search(attrs, {itemsOnly, ...options} = {}) {
 		const [q, vals, cursorKeys, totalQ, totalVals, invert] = this.makeSelect({
 			attrs,
@@ -902,7 +953,7 @@ class JsonModelImpl {
 	 * @param {Object} obj The changes to store, including the id field.
 	 * @param {boolean} [upsert] Insert the object if it doesn't exist.
 	 * @param {boolean} [noReturn] Do not return the stored object.
-	 * @returns {Promise<Item | undefined>} A copy of the stored object.
+	 * @returns {Promise<Item>} A copy of the stored object.
 	 */
 	update(obj, upsert, noReturn) {
 		// Update needs to read the object to apply the changes, so it needs a transaction
