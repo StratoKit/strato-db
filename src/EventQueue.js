@@ -29,9 +29,14 @@ const defaultColumns = {
  *
  * @template {ESEvent} [RealItem=ESEvent] Default is `ESEvent`
  * @template {Partial<EQOptions<RealItem>>} [Config=object] Default is `object`
- * @template {string} [IDCol=Config extends {idCol: string} ? Config['idCol'] : 'v']
- *   Default is `Config extends {idCol: string} ? Config['idCol'] : 'v'`
- * @implements {EventQueue<RealItem, Config, IDCol>}
+ * @template {string} [IDCol=EventQueueIDColumn<Config>] Default is
+ *   `EventQueueIDColumn<Config>`
+ * @template {{[x: string]: any}} [Item=EventQueueItem<RealItem, IDCol>]
+ *   Default is `EventQueueItem<RealItem, IDCol>`
+ * @template {JMColumns<IDCol>} [Columns=EventQueueColumns<Config, Item>]
+ *   Default is `EventQueueColumns<Config, Item>`
+ * @extends {JsonModel<RealItem, JsonModelConfig & Config, IDCol>}
+ * @implements {EventQueue<RealItem, Config, IDCol, Item, Columns>}
  */
 class EventQueueImpl extends JsonModel {
 	/** @param {EQOptions<RealItem>} args */
@@ -43,10 +48,11 @@ class EventQueueImpl extends JsonModel {
 				if (columns[key]) throw new TypeError(`Cannot override column ${key}`)
 				columns[key] = value
 			}
+		const idCol = /** @type {IDCol} */ ('v')
 		super({
 			...rest,
 			name,
-			idCol: 'v',
+			idCol,
 			columns,
 			migrations: {
 				...rest.migrations,
@@ -54,16 +60,16 @@ class EventQueueImpl extends JsonModel {
 					db.exec(
 						`CREATE INDEX IF NOT EXISTS "history type,size" on history(type, size)`
 					),
-				'20190521_addViews': withViews
-					? async ({db}) => {
-							const historySchema = await db.all('PRAGMA table_info("history")')
-							// This adds a field with data size, kept up-to-date with triggers
-							if (!historySchema.some(f => f.name === 'size'))
-								await db.exec(
-									`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`
-								)
-							// The size WHERE clause is to prevent recursive triggers
-							await db.exec(`
+				...(withViews && {
+					'20190521_addViews': async ({db}) => {
+						const historySchema = await db.all('PRAGMA table_info("history")')
+						// This adds a field with data size, kept up-to-date with triggers
+						if (!historySchema.some(f => f.name === 'size'))
+							await db.exec(
+								`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`
+							)
+						// The size WHERE clause is to prevent recursive triggers
+						await db.exec(`
 								DROP TRIGGER IF EXISTS "history size insert";
 								DROP TRIGGER IF EXISTS "history size update";
 								CREATE TRIGGER "history size insert" AFTER INSERT ON history BEGIN
@@ -89,10 +95,10 @@ class EventQueueImpl extends JsonModel {
 										SUM(size)/1024/1024 AS MB
 									FROM history GROUP BY type ORDER BY count DESC;
 							`)
-							// Recalculate size
-							await db.exec(`UPDATE history SET size=0`)
-						}
-					: null,
+						// Recalculate size
+						await db.exec(`UPDATE history SET size=0`)
+					},
+				}),
 			},
 		})
 
@@ -115,8 +121,8 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {ESEvent} event - The new event.
-	 * @returns {Promise<void>} - Promise for set completion.
+	 * @param {Partial<Item>} event - The new event.
+	 * @returns {Promise} - Promise for set completion.
 	 */
 	set(event) {
 		if (!event.v) {
@@ -152,6 +158,9 @@ class EventQueueImpl extends JsonModel {
 			// If there was no change on other connections, currentV is correct
 			return this.currentV
 		}
+		dbg(
+			`getMaxV before dataV=${dataV} this._dataV=${this._dataV} currentV=${this.currentV}`
+		)
 		this._dataV = dataV
 		if (this._maxSql?.db !== this.db)
 			this._maxSql = this.db.prepare(
@@ -200,6 +209,19 @@ class EventQueueImpl extends JsonModel {
 
 			this.currentV = v
 			dbg(`add currentV = ${this.currentV}`)
+
+			const dbgMaxV = async () => {
+				if (this._maxSql?.db !== this.db)
+					this._maxSql = this.db.prepare(
+						`SELECT MAX(v) AS v from ${this.quoted}`,
+						'maxV'
+					)
+				const lastRow = await this._maxSql.get()
+				const dbV = Math.max(this.knownV, lastRow.v || 0)
+				dbg(`db max v: ${dbV} (${v})`)
+			}
+			await dbgMaxV()
+			setTimeout(dbgMaxV, 5000)
 
 			const event = {v, type, ts, data}
 			dbg(`queued`, v, type)

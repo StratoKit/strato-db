@@ -397,7 +397,7 @@ type JMColums = JMColumns
 type JMOptions<
 	T extends {[x: string]: any},
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
+	Columns extends JMColumns<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
 > = {
 	/** A DB instance, normally passed by DB */
 	db: DB
@@ -475,7 +475,7 @@ declare class JsonModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
@@ -748,6 +748,30 @@ type ESEvent<T extends keyof EventTypes = keyof EventTypes> = {
 	}
 }[T]
 
+type EventQueueIDColumn<Config> = Config extends {idCol: string}
+	? Config['idCol']
+	: 'v'
+type EventQueueItem<RealItem, IDCol> = RealItem extends {
+	[id in IDCol]?: unknown
+}
+	? RealItem
+	: RealItem & {[id in IDCol]: IDValue}
+type EventQueueColumns<Config, Item> = Config extends {columns: object}
+	? Config['columns']
+	: // If we didn't get a config, assume all keys are columns
+		{[colName in keyof Item]: object}
+type JsonModelConfig = {
+	idCol: 'v'
+	columns: {
+		v: true
+		type: true
+		ts: true
+		data: true
+		result: true
+		size: true
+	}
+}
+
 type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** The table name, defaults to `"history"` */
 	name?: string
@@ -756,35 +780,15 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** Add views to the database to assist with inspecting the data */
 	withViews?: boolean
 }
+
 /** Creates a new EventQueue model, called by DB. */
 interface EventQueue<
 	RealItem extends ESEvent = ESEvent,
 	Config extends Partial<EQOptions<RealItem>> = object,
-	IDCol extends string = Config extends {idCol: string} ? Config['idCol'] : 'v',
-	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
-		? RealItem
-		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
-		? Config['columns']
-		: // If we didn't get a config, assume all keys are columns
-			{[colName in keyof Item]: object},
-> extends JsonModel<
-		RealItem,
-		{
-			idCol: 'v'
-			columns: {
-				v: true
-				type: true
-				ts: true
-				data: true
-				result: true
-				size: true
-			}
-		} & Config,
-		IDCol,
-		Item,
-		Columns
-	> {
+	IDCol extends string = EventQueueIDColumn<Config>,
+	Item extends {[x: string]: any} = EventQueueItem<RealItem, IDCol>,
+	Columns extends JMColumns<IDCol> = EventQueueColumns<Config, Item>,
+> extends JsonModel<RealItem, JsonModelConfig & Config, IDCol, Item, Columns> {
 	new (options: EQOptions<RealItem>): this
 	/**
 	 * Get the highest version stored in the queue.
@@ -989,7 +993,7 @@ interface ESModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
