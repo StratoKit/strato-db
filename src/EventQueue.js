@@ -230,7 +230,8 @@ class EventQueueImpl extends JsonModel {
 			let retryDbV = RETRY_COUNT
 
 			while (dbV < v && retryDbV--) {
-				await wait(500)
+				dbg(`add() expected v: ${v} got dvV: ${dbV} (retry ${retryDbV})`)
+				await wait(100)
 				dbV = await getDbMaxV()
 			}
 
