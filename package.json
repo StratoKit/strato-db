@@ -45,6 +45,7 @@
     "uuid": ">=8 <10"
   },
   "devDependencies": {
+    "@types/lodash": "^4.17.23",
     "@types/node": "^22.10.7",
     "@typescript-eslint/eslint-plugin": "^7.16.0",
     "@typescript-eslint/parser": "^7.16.0",

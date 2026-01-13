@@ -17,6 +17,7 @@ class StatementImpl {
 		this.name = `${db.name}${this._name}`
 	}
 
+	/** @type {true} */
 	get isStatement() {
 		return true
 	}
@@ -65,17 +66,19 @@ class StatementImpl {
 		if (!_stmt) return Promise.resolve()
 		return this._wrap(
 			() =>
-				new Promise((resolve, reject) => {
-					delete this._stmt
-					_stmt.finalize(err => {
-						if (err) {
-							if (!this._stmt) this._stmt = _stmt
-							return reject(err)
-						}
-						dbg(`${this.name} finalized`)
-						resolve()
+				/** @type {Promise<void>} */ (
+					new Promise((resolve, reject) => {
+						delete this._stmt
+						_stmt.finalize(err => {
+							if (err) {
+								if (!this._stmt) this._stmt = _stmt
+								return reject(err)
+							}
+							dbg(`${this.name} finalized`)
+							resolve()
+						})
 					})
-				})
+				)
 		)
 	}
 

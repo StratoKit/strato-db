@@ -70,8 +70,9 @@ type SQLiteOptions = {
  * - 'finally': transaction finished
  * - 'call': call to SQLite completed, includes data and duration
  */
-interface SQLite extends EventEmitter {
-	new (options?: SQLiteOptions)
+// eslint-disable-next-line unicorn/prefer-event-target
+declare class SQLite extends EventEmitter {
+	constructor(options?: SQLiteOptions)
 
 	/** Holding space for models */
 	store: object
@@ -86,7 +87,7 @@ interface SQLite extends EventEmitter {
 	 * 	is converted to `db.all('select * from "foo" where t = ? and json = ?', [bar,
 	 * 	JSON.stringify(obj)])`
 	 */
-	sql(): {quoteId: (id: SQLiteParam) => string} & SqlTag
+	sql: {quoteId: (id: SQLiteParam) => string} & SqlTag
 	/** `true` if an sqlite connection was set up. Mostly useful for tests. */
 	isOpen: boolean
 	/**
@@ -195,8 +196,8 @@ interface SQLite extends EventEmitter {
 	 */
 	withTransaction(fn: () => Promise<void>): Promise<void>
 }
-
-type DBMigration = {up: DBCallback} | DBCallback
+type DBUpMigration = {up: DBCallback}
+type DBMigration = DBUpMigration | DBCallback
 /** Migrations are marked completed by their name in the `{sdb} migrations` table */
 type DBMigrations = Record<string, DBMigration>
 interface DBModel<Options extends {db: DB} = {db: DB}> {
@@ -205,7 +206,7 @@ interface DBModel<Options extends {db: DB} = {db: DB}> {
 type DBOptions = {
 	/** Open the DB read-only */
 	readOnly?: boolean
-	migrations?: DBMigrations
+	migrations?: (DBUpMigration & {runKey: string})[]
 	/** Called before migrations run. Not called for read-only */
 	onBeforeMigrations?: (...params: any[]) => any
 	/**
@@ -396,7 +397,7 @@ type JMColums = JMColumns
 type JMOptions<
 	T extends {[x: string]: any},
 	IDCol extends string = 'id',
-	Columns extends JMColums<IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
+	Columns extends JMColumns<T, IDCol> = {[id in IDCol]?: {type: 'TEXT'}},
 > = {
 	/** A DB instance, normally passed by DB */
 	db: DB
@@ -474,7 +475,7 @@ declare class JsonModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
@@ -763,7 +764,7 @@ interface EventQueue<
 	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			{[colName in keyof Item]: object},
@@ -902,8 +903,13 @@ interface ESDBModel {
 }
 
 type ESDBOptions = DBOptions & {
+	/**
+	 * @deprecated 'db' is no longer an option, pass the db options instead, e.g.
+	 *   file, verbose, readOnly
+	 */
+	db?: never
 	models: {[name: string]: ESDBModel}
-	queue?: InstanceType<EventQueue>
+	queue?: EventQueue
 	queueFile?: string
 	withViews?: boolean
 	onWillOpen?: DBCallback
@@ -986,7 +992,7 @@ interface ESModel<
 		? RealItem
 		: RealItem & {[id in IDCol]: IDValue},
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColums<IDCol> = Config extends {columns: object}
+	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
 		? Config['columns']
 		: // If we didn't get a config, assume all keys are columns
 			Item,
