@@ -319,7 +319,7 @@ describe('SQLite', () => {
 		await expect(db.userVersion()).resolves.toBe(5)
 	})
 
-	test.only('concurrent userVersion()', async () => {
+	test('concurrent userVersion()', async () => {
 		const dir = await tmp.dir({unsafeCleanup: true, prefix: 'sqlite-test-'})
 		const {path} = dir
 		const file = sysPath.join(path, 'db')
