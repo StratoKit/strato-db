@@ -767,36 +767,54 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** Add views to the database to assist with inspecting the data */
 	withViews?: boolean
 }
+
+type EventQueueIDColumn<Config> = Config extends {idCol: string}
+	? Config['idCol']
+	: 'v'
+type EventQueueItem<RealItem, IDCol> = RealItem extends {
+	[id in IDCol]?: unknown
+}
+	? RealItem
+	: RealItem & {[id in IDCol]: IDValue}
+type EventQueueColumns<Config, Item> = Config extends {columns: object}
+	? Config['columns']
+	: // If we didn't get a config, assume all keys are columns
+		{[colName in keyof Item]: object}
+type JsonModelConfig = {
+	idCol: 'v'
+	columns: {
+		v: true
+		type: true
+		ts: true
+		data: true
+		result: true
+		size: true
+	}
+}
+
+type EventQueueAddResult<T extends keyof EventTypes> = {
+	v: number
+	type: T
+	ts: number
+	data?: EventTypes[T]
+}
+
 /** Creates a new EventQueue model, called by DB. */
-interface EventQueue<
+declare class EventQueue<
 	RealItem extends ESEvent = ESEvent,
 	Config extends Partial<EQOptions<RealItem>> = object,
-	IDCol extends string = Config extends {idCol: string} ? Config['idCol'] : 'v',
-	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
-		? RealItem
-		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
-		? Config['columns']
-		: // If we didn't get a config, assume all keys are columns
-			{[colName in keyof Item]: object},
+	IDCol extends string = EventQueueIDColumn<Config>,
+	Item extends {[x: string]: any} = EventQueueItem<RealItem, IDCol>,
+	Columns extends JMColumns<Item, IDCol> = EventQueueColumns<Config, Item>,
 > extends JsonModel<
-		RealItem,
-		{
-			idCol: 'v'
-			columns: {
-				v: true
-				type: true
-				ts: true
-				data: true
-				result: true
-				size: true
-			}
-		} & Config,
-		IDCol,
-		Item,
-		Columns
-	> {
-	new (options: EQOptions<RealItem>): this
+	RealItem,
+	JsonModelConfig & Config,
+	IDCol,
+	Item,
+	Config,
+	Columns
+> {
+	constructor(options: EQOptions<RealItem>): this
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -816,7 +834,7 @@ interface EventQueue<
 		type: T,
 		data?: EventTypes[T],
 		ts?: number
-	): Promise<T>
+	): Promise<EventQueueAddResult<T>>
 	/**
 	 * Get the next event after v (gaps are ok). The wait can be cancelled by
 	 * `.cancelNext()`.
@@ -825,7 +843,7 @@ interface EventQueue<
 	 * @param [noWait=false] - Do not wait for the next event. Default is `false`
 	 * @returns The event if found.
 	 */
-	getNext(v?: number, noWait?: boolean): Promise<T>
+	getNext(v?: number, noWait?: boolean): Promise<Item | undefined>
 	/** Cancel any pending `.getNext()` calls */
 	cancelNext(): void
 	/**
@@ -833,7 +851,7 @@ interface EventQueue<
 	 *
 	 * @param v - The last known version.
 	 */
-	setKnownV(v: number): Promise<void>
+	setKnownV(v: number): void
 }
 
 type ReduceResult<T extends object = object> = Record<

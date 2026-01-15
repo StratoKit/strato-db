@@ -7,8 +7,7 @@ const dbg = debug('strato-db/queue')
 
 let warnedLatest
 
-/** @typedef {defaultColumns} Columns */
-const defaultColumns = {
+const defaultColumns = /** @type {const} */ ({
 	v: {
 		type: 'INTEGER',
 		autoIncrement: true,
@@ -22,29 +21,54 @@ const defaultColumns = {
 	data: {type: 'JSON'},
 	result: {type: 'JSON'},
 	size: {type: 'INTEGER', default: 0, get: false},
-}
+})
 
 /**
  * An event queue, including history.
  *
- * @template {T}
- * @template {U}
- * @implements {EventQueue<T>}
+ * @template {ESEvent} [RealItem=ESEvent] Default is `ESEvent`
+ * @template {Partial<EQOptions<RealItem>>} [Config=object] Default is `object`
+ * @template {string} [IDCol=EventQueueIDColumn<Config>] Default is
+ *   `EventQueueIDColumn<Config>`
+ * @template {{[x: string]: any}} [Item=EventQueueItem<RealItem, IDCol>]
+ *   Default is `EventQueueItem<RealItem, IDCol>`
+ * @template {JMColumns<Item, IDCol>} [Columns=EventQueueColumns<Config, Item>]
+ *   Default is `EventQueueColumns<Config, Item>`
+ * @extends {JsonModel<
+ * 	RealItem,
+ * 	JsonModelConfig & Config,
+ * 	'v',
+ * 	Item,
+ * 	Config,
+ * 	Columns & typeof defaultColumns
+ * >}
+ * @implements {EventQueue<RealItem, Config, 'v', Item, Columns>}
  */
 class EventQueueImpl extends JsonModel {
-	/** @param {EQOptions<T, U>} */
+	/** @param {EQOptions<RealItem>} args */
 	constructor({name = 'history', forever, withViews, ...rest}) {
-		const columns = {...defaultColumns}
-		if (rest.columns)
-			for (const [key, value] of Object.entries(rest.columns)) {
-				if (!value) continue
-				if (columns[key]) throw new TypeError(`Cannot override column ${key}`)
-				columns[key] = value
-			}
+		const tmpCols = rest.columns
+			? /** @type {Columns} */ (
+					Object.fromEntries(
+						Object.entries(rest.columns).filter(([key, value]) => {
+							if (!value) return false
+							if (defaultColumns[key])
+								throw new TypeError(`Cannot override column ${key}`)
+							return true
+						})
+					)
+				)
+			: undefined
+
+		const columns = /** @type {Columns & typeof defaultColumns} */ ({
+			...tmpCols,
+			...defaultColumns,
+		})
+
 		super({
 			...rest,
 			name,
-			idCol: 'v',
+			idCol: /** @type {const} */ ('v'),
 			columns,
 			migrations: {
 				...rest.migrations,
@@ -52,16 +76,16 @@ class EventQueueImpl extends JsonModel {
 					db.exec(
 						`CREATE INDEX IF NOT EXISTS "history type,size" on history(type, size)`
 					),
-				'20190521_addViews': withViews
-					? async ({db}) => {
-							const historySchema = await db.all('PRAGMA table_info("history")')
-							// This adds a field with data size, kept up-to-date with triggers
-							if (!historySchema.some(f => f.name === 'size'))
-								await db.exec(
-									`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`
-								)
-							// The size WHERE clause is to prevent recursive triggers
-							await db.exec(`
+				...(withViews && {
+					'20190521_addViews': async ({db}) => {
+						const historySchema = await db.all('PRAGMA table_info("history")')
+						// This adds a field with data size, kept up-to-date with triggers
+						if (!historySchema.some(f => f.name === 'size'))
+							await db.exec(
+								`ALTER TABLE history ADD COLUMN size INTEGER DEFAULT 0`
+							)
+						// The size WHERE clause is to prevent recursive triggers
+						await db.exec(`
 								DROP TRIGGER IF EXISTS "history size insert";
 								DROP TRIGGER IF EXISTS "history size update";
 								CREATE TRIGGER "history size insert" AFTER INSERT ON history BEGIN
@@ -87,12 +111,13 @@ class EventQueueImpl extends JsonModel {
 										SUM(size)/1024/1024 AS MB
 									FROM history GROUP BY type ORDER BY count DESC;
 							`)
-							// Recalculate size
-							await db.exec(`UPDATE history SET size=0`)
-						}
-					: null,
+						// Recalculate size
+						await db.exec(`UPDATE history SET size=0`)
+					},
+				}),
 			},
 		})
+
 		this.currentV = -1
 		this.knownV = 0
 		this.forever = !!forever
@@ -101,8 +126,8 @@ class EventQueueImpl extends JsonModel {
 	/**
 	 * Replace existing event data.
 	 *
-	 * @param {Event} event - The new event.
-	 * @returns {Promise<void>} - Promise for set completion.
+	 * @param {Partial<Item>} event - The new event.
+	 * @returns {Promise} - Promise for set completion.
 	 */
 	set(event) {
 		if (!event.v) {
@@ -148,16 +173,18 @@ class EventQueueImpl extends JsonModel {
 		return this.currentV
 	}
 
+	/** @type {Promise<EventQueueAddResult<keyof EventTypes>> | null} */
 	_addP = null
 
 	/**
 	 * Atomically add an event to the queue.
 	 *
-	 * @param {string} type - Event type.
-	 * @param {any} [data] - Event data.
+	 * @template {keyof EventTypes} T
+	 * @param {T} type - Event type.
+	 * @param {EventTypes[T]} [data] - Event data.
 	 * @param {number} [ts=Date.now()] - Event timestamp, ms since epoch. Default
 	 *   is `Date.now()`
-	 * @returns {Promise<Event>} - Promise for the added event.
+	 * @returns {Promise<EventQueueAddResult<T>>} - Promise for the added event.
 	 */
 	add(type, data, ts) {
 		if (!type || typeof type !== 'string')
@@ -192,6 +219,7 @@ class EventQueueImpl extends JsonModel {
 		return this._addP
 	}
 
+	/** @type {Promise | null} */
 	_nextAddedP = null
 
 	_nextAddedResolve = event => {
@@ -222,7 +250,7 @@ class EventQueueImpl extends JsonModel {
 	 *
 	 * @param {number} [v=0] The version. Default is `0`
 	 * @param {boolean} [noWait] Do not wait for the next event.
-	 * @returns {Promise<Event>} The event if found.
+	 * @returns {Promise<Item | undefined>} The event if found.
 	 */
 	async getNext(v = 0, noWait = false) {
 		let event
