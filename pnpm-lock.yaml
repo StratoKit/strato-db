@@ -33,6 +33,9 @@ importers:
         specifier: '>=8 <10'
         version: 9.0.1
     devDependencies:
+      '@types/debug':
+        specifier: ^4.1.12
+        version: 4.1.12
       '@types/lodash':
         specifier: ^4.17.23
         version: 4.17.23
