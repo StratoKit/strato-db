@@ -393,11 +393,13 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	async checkForEvents() {
+		dbg('checkForEvents')
 		const [v, qV] = await Promise.all([this.getVersion(), this.queue.getMaxV()])
 		if (v < qV) return this.startPolling(qV)
 	}
 
 	async waitForQueue() {
+		dbg('checkForQueue')
 		// give migrations a chance to queue things
 		await this.rwDb.open()
 		const v = await this.queue.getMaxV()
@@ -410,6 +412,7 @@ class EventSourcingDB extends EventEmitter {
 	_minVersion = 0
 
 	startPolling(wantVersion) {
+		dbg(`startPolling (${wantVersion})`)
 		if (wantVersion) {
 			if (wantVersion > this._minVersion) this._minVersion = wantVersion
 		} else if (!this._isPolling) {
@@ -446,6 +449,7 @@ class EventSourcingDB extends EventEmitter {
 					return undefined
 				})
 		}
+		dbg(`startPolling (${wantVersion}) success`)
 		return this._waitingP
 	}
 
