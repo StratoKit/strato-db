@@ -24,10 +24,6 @@ const defaultColumns = {
 	size: {type: 'INTEGER', default: 0, get: false},
 }
 
-const RETRY_COUNT = 10
-
-const wait = ms => new Promise(r => setTimeout(r, ms))
-
 /**
  * An event queue, including history.
  *
@@ -172,7 +168,7 @@ class EventQueueImpl extends JsonModel {
 				'maxV'
 			)
 		const lastRow = await this._maxSql.get()
-		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		this.currentV = Math.max(this.currentV, this.knownV, lastRow.v || 0)
 		dbg(`getMaxV currentV = ${this.currentV}`)
 		return this.currentV
 	}
@@ -211,29 +207,8 @@ class EventQueueImpl extends JsonModel {
 				JSON.stringify(data),
 			])
 
-			this.currentV = v
+			this.currentV = Math.max(this.currentV, v)
 			dbg(`add currentV = ${this.currentV}`)
-
-			const getDbMaxV = async () => {
-				if (this._maxSql?.db !== this.db)
-					this._maxSql = this.db.prepare(
-						`SELECT MAX(v) AS v from ${this.quoted}`,
-						'maxV'
-					)
-				const lastRow = await this._maxSql.get()
-				const dbV = Math.max(this.knownV, lastRow.v || 0)
-				dbg(`db max v: ${dbV} (${v})`)
-				return dbV
-			}
-
-			let dbV = await getDbMaxV()
-			let retryDbV = RETRY_COUNT
-
-			while (dbV < v && retryDbV--) {
-				dbg(`add() expected v: ${v} got dvV: ${dbV} (retry ${retryDbV})`)
-				await wait(100)
-				dbV = await getDbMaxV()
-			}
 
 			const event = {v, type, ts, data}
 			dbg(`queued`, v, type)
