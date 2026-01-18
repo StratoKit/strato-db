@@ -461,6 +461,8 @@ type JMSearchOptions<Columns> = {
 	noCursor?: boolean
 	/** Do not calculate totals. */
 	noTotal?: boolean
+	/** Whether to return only distinct rows */
+	distinct?: boolean
 }
 
 type JsonModelIDColumn<ConfigOrID> = ConfigOrID extends {idCol: string}

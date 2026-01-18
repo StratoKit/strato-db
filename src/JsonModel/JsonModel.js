@@ -168,8 +168,12 @@ class JsonModelImpl {
 		this.selectColsSql = this.selectCols.map(c => c.select).join(',')
 	}
 
-	/** @returns {ItemT} */
-	parseRow = (/** @type {SQLiteRow} */ row, options) => {
+	/**
+	 * @param {SQLiteRow} row
+	 * @param {JMSearchOptions<Columns>} [options]
+	 * @returns {ItemT}
+	 */
+	parseRow = (row, options) => {
 		/** @type {JMColumnDef<ItemT>[]} */
 		const mapCols =
 			options && options.cols
@@ -244,6 +248,13 @@ class JsonModelImpl {
 		const setSql = `INTO ${quoted}(${colSqls.join(',')}) VALUES(${colSqls
 			.map(() => '?')
 			.join(',')})`
+
+		/**
+		 * @param {Partial<ItemT>} o
+		 * @param {boolean} [insertOnly]
+		 * @param {boolean} [noReturn]
+		 * @returns {Promise<ItemT>}
+		 */
 		return async (o, insertOnly, noReturn) => {
 			if (this._insertSql?.db !== db) {
 				this._insertSql = db.prepare(`INSERT ${setSql}`, `ins ${name}`)
@@ -308,23 +319,44 @@ class JsonModelImpl {
 
 	/**
 	 * @overload
+	 * @param {SQLiteRow[]} thing
+	 * @param {JMSearchOptions<Columns>} [options]
+	 * @returns {ItemT[]}
+	 */
+
+	/**
+	 * @overload
 	 * @param {SQLiteRow[] | undefined} thing
-	 * @param options
+	 * @param {JMSearchOptions<Columns>} [options]
 	 * @returns {ItemT[] | undefined}
 	 */
 
 	/**
 	 * @overload
+	 * @param {SQLiteRow} thing
+	 * @param {JMSearchOptions<Columns>} [options]
+	 * @returns {ItemT}
+	 */
+
+	/**
+	 * @overload
 	 * @param {SQLiteRow | undefined} thing
-	 * @param options
+	 * @param {JMSearchOptions<Columns>} [options]
 	 * @returns {ItemT | undefined}
+	 */
+
+	/**
+	 * @overload
+	 * @param {undefined} thing
+	 * @param {JMSearchOptions<Columns>} [options]
+	 * @returns {undefined}
 	 */
 
 	/**
 	 * Converts a row or array of rows to objects
 	 *
 	 * @param {SQLiteRow[] | SQLiteRow | undefined} thing
-	 * @param options
+	 * @param {JMSearchOptions<Columns>} [options]
 	 * @returns {ItemT | ItemT[] | undefined}
 	 */
 	toObj = (thing, options) => {
@@ -341,7 +373,7 @@ class JsonModelImpl {
 	 * Parses query options into query parts. Override this function to implement
 	 * search behaviors.
 	 *
-	 * @param {JMSearchOptions} options
+	 * @param {JMSearchOptions<Columns>} options
 	 * @returns {[
 	 * 	string,
 	 * 	SQLiteParam[],
@@ -583,8 +615,8 @@ class JsonModelImpl {
 	/**
 	 * Search the first matching object.
 	 *
-	 * @param {JMSearchAttrs} attrs - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} attrs - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<ItemT | undefined>} - The result or null if no match.
 	 */
 	async searchOne(attrs, options) {
@@ -599,8 +631,30 @@ class JsonModelImpl {
 	}
 
 	/**
-	 * @param {JMSearchOptions} [attrs] - Simple value attributes.
-	 * @param options - Search options.
+	 * @overload
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns> & {itemsOnly?: false}} [options] - Search
+	 *   options.
+	 * @returns {Promise<{items: ItemT[]; cursor: string}>}
+	 */
+
+	/**
+	 * @overload
+	 * @param {JMSearchAttrs<Columns> | null | undefined} attrs - Simple value
+	 *   attributes.
+	 * @param {JMSearchOptions<Columns> & {itemsOnly?: true}} options - Search
+	 *   options.
+	 * @returns {Promise<ItemT[]>}
+	 */
+
+	/**
+	 * Converts a row or array of rows to objects
+	 *
+	 * @param {JMSearchAttrs<Columns> | null | undefined} [attrs] - Simple value
+	 *   attributes.
+	 * @param {JMSearchOptions<Columns> & {itemsOnly?: boolean}} [options] -
+	 *   Search options.
+	 * @returns {Promise<{items: ItemT[]; cursor: string} | ItemT[]>}
 	 */
 	async search(attrs, {itemsOnly, ...options} = {}) {
 		const [q, vals, cursorKeys, totalQ, totalVals, invert] = this.makeSelect({
@@ -627,7 +681,11 @@ class JsonModelImpl {
 		}
 		return {items, cursor, prevCursor, total: totalO?.t}
 	}
-
+	/**
+	 * @param {JMSearchAttrs<Columns>} attrs - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
+	 * @returns {Promise<ItemT[]>}
+	 */
 	searchAll(attrs, options) {
 		return this.search(attrs, {...options, itemsOnly: true})
 	}
@@ -664,8 +722,8 @@ class JsonModelImpl {
 	/**
 	 * Count of search results.
 	 *
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The count.
 	 */
 	count(attrs, options) {
@@ -688,8 +746,8 @@ class JsonModelImpl {
 	 *
 	 * @param {string} op - The SQL function, e.g. MAX.
 	 * @param {JMColName} colName - Column to aggregate.
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The result.
 	 */
 	numAggOp(op, colName, attrs, options) {
@@ -716,8 +774,8 @@ class JsonModelImpl {
 	 * Maximum value.
 	 *
 	 * @param {JMColName} colName - Column to aggregate.
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The result.
 	 */
 	max(colName, attrs, options) {
@@ -728,8 +786,8 @@ class JsonModelImpl {
 	 * Minimum value.
 	 *
 	 * @param {JMColName} colName - Column to aggregate.
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The result.
 	 */
 	min(colName, attrs, options) {
@@ -740,8 +798,8 @@ class JsonModelImpl {
 	 * Sum values.
 	 *
 	 * @param {JMColName} colName - Column to aggregate.
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The result.
 	 */
 	sum(colName, attrs, options) {
@@ -752,8 +810,8 @@ class JsonModelImpl {
 	 * Average value.
 	 *
 	 * @param {JMColName} colName - Column to aggregate.
-	 * @param {JMSearchAttrs} [attrs] - Simple value attributes.
-	 * @param {JMSearchOptions} [options] - Search options.
+	 * @param {JMSearchAttrs<Columns>} [attrs] - Simple value attributes.
+	 * @param {JMSearchOptions<Columns>} [options] - Search options.
 	 * @returns {Promise<number>} - The result.
 	 */
 	avg(colName, attrs, options) {
@@ -780,7 +838,7 @@ class JsonModelImpl {
 	 * @param {IDValue} id - The value for the column.
 	 * @param {string} [colName=this.idCol] - The columnname, defaults to the ID
 	 *   column. Default is `this.idCol`
-	 * @returns {Promise<ItemT | null>} - The object if it exists.
+	 * @returns {Promise<ItemT | undefined>} - The object if it exists.
 	 */
 	get(id, colName = this.idCol) {
 		if (id == null) {
@@ -808,8 +866,8 @@ class JsonModelImpl {
 	 * @param {IDValue[]} ids - The values for the column.
 	 * @param {string} [colName=this.idCol] - The columnname, defaults to the ID
 	 *   column. Default is `this.idCol`
-	 * @returns {Promise<(ItemT | null)[]>} - The objects, or null where they
-	 *   don't exist, in order of their requested ID.
+	 * @returns {Promise<(ItemT | undefined)[]>} - The objects, or undefined when
+	 *   they don't exist, in order of their requested ID.
 	 */
 	async getAll(ids, colName = this.idCol) {
 		let {path, _getAllSql} = this.columns[colName]
@@ -878,9 +936,10 @@ class JsonModelImpl {
 	 * uses a cursored search, so changes to the model during the iteration can
 	 * influence the iteration.
 	 *
-	 * @param {JMSearchAttrs | RowCallback} attrsOrFn
-	 * @param {RowCallback | JMSearchOptions} [optionsOrFn]
-	 * @param {RowCallback} [fn]
+	 * @param {JMSearchAttrs<Columns> | ItemCallback<ItemT>} attrsOrFn
+	 * @param {ItemCallback<ItemT>
+	 * 	| (JMSearchOptions<Columns> & {concurrent?: number; batchSize?: number})} [optionsOrFn]
+	 * @param {ItemCallback<ItemT>} [fn]
 	 * @returns {Promise<void>} Table iteration completed.
 	 */
 	async each(attrsOrFn, optionsOrFn, fn) {
@@ -920,14 +979,45 @@ class JsonModelImpl {
 
 	// --- Mutator methods below ---
 
-	// Contract: All subclasses use set() to store values
-	set(...args) {
+	/**
+	 * Contract: All subclasses use set() to store values
+	 *
+	 * @param {Partial<ItemT>} obj
+	 * @param {boolean} [insertOnly]
+	 * @param {boolean} [noReturn]
+	 * @returns {Promise<ItemT>}
+	 */
+	set(obj, insertOnly, noReturn) {
 		// we cannot store `set` directly on the instance because it would override subclass `set` functions
-		return this._set(...args)
+		return this._set(obj, insertOnly, noReturn)
 	}
 
-	// Change only the given fields, shallowly
-	// upsert: also allow inserting
+	/**
+	 * @overload
+	 * @param {Partial<ItemT>} obj
+	 * @param {false} [upsert]
+	 * @param {boolean} [noReturn]
+	 * @returns {Promise<ItemT>}
+	 */
+
+	/**
+	 * @overload
+	 * @param {ItemT} obj
+	 * @param {true} upsert
+	 * @param {boolean} [noReturn]
+	 * @returns {Promise<ItemT>}
+	 */
+
+	/**
+	 * Change only the given fields, shallowly
+	 *
+	 * Upsert: also allow inserting
+	 *
+	 * @param {Partial<ItemT> | ItemT} obj
+	 * @param {boolean} [upsert]
+	 * @param {boolean} [noReturn]
+	 * @returns {Promise<ItemT>}
+	 */
 	async updateNoTrans(obj, upsert, noReturn) {
 		if (!obj) throw new Error('update() called without object')
 		const id = obj[this.idCol]
@@ -965,7 +1055,7 @@ class JsonModelImpl {
 	/**
 	 * Remove an object. If the object doesn't exist, this doesn't do anything.
 	 *
-	 * @param {ID | Object} idOrObj The id or the object itself.
+	 * @param {ItemT[IDCol] | ItemT} idOrObj The id or the object itself.
 	 * @returns {Promise<void>} A promise for the deletion.
 	 */
 	remove(idOrObj) {
@@ -986,8 +1076,10 @@ class JsonModelImpl {
 	/**
 	 * "Rename" an object.
 	 *
-	 * @param {ID} oldId The current ID. If it doesn't exist this will throw.
-	 * @param {ID} newId The new ID. If this ID is already in use this will throw.
+	 * @param {ItemT[IDCol]} oldId The current ID. If it doesn't exist this will
+	 *   throw.
+	 * @param {ItemT[IDCol]} newId The new ID. If this ID is already in use this
+	 *   will throw.
 	 * @returns {Promise<void>} A promise for the rename.
 	 */
 	changeId(oldId, newId) {

@@ -574,7 +574,7 @@ class SQLiteImpl extends EventEmitter {
 	 * invocations are serialized, and between connections it uses busy retry
 	 * waiting. During a transaction, the database can still be read.
 	 *
-	 * @param {function} fn - The function to call. It doesn't get any parameters.
+	 * @param {Function} fn - The function to call. It doesn't get any parameters.
 	 * @returns {Promise<void>} - A promise for transaction completion.
 	 * @throws - When the transaction fails or after too many retries.
 	 */
