@@ -3,9 +3,14 @@ import {uniqueSlugId} from '../lib/slugify'
 import {get} from 'lodash'
 
 /**
- * @template <Row>
- * @template <IDCol>
- * @param {JMColumnDef<Row, IDCol>} col
+ * @template {{[x: string]: any}} [RealItem={id: string}] Default is `{id:
+ *   string}`. Default is `{id: string}`
+ * @template [ConfigOrID='id'] Default is `'id'`
+ * @template {string} [IDCol=JsonModelIDColumn<ConfigOrID>] Default is
+ *   `JsonModelIDColumn<ConfigOrID>`
+ * @template {{[x: string]: any}} [ItemT=JsonModelItem<RealItem, IDCol>]
+ *   Default is `JsonModelItem<RealItem, IDCol>`
+ * @param {JMColumnDef<ItemT>} col
  * @param {JMColName} name
  */
 

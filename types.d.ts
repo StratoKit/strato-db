@@ -333,7 +333,7 @@ type JMColumnDef<Item = Record<string, any>> = {
 	 * creates a real column. Right now the column value is not regenerated for
 	 * existing rows.
 	 */
-	value?: (object: Item) => any
+	value?: (this: JsonModel, object: Item) => any
 	/** Same as value, but the result is used to generate a unique slug. */
 	slugValue?: (object: Item) => any
 	/** Any sql expression to use in SELECT statements. */
