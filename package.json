@@ -22,7 +22,8 @@
   "scripts": {
     "start": "nps",
     "test": "npx nps test",
-    "prepublishOnly": "nps test.full build"
+    "prepublishOnly": "nps test.full",
+    "prepack": "nps build"
   },
   "keywords": [
     "sqlite",
