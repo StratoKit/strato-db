@@ -157,7 +157,7 @@ class JsonModelImpl {
 		/** @type {JMColumnDef<Item, IDCol>[]} */
 		const mapCols =
 			options && options.cols
-				? options.cols.map(n => this.columns[n])
+				? options.cols.map(n => this.columns[n] ?? {name: n, alias: n, path: n})
 				: this.getCols
 		const out = this.Item ? new this.Item() : {}
 		for (const k of mapCols) {
