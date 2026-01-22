@@ -395,9 +395,8 @@ class JsonModelImpl {
 			cursorArgs = [cursorVals[len]] // ID added at first
 			for (let i = len - 1; i >= 0; i--) {
 				const colAlias = cursorColAliases[i]
-				const column = Object.values(this.columns).find(
-					c => c.alias === colAlias
-				)
+				const column =
+					Object.values(this.columns).find(c => c.alias === colAlias) ?? {}
 				const val = cursorVals[i]
 
 				// Handle columns that can contain NULL values with COALESCE
