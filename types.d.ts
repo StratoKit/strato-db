@@ -90,6 +90,8 @@ declare class SQLite extends EventEmitter {
 	sql: {quoteId: (id: SQLiteParam) => string} & SqlTag
 	/** `true` if an sqlite connection was set up. Mostly useful for tests. */
 	isOpen: boolean
+	/** `true` if `withTransaction` is active */
+	inTransaction: boolean
 	/**
 	 * Force opening the database instead of doing it lazily on first access.
 	 *
@@ -416,7 +418,7 @@ type JMOptions<
 	 * An object class to use for results, must be able to handle
 	 * `Object.assign(item, result)`
 	 */
-	ItemClass?: object
+	ItemClass?: new () => object
 	/** The key of the IDCol column */
 	idCol?: IDCol
 	/** Preserve row id after vacuum */
@@ -461,6 +463,21 @@ type JMSearchOptions<Columns> = {
 	noTotal?: boolean
 }
 
+type JsonModelIDColumn<ConfigOrID> = ConfigOrID extends {idCol: string}
+	? ConfigOrID['idCol']
+	: ConfigOrID extends string
+		? ConfigOrID
+		: 'id'
+type JsonModelItem<RealItem, IDCol> = RealItem extends {[id in IDCol]?: unknown}
+	? RealItem
+	: RealItem & {[id in IDCol]: IDValue}
+type JsonModelColumns<Config, Item> = Config extends {
+	columns: {[x: string]: any}
+}
+	? Config['columns']
+	: // If we didn't get a config, assume all keys are columns
+		Item
+
 /**
  * Stores Item objects in a SQLite table. Pass the type of the item it stores
  * and the config so it can determine the columns
@@ -469,19 +486,10 @@ declare class JsonModel<
 	RealItem extends {[x: string]: any} = {id: string},
 	// Allow the id column name as well for backwards compatibility
 	ConfigOrID = 'id',
-	IDCol extends string = ConfigOrID extends {idCol: string}
-		? ConfigOrID['idCol']
-		: ConfigOrID extends string
-			? ConfigOrID
-			: 'id',
-	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
-		? RealItem
-		: RealItem & {[id in IDCol]: IDValue},
+	IDCol extends string = JsonModelIDColumn<ConfigOrID>,
+	Item extends {[x: string]: any} = JsonModelItem<RealItem, IDCol>,
 	Config = ConfigOrID extends string ? object : ConfigOrID,
-	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
-		? Config['columns']
-		: // If we didn't get a config, assume all keys are columns
-			Item,
+	Columns extends JMColumns<Item, IDCol> = JsonModelColumns<Config, Item>,
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>,
 > {
@@ -498,11 +506,11 @@ declare class JsonModel<
 	/** The SQL-quoted name of the id column */
 	idColQ: string
 	/** The prototype of returned Items */
-	Item: object
+	Item?: new () => object
 	/** The column definitions */
-	columnArr: JMColumnDef[]
+	columnArr: JMColumnDef<Item>[]
 	/** The column definitions keyed by name */
-	columns: Columns
+	columns: {[x: string]: JMColumnDef<Item>}
 	/** Parses a row as returned by sqlite */
 	parseRow: (row: SQLiteRow, options?: SearchOptions) => Item
 	/**
@@ -512,7 +520,7 @@ declare class JsonModel<
 	makeSelect(
 		/** The query options. */
 		options: SearchOptions
-	): [string, SQLiteParam[], string[], string, SQLiteParam[]]
+	): [string, SQLiteParam[], string[], string, SQLiteParam[], boolean]
 	/**
 	 * Search the first matching object.
 	 *
@@ -703,7 +711,7 @@ declare class JsonModel<
 		obj: Partial<Item>,
 		upsert?: boolean,
 		noReturn?: boolean
-	): Promise<Item>
+	): Promise<Item | void>
 	/**
 	 * Update or upsert an object. This does not use a transaction so is open to
 	 * race conditions if you don't run it in a transaction.
@@ -759,36 +767,54 @@ type EQOptions<T extends {[x: string]: any}> = JMOptions<T, 'v'> & {
 	/** Add views to the database to assist with inspecting the data */
 	withViews?: boolean
 }
+
+type EventQueueIDColumn<Config> = Config extends {idCol: string}
+	? Config['idCol']
+	: 'v'
+type EventQueueItem<RealItem, IDCol> = RealItem extends {
+	[id in IDCol]?: unknown
+}
+	? RealItem
+	: RealItem & {[id in IDCol]: IDValue}
+type EventQueueColumns<Config, Item> = Config extends {columns: object}
+	? Config['columns']
+	: // If we didn't get a config, assume all keys are columns
+		{[colName in keyof Item]: object}
+type JsonModelConfig = {
+	idCol: 'v'
+	columns: {
+		v: true
+		type: true
+		ts: true
+		data: true
+		result: true
+		size: true
+	}
+}
+
+type EventQueueAddResult<T extends keyof EventTypes> = {
+	v: number
+	type: T
+	ts: number
+	data?: EventTypes[T]
+}
+
 /** Creates a new EventQueue model, called by DB. */
-interface EventQueue<
+declare class EventQueue<
 	RealItem extends ESEvent = ESEvent,
 	Config extends Partial<EQOptions<RealItem>> = object,
-	IDCol extends string = Config extends {idCol: string} ? Config['idCol'] : 'v',
-	Item extends {[x: string]: any} = RealItem extends {[id in IDCol]?: unknown}
-		? RealItem
-		: RealItem & {[id in IDCol]: IDValue},
-	Columns extends JMColumns<Item, IDCol> = Config extends {columns: object}
-		? Config['columns']
-		: // If we didn't get a config, assume all keys are columns
-			{[colName in keyof Item]: object},
+	IDCol extends string = EventQueueIDColumn<Config>,
+	Item extends {[x: string]: any} = EventQueueItem<RealItem, IDCol>,
+	Columns extends JMColumns<Item, IDCol> = EventQueueColumns<Config, Item>,
 > extends JsonModel<
-		RealItem,
-		{
-			idCol: 'v'
-			columns: {
-				v: true
-				type: true
-				ts: true
-				data: true
-				result: true
-				size: true
-			}
-		} & Config,
-		IDCol,
-		Item,
-		Columns
-	> {
-	new (options: EQOptions<RealItem>): this
+	RealItem,
+	JsonModelConfig & Config,
+	IDCol,
+	Item,
+	Config,
+	Columns
+> {
+	constructor(options: EQOptions<RealItem>): this
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -808,7 +834,7 @@ interface EventQueue<
 		type: T,
 		data?: EventTypes[T],
 		ts?: number
-	): Promise<T>
+	): Promise<EventQueueAddResult<T>>
 	/**
 	 * Get the next event after v (gaps are ok). The wait can be cancelled by
 	 * `.cancelNext()`.
@@ -817,7 +843,7 @@ interface EventQueue<
 	 * @param [noWait=false] - Do not wait for the next event. Default is `false`
 	 * @returns The event if found.
 	 */
-	getNext(v?: number, noWait?: boolean): Promise<T>
+	getNext(v?: number, noWait?: boolean): Promise<Item | undefined>
 	/** Cancel any pending `.getNext()` calls */
 	cancelNext(): void
 	/**
@@ -825,7 +851,7 @@ interface EventQueue<
 	 *
 	 * @param v - The last known version.
 	 */
-	setKnownV(v: number): Promise<void>
+	setKnownV(v: number): void
 }
 
 type ReduceResult<T extends object = object> = Record<
