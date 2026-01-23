@@ -23,6 +23,12 @@ importers:
       lodash:
         specifier: ^4
         version: 4.17.21
+      nps:
+        specifier: ^5.10.0
+        version: 5.10.0
+      nps-utils:
+        specifier: ^1.7.0
+        version: 1.7.0
       prop-types:
         specifier: ^15
         version: 15.8.1
@@ -75,12 +81,6 @@ importers:
       fs-extra:
         specifier: ^11.3.0
         version: 11.3.0
-      nps:
-        specifier: ^5.10.0
-        version: 5.10.0
-      nps-utils:
-        specifier: ^1.7.0
-        version: 1.7.0
       prettier:
         specifier: ^3.4.2
         version: 3.4.2
