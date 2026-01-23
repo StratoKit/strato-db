@@ -236,7 +236,10 @@ declare class DB extends SQLite {
 	 *   db}`.
 	 * @returns - The created Model instance.
 	 */
-	addModel(Model: DBModel, options?: Record<string, any>): InstanceType<DBModel>
+	addModel<
+		Options = Record<string, any>,
+		T extends DBModel<Options & {db: DB}> = DBModel<Options & {db: DB}>,
+	>(Model: T, options?: Options): InstanceType<T>
 	/**
 	 * Register an object with migrations. Migrations are marked completed by the
 	 * given name + their name in the `{sdb} migrations` table.

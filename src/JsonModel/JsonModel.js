@@ -157,7 +157,7 @@ class JsonModelImpl {
 		/** @type {JMColumnDef<Item, IDCol>[]} */
 		const mapCols =
 			options && options.cols
-				? options.cols.map(n => this.columns[n])
+				? options.cols.map(n => this.columns[n] ?? {name: n, alias: n, path: n})
 				: this.getCols
 		const out = this.Item ? new this.Item() : {}
 		for (const k of mapCols) {
@@ -395,9 +395,8 @@ class JsonModelImpl {
 			cursorArgs = [cursorVals[len]] // ID added at first
 			for (let i = len - 1; i >= 0; i--) {
 				const colAlias = cursorColAliases[i]
-				const column = Object.values(this.columns).find(
-					c => c.alias === colAlias
-				)
+				const column =
+					Object.values(this.columns).find(c => c.alias === colAlias) ?? {}
 				const val = cursorVals[i]
 
 				// Handle columns that can contain NULL values with COALESCE

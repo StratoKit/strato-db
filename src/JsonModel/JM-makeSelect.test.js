@@ -311,3 +311,40 @@ test('distinct', async () => {
 		false,
 	])
 })
+
+test('makeSelect join', async () => {
+	const m = getModel({})
+	const [q] = m.makeSelect({join: 'joinStatement'})
+	expect(q).toEqual(
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl joinStatement'
+	)
+})
+
+test('makeSelect select col not defined in model', async () => {
+	const m = getModel({})
+	const [q] = m.makeSelect({cols: ['columnName']})
+	expect(q).toEqual('SELECT columnName FROM "testing" tbl')
+})
+
+test('makeSelect sort by col not defined in model', async () => {
+	const m = getModel()
+	const [q] = m.makeSelect({sort: {columnName: 1}})
+	expect(q).toEqual(
+		'SELECT tbl."id" AS _i,tbl."json" AS _j FROM "testing" tbl ORDER BY columnName'
+	)
+})
+
+test('makeSelect sort by col not defined in model with cursor', async () => {
+	const m = getModel({})
+	const [q, , k] = m.makeSelect({
+		sort: {columnName: 1},
+		cursor: '!0~7',
+	})
+	// eslint-disable-next-line no-console
+	console.log(k)
+	expect(q).toEqual(
+		'SELECT tbl."id" AS _i,tbl."json" AS _j,columnName FROM "testing" tbl ' +
+			'WHERE((COALESCE(columnName, "")>=COALESCE(?, "") AND ' +
+			'(COALESCE(columnName, "")!=COALESCE(?, "") OR _i>?))) ORDER BY columnName,_i'
+	)
+})

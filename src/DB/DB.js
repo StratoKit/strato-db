@@ -70,15 +70,20 @@ class DBImpl extends SQLiteImpl {
 	 * Add a model to the DB, which will manage one or more tables in the SQLite
 	 * database. The model should use the given `db` instance at creation time.
 	 *
-	 * @param {Object} Model - A class.
-	 * @param {Object} [options] - Options passed during Model creation.
-	 * @returns {Object} - The created Model instance.
+	 * @template [Options=Record<string, any>] Default is `Record<string, any>`
+	 * @template {DBModel<Options & {db: DB}>} [T=DBModel<Options & {db: DB}>]
+	 *   Default is `DBModel<Options & {db: DB}>`
+	 * @param {T} Model - A class.
+	 * @param {Options} [options] - Options passed during Model creation.
+	 * @returns {InstanceType<T>} - The created Model instance.
 	 */
 	addModel(Model, options) {
-		const model = new Model({
-			...options,
-			db: this,
-		})
+		const model = new Model(
+			/** @type {Options & {db: DB}} */ ({
+				...options,
+				db: this,
+			})
+		)
 		if (this.store[model.name])
 			throw new TypeError(`Model name ${model.name} was already added`)
 		this.store[model.name] = model
