@@ -124,6 +124,9 @@ class EventQueueImpl extends JsonModel {
 		return this.getMaxV()
 	}
 
+	// We check every minute because we have a race condition where currentV is stale sometimes
+	_lastRealCheck = 0
+
 	/**
 	 * Get the highest version stored in the queue.
 	 *
@@ -132,12 +135,15 @@ class EventQueueImpl extends JsonModel {
 	async getMaxV() {
 		if (this._addP) await this._addP
 
-		const dataV = await this.db.dataVersion()
-		if (this.currentV >= 0 && this._dataV === dataV) {
-			// If there was no change on other connections, currentV is correct
-			return this.currentV
+		if (this._lastRealCheck + 60_000 > Date.now()) {
+			const dataV = await this.db.dataVersion()
+			if (this.currentV >= 0 && this._dataV === dataV) {
+				// If there was no change on other connections, currentV is correct
+				return this.currentV
+			}
+			this._dataV = dataV
 		}
-		this._dataV = dataV
+		this._lastRealCheck = Date.now()
 		if (this._maxSql?.db !== this.db)
 			this._maxSql = this.db.prepare(
 				`SELECT MAX(v) AS v from ${this.quoted}`,
