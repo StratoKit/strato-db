@@ -1,0 +1,72 @@
+# StratoDB Project Overview
+
+**Version:** 3.11.0 (from package.json)
+**Description:** NoSQL-hybrid with Event Sourcing based on sqlite.
+
+This document provides a high-level overview of the `strato-db` codebase, intended for AI agent understanding.
+
+## Core Concepts
+
+StratoDB is a database system built on SQLite that combines features of NoSQL document stores with the principles of Event Sourcing.
+
+- **Document Storage (`JsonModel`):** Objects are stored in SQLite tables, often with a primary JSON blob column and potentially indexed virtual columns extracted from the JSON structure.
+- **Event Sourcing (`EventSourcingDB`, `ESModel`, `EventQueue`):** Changes to the database state are driven by a sequence of events recorded in a persistent queue (`history` table by default). Instead of direct mutation, operations generate events, which are then processed sequentially and atomically to update the database state.
+- **Layered Architecture:**
+    - **`DB` Module:** Low-level SQLite interaction wrapper (Promises, prepared statements).
+    - **`JsonModel` Module:** ORM-like layer for interacting with tables as document stores.
+    - **`EventQueue` Module:** Persistent queue for storing and retrieving events.
+    - **`EventSourcingDB` Module:** Orchestrates the event processing pipeline, applying events to `ESModel` instances.
+    - **`ESModel` Module:** Connects `JsonModel` to the event sourcing system by translating operations into events and providing default event handlers.
+
+## Project Structure
+
+```
+.
+├── .cursor/rules/         # AI-readable documentation (GENERATED)
+│   ├── DB.mdc
+│   ├── EventQueue.mdc
+│   ├── EventSourcingDB.mdc
+│   ├── JsonModel.mdc
+│   └── Lib.mdc
+├── src/
+│   ├── DB/                # Core SQLite wrapper and abstractions
+│   ├── EventQueue.js      # Event queue implementation
+│   ├── EventSourcingDB/   # Event Sourcing orchestration and ESModel
+│   ├── JsonModel/         # Document store ORM layer
+│   ├── lib/               # Utility functions
+│   └── index.js           # Main library export
+├── dist/                  # Compiled output (JS)
+├── types.d.ts             # Main TypeScript definition file
+├── package.json           # Project metadata, dependencies, scripts
+├── tsconfig.json          # TypeScript configuration
+├── vite.config.ts         # Vite build/test configuration
+├── Readme.md              # User-facing README
+└── ... (config files, tests, etc.)
+```
+
+## Key Modules (Detailed Documentation)
+
+- **[DB Module](./DB.mdc):** Covers `DB.js`, `SQLite.js`, `Statement.js`.
+- **[EventQueue Module](./EventQueue.mdc):** Covers `EventQueue.js`.
+- **[JsonModel Module](./JsonModel.mdc):** Covers `JsonModel.js` and its helpers.
+- **[EventSourcingDB & ESModel Modules](./EventSourcingDB.mdc):** Covers `EventSourcingDB.js`, `ESModel.js`, `applyResult.js`.
+- **[Lib Module](./Lib.mdc):** Covers utilities in `src/lib`.
+
+## Technology Stack
+
+- **Language:** JavaScript (with JSDoc types), some TypeScript for tests and config.
+- **Database:** SQLite (via `sqlite3` Node.js package).
+- **Build/Test:** Vite, Vitest.
+- **Linting/Formatting:** ESLint, Prettier.
+- **Package Manager:** pnpm.
+
+## Entry Point (`src/index.js`)
+
+Exports the main classes/functions:
+
+- `DB` and `SQLite` from `./DB`
+- `EventQueue` from `./EventQueue`
+- `EventSourcingDB`, `applyResult`, `ESModel` from `./EventSourcingDB`
+- `JsonModel` from `./JsonModel`
+
+</rewritten_file>
