@@ -150,7 +150,7 @@ class EventQueueImpl extends JsonModel {
 				'maxV'
 			)
 		const lastRow = await this._maxSql.get()
-		this.currentV = Math.max(this.knownV, lastRow.v || 0)
+		this.currentV = Math.max(this.currentV, this.knownV, lastRow.v || 0)
 		return this.currentV
 	}
 
@@ -186,7 +186,7 @@ class EventQueueImpl extends JsonModel {
 				JSON.stringify(data),
 			])
 
-			this.currentV = v
+			this.currentV = Math.max(this.currentV, v)
 
 			const event = {v, type, ts, data}
 			dbg(`queued`, v, type)
