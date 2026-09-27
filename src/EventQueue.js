@@ -244,12 +244,10 @@ class EventQueueImpl extends JsonModel {
 						})
 					: null
 			if (event || noWait) break
-			// Wait for next one from this process
-			event = await this._nextAddedP
-			if (event === 'CANCEL') return
-			// Ignore previous events
-			if (v && event && event.v < v) event = null
-		} while (!event)
+			// Wait for next one from this process, then re-query: the added
+			// event is not necessarily the next one after v
+			if ((await this._nextAddedP) === 'CANCEL') return
+		} while (true)
 		return event
 	}
 

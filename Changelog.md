@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.11.2
+
+### Fixes
+
+- EventQueue: `getNext()` no longer skips pending events when a stale max version made it wait and a newer event was added; ESDB could silently skip events after a failed one.
+
 ## 3.6.1
 
 ### Changes
