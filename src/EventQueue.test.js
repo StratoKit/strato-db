@@ -76,6 +76,17 @@ test('getNext() waits', async () => {
 	expect(f.type).toBe('u')
 })
 
+test('getNext() does not skip pending events when woken by add', async () => {
+	const m = getModel()
+	await populate(m, 3)
+	const realGetMaxV = m.getMaxV.bind(m)
+	let stale = true
+	m.getMaxV = async () => (stale ? ((stale = false), 0) : realGetMaxV())
+	const p = m.getNext()
+	await m.add('t')
+	expect((await p).v).toBe(1)
+})
+
 test('getNext(v, true) polls once', async () => {
 	const m = getModel()
 	await m.setKnownV(10)
