@@ -70,7 +70,6 @@ type SQLiteOptions = {
  * - 'finally': transaction finished
  * - 'call': call to SQLite completed, includes data and duration
  */
-// eslint-disable-next-line unicorn/prefer-event-target
 declare class SQLite extends EventEmitter {
 	constructor(options?: SQLiteOptions)
 
@@ -772,22 +771,22 @@ interface EventQueue<
 		: // If we didn't get a config, assume all keys are columns
 			{[colName in keyof Item]: object},
 > extends JsonModel<
-		RealItem,
-		{
-			idCol: 'v'
-			columns: {
-				v: true
-				type: true
-				ts: true
-				data: true
-				result: true
-				size: true
-			}
-		} & Config,
-		IDCol,
-		Item,
-		Columns
-	> {
+	RealItem,
+	{
+		idCol: 'v'
+		columns: {
+			v: true
+			type: true
+			ts: true
+			data: true
+			result: true
+			size: true
+		}
+	} & Config,
+	IDCol,
+	Item,
+	Columns
+> {
 	new (options: EQOptions<RealItem>): this
 	/**
 	 * Get the highest version stored in the queue.
@@ -1001,7 +1000,9 @@ interface ESModel<
 			Item,
 	SearchAttrs = JMSearchAttrs<Columns>,
 	SearchOptions = JMSearchOptions<Columns>,
-> extends JsonModel<
+>
+	extends
+		JsonModel<
 			RealItem,
 			ConfigOrID,
 			IDCol,

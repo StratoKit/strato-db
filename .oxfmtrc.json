@@ -1,0 +1,20 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"arrowParens": "avoid",
+	"bracketSpacing": false,
+	"semi": false,
+	"singleQuote": true,
+	"trailingComma": "es5",
+	"useTabs": true,
+	"printWidth": 80,
+	"sortPackageJson": false,
+	"jsdoc": {"enabled": true},
+	"ignorePatterns": [
+		"dist/",
+		"coverage/",
+		"package.json",
+		"pnpm-lock.yaml",
+		"API.md",
+		"flake.lock"
+	]
+}

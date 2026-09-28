@@ -8,7 +8,6 @@ const makeDefaultIdValue = idCol => obj => {
 
 export const makeIdValue = (idCol, {value, slugValue, type} = {}) => {
 	if (type === 'INTEGER') {
-		// eslint-disable-next-line unicorn/prefer-logical-operator-over-ternary
 		return value
 			? value
 			: o => {

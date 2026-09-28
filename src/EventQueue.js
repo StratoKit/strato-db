@@ -27,8 +27,8 @@ const defaultColumns = {
 /**
  * An event queue, including history.
  *
- * @template {T}
- * @template {U}
+ * @template T
+ * @template U
  * @implements {EventQueue<T>}
  */
 class EventQueueImpl extends JsonModel {

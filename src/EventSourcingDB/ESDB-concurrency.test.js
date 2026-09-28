@@ -2,7 +2,6 @@ import sysPath from 'path'
 import tmp from 'tmp-promise'
 import ESDB from '.'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const payload = JSON.stringify(require('../../package.json')).repeat(50)
 
 let resolveMe, waitP
@@ -45,7 +44,6 @@ const testModels = {
 				resolveMe()
 				resolveMe = null
 				await waitP
-				// eslint-disable-next-line require-atomic-updates
 				waitP = null
 			}
 		},

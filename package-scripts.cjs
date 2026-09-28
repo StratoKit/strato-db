@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 const {series} = require('nps-utils')
 const {version} = require('./package.json')
 
@@ -14,13 +13,8 @@ const scripts = {
 		types: `tsc --emitDeclarationOnly`,
 	},
 	lint: {
-		default: 'eslint .',
-		// The setup-node action parses eslint errors, no formatter needed
-		ci: isPR
-			? `git diff --name-only --diff-filter=ACMRTUXB ${comparisonRef} | grep -E "\\.[jt]sx?$" | xargs -d \\\\n eslint`
-			: `eslint .`,
-		errors: 'eslint --format visualstudio --quiet .',
-		fix: `eslint --fix .; prettier --write .`,
+		default: 'oxlint && oxfmt --check',
+		fix: 'oxlint --fix && oxfmt',
 	},
 	test: {
 		default: series.nps('lint', 'test.full'),

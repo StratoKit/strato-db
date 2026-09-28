@@ -81,7 +81,6 @@ let connId = 1
  *
  * @implements {SQLite}
  */
-// eslint-disable-next-line unicorn/prefer-event-target
 class SQLiteImpl extends EventEmitter {
 	/** @param {SQLiteOptions} options */
 	constructor({
@@ -294,7 +293,6 @@ class SQLiteImpl extends EventEmitter {
 			// note that async errors are not handled
 			return fn(this)
 		}
-		// eslint-disable-next-line unicorn/error-message
 		this._queuedOnOpen.push({fn, stack: new Error('').stack})
 	}
 
@@ -377,7 +375,6 @@ class SQLiteImpl extends EventEmitter {
 					}
 			let busyRetry = RETRY_COUNT
 			// We need to consume `this` from sqlite3 callback
-			// eslint-disable-next-line unicorn/no-this-assignment, @typescript-eslint/no-this-alias -- we need it
 			const self = this
 			cb = function (err, out) {
 				if (shouldDebug) {
@@ -387,7 +384,6 @@ class SQLiteImpl extends EventEmitter {
 				if (err) {
 					if (isBusyError(err) && busyRetry--) {
 						dbgQ(`${name} busy, retrying`)
-						// eslint-disable-next-line promise/no-promise-in-callback
 						busyWait().then(runQuery).catch(reject)
 						return
 					}
@@ -516,9 +512,7 @@ class SQLiteImpl extends EventEmitter {
 	 *
 	 *   - The function to call on each row.
 	 *
-	 * @returns {Promise<void>}
-	 *
-	 *   - A promise for execution completion.
+	 * @returns {Promise<void>} - A promise for execution completion.
 	 */
 	each(...args) {
 		const lastIdx = args.length - 1

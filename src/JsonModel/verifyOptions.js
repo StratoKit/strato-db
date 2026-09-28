@@ -34,14 +34,14 @@ import PropTypes from 'prop-types'
  *
  * @property {boolean} [alwaysObject]
  *
- *   - The value is an object and must always be there. If this is a real column, a
- *       NULL column value will be replaced by `{}` and vice versa.
+ *   - The value is an object and must always be there. If this is a real column,
+ *     a NULL column value will be replaced by `{}` and vice versa.
  *
  * @property {function} [value]
  *
- *   - Function getting object and returning the value for the column; this creates
- *       a real column. Right now the column value is not regenerated for
- *       existing rows.
+ *   - Function getting object and returning the value for the column; this
+ *     creates a real column. Right now the column value is not regenerated for
+ *     existing rows.
  *
  * @property {function} [slugValue]
  *
@@ -61,27 +61,28 @@ import PropTypes from 'prop-types'
  *
  * @property {boolean} [falsyBool]
  *
- *   - Store/retrieve this boolean value as either `true` or absent from the object.
+ *   - Store/retrieve this boolean value as either `true` or absent from the
+ *     object.
  *
  * @property {boolean} [index]
  *
  *   - Should it be indexed? If `unique` is false, NULLs are never indexed.
  *
  * @property {boolean} [ignoreNull=!unique] - Are null values ignored in the
- *   index?. Default is `!unique`
+ *   index? Default is `!unique`
  * @property {boolean} [unique]
  *
  *   - Should the index enforce uniqueness?
  *
  * @property {function} [whereVal]
  *
- *   - A function receiving `origVals` and returning the `vals` given to `where`. It
- *       should return falsy or an array of values.
+ *   - A function receiving `origVals` and returning the `vals` given to `where`.
+ *     It should return falsy or an array of values.
  *
  * @property {string | function} [where]
  *
  *   - The where clause for querying, or a function returning one given `(vals,
- *       origVals)`
+ *     origVals)`
  *
  * @property {boolean} [isArray]
  *
@@ -93,8 +94,8 @@ import PropTypes from 'prop-types'
  *
  * @property {boolean} [inAll]
  *
- *   - [isArray only] to query, this column value must match all of the given array
- *       items.
+ *   - [isArray only] to query, this column value must match all of the given
+ *     array items.
  *
  * @property {boolean} [textSearch]
  *

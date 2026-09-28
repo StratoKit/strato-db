@@ -30,7 +30,12 @@ export default defineConfig(() => {
 		test: {
 			globals: true,
 			testTimeout: 20_000,
-			exclude: [...configDefaults.exclude, 'dist/**', 'dist-types/**'],
+			exclude: [
+				...configDefaults.exclude,
+				'dist/**',
+				'dist-types/**',
+				'.direnv/**',
+			],
 			coverage: {
 				exclude: [...configDefaults.coverage!.exclude!, 'package-scripts.cjs'],
 			},

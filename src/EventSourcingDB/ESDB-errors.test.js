@@ -1,4 +1,3 @@
-/* eslint-disable require-atomic-updates */
 import ESDB from '.'
 import {withESDB} from '../lib/_test-helpers'
 

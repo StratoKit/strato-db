@@ -1,0 +1,44 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["eslint", "typescript", "unicorn", "promise", "oxc"],
+	"env": {"builtin": true, "node": true, "commonjs": true, "es2022": true},
+	"globals": {
+		"describe": "readonly",
+		"test": "readonly",
+		"expect": "readonly",
+		"vi": "readonly",
+		"beforeAll": "readonly",
+		"afterAll": "readonly",
+		"beforeEach": "readonly",
+		"afterEach": "readonly"
+	},
+	"options": {"reportUnusedDisableDirectives": "warn"},
+	"ignorePatterns": ["build/**", "coverage/**", "dist/**", ".direnv/**"],
+	"rules": {
+		"no-unused-vars": [
+			"error",
+			{
+				"argsIgnorePattern": "^_",
+				"ignoreRestSiblings": true,
+				"varsIgnorePattern": "^_"
+			}
+		],
+		"default-param-last": "warn",
+		"eqeqeq": ["error", "always", {"null": "ignore"}],
+		"no-console": "error",
+		"no-shadow": "error",
+		"no-implicit-coercion": ["error", {"allow": ["!!"]}],
+		"object-shorthand": "error",
+		"prefer-destructuring": [
+			"error",
+			{"AssignmentExpression": {"array": false, "object": false}}
+		],
+		"valid-typeof": ["error", {"requireStringLiterals": true}],
+		"unicorn/consistent-function-scoping": "warn",
+		"typescript/ban-ts-comment": "warn",
+		"no-warning-comments": "warn",
+		"typescript/no-explicit-any": "off",
+		"no-constant-condition": ["error", {"checkLoops": false}],
+		"promise/no-callback-in-promise": "off"
+	}
+}

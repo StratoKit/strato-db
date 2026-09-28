@@ -141,7 +141,7 @@ class ESModel extends JsonModel {
 		 * @param {Object} obj
 		 *
 		 *   - The object to store. If there is no `id` value (or whatever the `id`
-		 *       column is named), one is assigned automatically.
+		 *     column is named), one is assigned automatically.
 		 *
 		 * @param {boolean} [insertOnly]
 		 *
@@ -151,9 +151,8 @@ class ESModel extends JsonModel {
 		 *
 		 *   - Extra metadata to store in the event but not in the object.
 		 *
-		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 *
-		 *   - Args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - Args to pass to
+		 *   addEvent/dispatch.
 		 */
 		set: (obj, insertOnly, meta) => {
 			const data = [insertOnly ? ESModel.INSERT : ESModel.SET, null, obj]
@@ -173,11 +172,11 @@ class ESModel extends JsonModel {
 		 *
 		 * @param {any} [meta]
 		 *
-		 *   - Extra metadata to store in the event at `data[3]` but not in the object.
+		 *   - Extra metadata to store in the event at `data[3]` but not in the
+		 *     object.
 		 *
-		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 *
-		 *   - Args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - Args to pass to
+		 *   addEvent/dispatch.
 		 */
 		update: (obj, upsert, meta) => {
 			const id = obj[this.idCol]
@@ -203,9 +202,8 @@ class ESModel extends JsonModel {
 		 *
 		 *   - Metadata, attached to the event only, at `data[3]`
 		 *
-		 * @returns {Pick<ESEvent, 'type' | 'data'>}
-		 *
-		 *   - Args to pass to addEvent/dispatch.
+		 * @returns {Pick<ESEvent, 'type' | 'data'>} - Args to pass to
+		 *   addEvent/dispatch.
 		 */
 		remove: (idOrObj, meta) => {
 			const id = typeof idOrObj === 'object' ? idOrObj[this.idCol] : idOrObj
@@ -304,9 +302,7 @@ class ESModel extends JsonModel {
 	 *
 	 *   - Metadata, attached to the event only, at `data[3]`
 	 *
-	 * @returns {Promise<boolean>}
-	 *
-	 *   - Always returns true.
+	 * @returns {Promise<boolean>} - Always returns true.
 	 */
 	async remove(idOrObj, meta) {
 		if (this.writable) return super.remove(idOrObj)
@@ -367,7 +363,6 @@ class ESModel extends JsonModel {
 		if (event.type !== model.TYPE) return
 		if (event.data[0] > ESModel.REMOVE) {
 			// Always overwrite, so repeat events get correct ids
-			// eslint-disable-next-line require-atomic-updates
 			event.data[1] = await getId(model, event.data[2])
 			return event
 		}

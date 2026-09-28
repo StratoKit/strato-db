@@ -1,4 +1,3 @@
-/* eslint-disable require-atomic-updates */
 // Event Sourcing DataBase
 // * Only allows changes via messages that are stored and processed. This allows easy
 //   replication, debugging and possibly even rollback
@@ -54,11 +53,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms))
 const hasUndefValue = obj => {
 	if (typeof obj === 'undefined') return true
 	if (!obj) return false
-	// eslint-disable-next-line unicorn/no-array-callback-reference
 	if (Array.isArray(obj)) return obj.some(hasUndefValue)
-	if (typeof obj === 'object')
-		// eslint-disable-next-line unicorn/no-array-callback-reference
-		return Object.values(obj).some(hasUndefValue)
+	if (typeof obj === 'object') return Object.values(obj).some(hasUndefValue)
 	return false
 }
 
@@ -152,7 +148,6 @@ const makeDispatcher = (name, fn) => (typeOrEvent, data, ts) => {
  * @augments EventEmitter
  * @implements EventSourcingDB
  */
-// eslint-disable-next-line unicorn/prefer-event-target
 class EventSourcingDB extends EventEmitter {
 	MAX_RETRY = 38 // this is an hour
 
@@ -457,8 +452,8 @@ class EventSourcingDB extends EventEmitter {
 	}
 
 	/**
-	 * @param {string | {type: string; data?: any; ts?: number}} typeOrEvent
-	 *   Event type or the entire event.
+	 * @param {string | {type: string; data?: any; ts?: number}} typeOrEvent Event
+	 *   type or the entire event.
 	 * @param {any} [data] Event data, can be anything.
 	 * @param {number} [ts] The timestamp of the event.
 	 * @returns {Promise<Event>} The processed event.
@@ -526,7 +521,6 @@ class EventSourcingDB extends EventEmitter {
 				const prevV = Number(vStr)
 				if (prevV > event.v) continue
 				// Note: if the DB fails for get(), the trigger won't run and it will retry later
-				// eslint-disable-next-line promise/catch-or-return
 				this.queue
 					.get(prevV)
 					.then(prevEvent => this._triggerEventListeners(prevEvent))

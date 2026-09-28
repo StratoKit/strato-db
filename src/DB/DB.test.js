@@ -17,7 +17,6 @@ test('can register model', () => {
 test('has migration', async () => {
 	const db = new DB()
 	let canary = 0
-	// eslint-disable-next-line promise/catch-or-return
 	db.dbP.then(() => {
 		// This should run after the migrations
 		if (canary === 2) canary = 3
