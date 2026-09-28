@@ -15,8 +15,8 @@
         bashInteractive
         sqlite-interactive
         # NodeJS
-        nodejs_22
-        corepack_22
+        nodejs_24
+        corepack_24
       ];
       makeDevShell = system: pkgs: {
         default = pkgs.mkShell {
